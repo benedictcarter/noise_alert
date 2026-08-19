@@ -1,0 +1,30 @@
+# Flutter/Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+.idea/
+.vscode/
+# Android
+android/.gradle/
+android/local.properties
+android/key.properties
+*.jks
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/ephemeral/
+*.xcuserstate
+DerivedData/
+# Secrets / config
+.env
+.env.*
+!.env.example
+secrets/
+# OS
+.DS_Store
+Thumbs.db
