@@ -1,3 +1,14 @@
+/// Order-sensitive element comparison, so the domain layer stays pure Dart
+/// rather than pulling in `package:flutter/foundation.dart` for one function.
+bool listEquals<T>(List<T> a, List<T> b) {
+  if (identical(a, b)) return true;
+  if (a.length != b.length) return false;
+  for (int i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
+
 /// The complainant's details.
 ///
 /// Stored in the app's private database on the device and nowhere else. It is
@@ -69,6 +80,32 @@ class ComplainantProfile {
         'phone': phone,
       };
 
+  /// Value equality matters here beyond tidiness: `StateNotifier` only tells
+  /// its listeners about a new state when `state != newState`, so without this
+  /// every keystroke in the settings form would rebuild every consumer.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ComplainantProfile &&
+          other.fullName == fullName &&
+          other.addressLine1 == addressLine1 &&
+          other.addressLine2 == addressLine2 &&
+          other.town == town &&
+          other.postcode == postcode &&
+          other.email == email &&
+          other.phone == phone;
+
+  @override
+  int get hashCode => Object.hash(
+        fullName,
+        addressLine1,
+        addressLine2,
+        town,
+        postcode,
+        email,
+        phone,
+      );
+
   static ComplainantProfile fromJson(Map<String, Object?> json) =>
       ComplainantProfile(
         fullName: json['fullName'] as String? ?? '',
@@ -122,6 +159,25 @@ class RecipientSet {
         'cc': cc,
         'bcc': bcc,
       };
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RecipientSet &&
+          other.id == id &&
+          other.label == label &&
+          listEquals(other.to, to) &&
+          listEquals(other.cc, cc) &&
+          listEquals(other.bcc, bcc);
+
+  @override
+  int get hashCode => Object.hash(
+        id,
+        label,
+        Object.hashAll(to),
+        Object.hashAll(cc),
+        Object.hashAll(bcc),
+      );
 
   static RecipientSet fromJson(Map<String, Object?> json) => RecipientSet(
         id: json['id'] as String,

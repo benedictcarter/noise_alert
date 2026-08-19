@@ -145,7 +145,8 @@ void main() {
     );
   });
 
-  test('an aircraft that had already passed long before is out of the window', () {
+  test('an aircraft that had already passed long before is out of the window',
+      () {
     // Closest approach three minutes before the press: even a slow reaction
     // cannot stretch that far, and the sound would have arrived and gone.
     final DateTime heardAt = _t0.add(const Duration(minutes: 3));

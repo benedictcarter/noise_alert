@@ -83,6 +83,39 @@ class AppSettings {
         templateBody: templateBody ?? this.templateBody,
       );
 
+  /// See the note on [ComplainantProfile.==]: without value equality the
+  /// settings screen rebuilds every consumer on every keystroke.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AppSettings &&
+          other.calibrationOffsetDb == calibrationOffsetDb &&
+          other.calibrated == calibrated &&
+          other.keepClip == keepClip &&
+          other.attachClipByDefault == attachClipByDefault &&
+          other.bccSelf == bccSelf &&
+          other.openSkyClientId == openSkyClientId &&
+          other.openSkyClientSecret == openSkyClientSecret &&
+          listEquals(other.recipientSets, recipientSets) &&
+          other.activeRecipientSetId == activeRecipientSetId &&
+          other.templateSubject == templateSubject &&
+          other.templateBody == templateBody;
+
+  @override
+  int get hashCode => Object.hash(
+        calibrationOffsetDb,
+        calibrated,
+        keepClip,
+        attachClipByDefault,
+        bccSelf,
+        openSkyClientId,
+        openSkyClientSecret,
+        Object.hashAll(recipientSets),
+        activeRecipientSetId,
+        templateSubject,
+        templateBody,
+      );
+
   Map<String, Object?> toJson() => <String, Object?>{
         'calibrationOffsetDb': calibrationOffsetDb,
         'calibrated': calibrated,

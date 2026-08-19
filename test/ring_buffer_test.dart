@@ -51,7 +51,8 @@ void main() {
     expect(out.last * 32768, closeTo(2900, 1)); // sample 29
   });
 
-  test('history that was never recorded comes back as silence, not garbage', () {
+  test('history that was never recorded comes back as silence, not garbage',
+      () {
     // Pressing the button five seconds after opening the screen must not
     // fabricate a pre-roll out of whatever was in memory.
     final PcmRingBuffer buffer = PcmRingBuffer(capacitySamples: 100);

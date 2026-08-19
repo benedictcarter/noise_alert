@@ -82,7 +82,8 @@ void main() {
     expect(m.peakWindowLaEqDb, greaterThan(m.laEqDb + 3));
   });
 
-  test('ambient L90 comes from the pre-roll only, so the event does not '
+  test(
+      'ambient L90 comes from the pre-roll only, so the event does not '
       'inflate the background', () {
     final Float64List samples = _concat(<Float64List>[
       _tone(seconds: 10, amplitude: 0.002),
@@ -115,7 +116,8 @@ void main() {
     expect(shifted.laMaxDb, closeTo(m.laMaxDb + 17, 0.001));
   });
 
-  test('clipping is reported so the complaint can say "at least this loud"', () {
+  test('clipping is reported so the complaint can say "at least this loud"',
+      () {
     final AcousticMetrics m = analyzer.analyze(
       samples: _tone(seconds: 1, amplitude: 1.0),
       sampleRate: _fs,

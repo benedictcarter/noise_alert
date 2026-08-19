@@ -8,9 +8,11 @@ import 'package:noise_alert/data/audio/a_weighting.dart';
 void main() {
   group('A-weighting frequency response', () {
     test('matches IEC 61672-1 Table 3 at 48 kHz', () {
-      final AWeighting weighting = AWeighting(AudioConfig.sampleRate.toDouble());
+      final AWeighting weighting =
+          AWeighting(AudioConfig.sampleRate.toDouble());
 
-      for (final (double frequency, double expected) in kAWeightingReferenceDb) {
+      for (final (double frequency, double expected)
+          in kAWeightingReferenceDb) {
         final double actual = weighting.responseDb(frequency);
 
         if (frequency >= 16000) {
@@ -35,11 +37,13 @@ void main() {
     });
 
     test('is unity gain at 1 kHz by definition', () {
-      final AWeighting weighting = AWeighting(AudioConfig.sampleRate.toDouble());
+      final AWeighting weighting =
+          AWeighting(AudioConfig.sampleRate.toDouble());
       expect(weighting.responseDb(1000), closeTo(0, 0.05));
     });
 
-    test('16 kHz sampling is refused as too low for the 12.2 kHz pole pair', () {
+    test('16 kHz sampling is refused as too low for the 12.2 kHz pole pair',
+        () {
       // The filter is still constructable at 16 kHz, but the top section
       // collapses against Nyquist and the response is no longer A-weighting.
       // This is why AudioConfig.sampleRate is 48 kHz and not the more common

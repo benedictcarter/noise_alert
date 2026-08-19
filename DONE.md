@@ -51,6 +51,11 @@
   independent of the calibration offset.
 
 ## Tests (2026-08-19)
-31 tests green in one run, `flutter analyze` clean:
+51 tests green in one run, `flutter analyze` clean:
 `a_weighting_test` (5) · `noise_analyzer_test` (6) · `flight_matcher_test` (6) ·
-`complaint_template_test` (9) · `ring_buffer_test` (5).
+`complaint_template_test` (9) · `ring_buffer_test` (5) · `database_test` (8, real SQLite via
+`sqflite_common_ffi`) · `adsb_parsing_test` (12, fixture bodies through the real JSON path).
+
+Added value equality to `ComplainantProfile`, `RecipientSet` and `AppSettings` along the way —
+`StateNotifier` only notifies listeners when `state != newState`, so without it every keystroke in
+the settings form rebuilt every consumer.

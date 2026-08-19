@@ -50,6 +50,7 @@ class RecorderService {
   bool get isRunning => _subscription != null;
   PcmRingBuffer get buffer => _buffer;
   Stream<MeterReading> get meterStream => _meter.stream;
+
   /// Only affects the on-screen meter; each snap is analysed with the offset
   /// in force at the time of the press.
   double calibrationOffsetDb;

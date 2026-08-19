@@ -21,10 +21,6 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
       neither of which can run this app (`record`, `geolocator`, `sqflite` are mobile-only here).
       Needs either Ben's phone over USB with developer mode on, or an AVD built from a *Google APIs*
       system image (a bare AOSP image has no mail app, so the composer handoff cannot be tested).
-- [ ] Database tests via `sqflite_common_ffi` (schema round trip, settings/profile persistence,
-      snap update paths). Nothing currently tests `database.dart`.
-- [ ] ADS-B client tests against recorded fixture JSON (`Tar1090Source.parse`,
-      `OpenSkySource.parseStates`) — the parsers are exposed for exactly this and are still untested.
 - [ ] CI: `flutter analyze` + `flutter test` on push (GitHub Actions).
 - [ ] Permission denial / "denied forever" UI states — the services return failures cleanly but the
       screens do not yet offer "open settings".
