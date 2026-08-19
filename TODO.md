@@ -9,12 +9,18 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
 - [ ] Decide whether a real SPL meter can be borrowed for a one-off calibration (offset per handset).
       Until then every letter carries the "NOT been calibrated" paragraph and leads on excess over
       ambient, which is offset-independent.
-- [ ] **iOS needs a Mac.** Windows cannot build or sign an iOS app. Either a macOS machine, or a
-      macOS CI runner (GitHub Actions `macos-latest`, or Codemagic). Decision needed before TestFlight.
+- [ ] **iOS is parked** (2026-08-19, Ben: no Mac and no access to one). Windows cannot build or sign
+      an iOS app. When iOS matters, the route is **cloud macOS CI** — Codemagic (free tier, built for
+      Flutter, does signing + TestFlight upload) or GitHub Actions `macos-latest`. No Mac needed.
+      A macOS VM on non-Apple hardware breaks Apple's licence, so the release path will not rest on it.
+      Also needs the Apple Developer Program (£79/$99 a year) before TestFlight — not yet.
 
 ## Next up
-- [ ] First on-device smoke test on Android (two devices are attached): permissions, live meter,
-      snap → review → mail composer end to end.
+- [ ] First on-device smoke test on Android: permissions, live meter, snap → review → mail composer
+      end to end. **No device or AVD available yet** — `flutter devices` shows only Windows and Edge,
+      neither of which can run this app (`record`, `geolocator`, `sqflite` are mobile-only here).
+      Needs either Ben's phone over USB with developer mode on, or an AVD built from a *Google APIs*
+      system image (a bare AOSP image has no mail app, so the composer handoff cannot be tested).
 - [ ] Database tests via `sqflite_common_ffi` (schema round trip, settings/profile persistence,
       snap update paths). Nothing currently tests `database.dart`.
 - [ ] ADS-B client tests against recorded fixture JSON (`Tar1090Source.parse`,
