@@ -87,3 +87,26 @@ candidates against a time the user never experienced.
 or the network, and everything downstream is expressed relative to that instant. Related: the `Snap`
 is written to the database *before* the flight lookup runs, so a dead network loses the identification
 but never the measurement.
+
+## Dropping freezed means hand-writing `==`, or Riverpod over-rebuilds silently (2026-08-19)
+**Mechanism:** `StateNotifier.state = x` only notifies listeners when `state != x`. Dart's default
+`==` is identity, so a hand-written model always compares unequal to a fresh copy of itself — every
+`copyWith` from a text field's `onChanged` looks like a genuine change and rebuilds every consumer of
+that provider. Nothing fails; the app is just quietly doing far more work than it looks like, and the
+settings form is the worst case because it fires per keystroke. freezed generates `==` for you, which
+is why the trap only appears once you have decided not to use it.
+**Incident:** a database test asserted `await db.loadProfile() == profile` and failed with
+`Expected: <Instance of 'ComplainantProfile'>  Actual: <Instance of 'ComplainantProfile'>` — two
+objects with identical fields. Added `==`/`hashCode` to `ComplainantProfile`, `RecipientSet` and
+`AppSettings`.
+**Rule:** every hand-written model that ends up in provider state needs `==` and `hashCode`, and the
+cheapest way to notice a missing one is to assert value equality in a test.
+
+## sqflite has no desktop binding — use `sqflite_common_ffi` in tests (2026-08-19)
+**Mechanism:** `sqflite` is a plugin over the platform's own SQLite, so in the Dart test VM there is
+no implementation at all and every call throws `MissingPluginException`. `sqflite_common_ffi` links
+real SQLite through `dart:ffi`, so the tests exercise genuine SQL rather than a fake.
+**Recipe:** `sqfliteFfiInit(); databaseFactory = databaseFactoryFfi;` at the top of `main()`, and open
+with `inMemoryDatabasePath` so each test gets a clean schema with no temp files to clean up. This is
+also why `AppDatabase.open` takes an `overridePath` — `getApplicationDocumentsDirectory()` is itself a
+plugin call and would fail in tests.
