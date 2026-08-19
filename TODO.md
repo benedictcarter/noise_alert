@@ -1,50 +1,41 @@
 # TODO
 
-See [PLAN.md](PLAN.md) for the full design and rationale.
+See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move to [DONE.md](DONE.md).
 
 ## Blocked on Ben
-- [ ] Confirm airport + recipient addresses for the default recipient set (flight-watch group, airport noise team)
-- [ ] Confirm home/monitoring location and typical overflight altitude (tunes the match scoring)
-- [ ] Decide: is a real SPL meter available to calibrate against?
-- [ ] Confirm audio clip default (off recommended) and clip length (10 s recommended)
+- [ ] Confirm airport + recipient addresses for the default recipient set (flight-watch group, airport
+      noise team). Currently defaults to `benedict.carter@gmail.com` only.
+- [ ] **UAT:** run the app on a handset, snap a real overflight, check the letter reads right.
+- [ ] Decide whether a real SPL meter can be borrowed for a one-off calibration (offset per handset).
+      Until then every letter carries the "NOT been calibrated" paragraph and leads on excess over
+      ambient, which is offset-independent.
+- [ ] **iOS needs a Mac.** Windows cannot build or sign an iOS app. Either a macOS machine, or a
+      macOS CI runner (GitHub Actions `macos-latest`, or Codemagic). Decision needed before TestFlight.
 
-## M0 — Scaffold
-- [ ] `flutter create` with org id, iOS + Android only
-- [ ] Riverpod + freezed + drift + dio wiring, lints, `flutter analyze` clean
-- [ ] CI: analyze + unit tests
-- [ ] Permission plumbing (mic, location, notifications) with denial/limited states
-
-## M1 — Snap core
-- [ ] Raw PCM capture at 16 kHz mono, AGC/voice-processing disabled
-- [ ] A-weighting biquad cascade + LAeq + LAmax(125 ms) — unit tested against synthetic tones
-- [ ] GPS fix with accuracy gating and a stale-fix guard
-- [ ] Optional M4A clip writer (10 s ring buffer so we capture pre-roll)
-- [ ] drift schema: snaps, metrics, clips
-- [ ] Big-button screen with live dB meter; history list
-
-## M2 — Flight match
-- [ ] `AdsbSource` interface; adsb.lol + airplanes.live clients
-- [ ] OpenSky OAuth2 client-credentials client with credit budgeting
-- [ ] Propagation-delay-aware candidate scoring (slant range, elevation angle, altitude, time)
-- [ ] Review screen: best match, alternates, confidence, "unidentified aircraft"
-- [ ] Unit tests with recorded fixture responses
-
-## M3 — Complaint email
-- [ ] Profile store (name, address, postcode, email) — device-only
-- [ ] Recipient sets (to/cc/bcc) per airport, editable
-- [ ] Form-letter template with tokens + live preview
-- [ ] `flutter_email_sender` handoff with attachment; `mailto:` fallback
-- [ ] Mark-as-sent + resend from history
+## Next up
+- [ ] First on-device smoke test on Android (two devices are attached): permissions, live meter,
+      snap → review → mail composer end to end.
+- [ ] Database tests via `sqflite_common_ffi` (schema round trip, settings/profile persistence,
+      snap update paths). Nothing currently tests `database.dart`.
+- [ ] ADS-B client tests against recorded fixture JSON (`Tar1090Source.parse`,
+      `OpenSkySource.parseStates`) — the parsers are exposed for exactly this and are still untested.
+- [ ] CI: `flutter analyze` + `flutter test` on push (GitHub Actions).
+- [ ] Permission denial / "denied forever" UI states — the services return failures cleanly but the
+      screens do not yet offer "open settings".
+- [ ] `permission_handler` and `share_plus` are declared in `pubspec.yaml` but unused — either wire
+      them up (M4 export) or drop them before release.
 
 ## M4 — Evidence quality
-- [ ] Calibration screen (offset per device) + `calibrated` flag on every snap
+- [ ] Calibration flow beyond the raw offset field (guided side-by-side reading against an SPL meter)
 - [ ] CSV export of all snaps; share sheet
-- [ ] BCC-to-group option
+- [ ] Multiple named recipient sets (the model supports a list; the UI edits only the first)
+- [ ] Re-open / resend a sent complaint from history
 
 ## M5 — Beta hardening
-- [ ] Offline queue + OpenSky 1-hour retro back-fill
-- [ ] Battery and permission edge cases; error states
-- [ ] TestFlight + signed APK for the beta group
+- [ ] Offline queue: snap now, match later (OpenSky 1-hour retro back-fill is written but untested
+      against the live service — needs credentials)
+- [ ] Battery, long-session and interruption cases (call arrives mid-record, headset plugged in)
+- [ ] Signed APK for the beta group; TestFlight once a Mac/CI runner exists
 
 ## M6 — Autonomous listening (Phase 2)
 - [ ] YAMNet TFLite integration, aircraft-class scoring
@@ -55,4 +46,5 @@ See [PLAN.md](PLAN.md) for the full design and rationale.
 
 ## M7 — Store release
 - [ ] Privacy policy, data-safety / privacy-manifest forms
-- [ ] iOS usage strings, icons, screenshots, store copy
+- [ ] App icons, screenshots, store copy
+- [ ] Android 14+ foreground-service declaration if M6 ships

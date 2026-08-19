@@ -1,0 +1,40 @@
+name: noise_alert
+description: Log aircraft noise events and generate complaint emails.
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod:
+  # audio capture (raw PCM stream) and playback of the saved clip
+  record:
+  just_audio:
+  # location, permissions, device metadata
+  geolocator:
+  permission_handler:
+  device_info_plus:
+  package_info_plus:
+  # storage
+  sqflite:
+  path_provider:
+  path:
+  # networking
+  http:
+  # mail + sharing
+  flutter_email_sender:
+  url_launcher:
+  share_plus:
+  # formatting
+  intl:
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints:
+
+flutter:
+  uses-material-design: true

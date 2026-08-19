@@ -9,7 +9,7 @@ responsible flight, and produces a ready-to-send complaint email from the user's
 |---|---|---|
 | Stack | **Flutter** (iOS + Android, one codebase) | Raw PCM access, TFLite audio models, background service, native mail composer all available |
 | Sending | **Device mail composer** (`flutter_email_sender`) | Mail leaves the *user's* mailbox. We store no personal data off-device, so we are not a GDPR controller |
-| Storage | **On-device SQLite only** (drift) | Same reason. Export = CSV / `.eml`, never an upload |
+| Storage | **On-device SQLite only** (`sqflite`, hand-written SQL) | Same reason. Export = CSV / `.eml`, never an upload |
 | Distribution | Sideload/TestFlight beta, then free public store listing | Store constraints designed in from day 1, not bolted on |
 | Auto-detect | **Phase 2** (YAMNet) | v1 must first nail the boring bits: dB, GPS, match, email |
 
@@ -32,9 +32,9 @@ lib/
     audio/       PCM capture, A-weighting filter, LAeq/LAmax, WAV/M4A writer
     location/    geolocator wrapper, accuracy gating
     flights/     AdsbLolClient, AirplanesLiveClient, OpenSkyClient, FlightMatcher
-    storage/     drift DB: snaps, matches, profile, recipient sets
+    storage/     sqflite DB: snaps, matches, profile, settings
     mail/        template renderer + flutter_email_sender
-  domain/        Snap, AcousticMetrics, AircraftState, FlightMatch, ComplaintDraft (freezed)
+  domain/        Snap, AcousticMetrics, AircraftSample, FlightMatch, ComplaintDraft (hand-written)
   features/
     snap/        the big button + live dB meter
     history/     list of snaps, status (matched / sent / unmatched)
@@ -42,12 +42,24 @@ lib/
     settings/    profile, recipients, calibration, clip on/off
   listener/      PHASE 2: foreground service + YAMNet classifier
 ```
-State: Riverpod. Models: freezed + json_serializable. DB: drift.
+State: **Riverpod 2.x** (`StateNotifierProvider`, `ConsumerWidget`). Models: **hand-written**
+immutable classes with `copyWith` / `toJson` / `fromJson`. DB: **sqflite**, hand-written SQL.
+HTTP: **`package:http`**.
+
+**No code generation.** The original plan was freezed + json_serializable + drift + dio. Dropped
+during M0: on Flutter 3.47 the `build_runner` chain pinned `analyzer` to a version that conflicted
+with the SDK's own, and `drift_dev` dragged the conflict wider. Hand-writing four model classes and
+six SQL statements cost about an hour once; the generator chain would have cost that on every SDK
+bump. `dio` went the same way — nothing here needs interceptors, so `package:http` is one less
+constraint to satisfy.
 
 ## The three hard problems
 
 ### 1. Decibels on an uncalibrated phone mic
-- Capture **raw PCM** (16 kHz mono) rather than a package's smoothed level, so we control the maths.
+- Capture **raw PCM** (**48 kHz** mono) rather than a package's smoothed level, so we control the
+  maths. 48 kHz is mandatory, not a preference: the A-weighting curve has a pole pair at 12.2 kHz,
+  and at the usual 16 kHz voice rate that section collapses against Nyquist and the response stops
+  being A-weighting at all. See `AWeighting.minimumRecommendedSampleRate`.
 - Apply an **A-weighting biquad cascade**, then compute **LAeq** (energy average over the window) and
   **LAmax** (fast, 125 ms). These are the two numbers airports and councils actually use; a bare
   "peak dB" gets a complaint dismissed.
@@ -103,9 +115,10 @@ historical lookup and dodges the paid-API problem entirely.
 - **M7 — Store release.** Privacy policy, data-safety forms, iOS usage strings, icons, screenshots.
 
 ## Key packages
-`record` (raw PCM) · `geolocator` · `permission_handler` · `drift` · `flutter_riverpod` · `freezed`
-· `dio` · `flutter_email_sender` · `share_plus` (export fallback) · `tflite_flutter` (M6) ·
-`flutter_foreground_task` (M6)
+`record` (raw PCM) · `geolocator` · `permission_handler` · `sqflite` · `flutter_riverpod` (2.x) ·
+`http` · `flutter_email_sender` · `url_launcher` (mailto fallback) · `just_audio` (clip preview) ·
+`device_info_plus` + `package_info_plus` (handset/OS stamped into every letter) · `path_provider` ·
+`share_plus` (export fallback) · `tflite_flutter` (M6) · `flutter_foreground_task` (M6)
 
 ## Known risks
 1. **iOS mail composer needs a configured Mail account.** No account, no composer. Fallback:

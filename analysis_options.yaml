@@ -1,0 +1,22 @@
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    prefer_const_constructors: true
+    prefer_final_locals: true
+    avoid_print: true
+    # require_trailing_commas is deliberately off: `dart format`'s tall style
+    # removes the very commas the lint asks for, so the two fight each other
+    # and every format run reintroduces the warnings.
+
+analyzer:
+  errors:
+    todo: ignore
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
