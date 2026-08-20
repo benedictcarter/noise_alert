@@ -120,6 +120,11 @@ class SnapService {
   Future<void> openLocationSettings() =>
       location.openRelevantSettings(_locationStatus.availability);
 
+  /// The app's page in the phone's settings. Borrowed from the location
+  /// plugin, which is the only one here that offers it, but it opens the whole
+  /// app entry -- microphone included.
+  Future<void> openAppSettings() => location.openAppSettings();
+
   /// Opens the microphone and starts polling for nearby aircraft.
   ///
   /// Called when the snap screen appears, not when the button is pressed: the

@@ -15,7 +15,6 @@ const ComplainantProfile _profile = ComplainantProfile(
   addressLine1: '1 Quiet Lane',
   town: 'Someton',
   postcode: 'AB1 2CD',
-  email: 'resident@example.com',
 );
 
 AcousticMetrics _metrics({
@@ -207,7 +206,7 @@ void main() {
     expect(with_.body, contains('Attached is a 10 second'));
   });
 
-  test('bccSelf adds the complainant once, without duplicating', () {
+  test('the Bcc list is sent exactly as it was configured', () {
     final ComplaintDraft draft = template.render(
       snap: _snap(),
       profile: _profile,
@@ -223,12 +222,13 @@ void main() {
       ),
     );
 
+    // No address of the user's own is folded in: the app does not know one.
+    // Anyone wanting a copy of their own complaint puts themselves in Bcc.
     expect(draft.to, <String>['airport@example.com']);
     expect(
-      draft.bcc.where((String a) => a == 'resident@example.com').length,
-      1,
+      draft.bcc,
+      <String>['resident@example.com', 'group@example.com'],
     );
-    expect(draft.bcc, contains('group@example.com'));
   });
 
   test('an unknown token is left visible rather than silently dropped', () {

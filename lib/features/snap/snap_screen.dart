@@ -43,6 +43,11 @@ class SnapScreen extends ConsumerStatefulWidget {
 class _SnapScreenState extends ConsumerState<SnapScreen>
     with WidgetsBindingObserver {
   String? _armError;
+
+  /// True when the last attempt to open the microphone was refused rather than
+  /// broken. Kept apart from [_armError] because a refusal is not an error the
+  /// user has to read: it is a button they have to press.
+  bool _micDenied = false;
   bool _capturing = false;
   String? _statusLine;
   LocationStatus _location =
@@ -154,26 +159,95 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
       if (mounted) {
         setState(() {
           _armError = null;
+          _micDenied = false;
           _location = service.locationStatus;
         });
       }
     } on Object catch (e) {
-      if (mounted) setState(() => _armError = _friendlyArmError(e));
+      final bool denied = _looksLikeRefusal(e);
+      if (mounted) {
+        setState(() {
+          _micDenied = denied;
+          _armError = denied ? null : 'Could not start the microphone: $e';
+        });
+      }
+    }
+  }
+
+  static bool _looksLikeRefusal(Object error) =>
+      error.toString().toLowerCase().contains('permission');
+
+  /// Asks for the microphone again, for the however-manyth time.
+  ///
+  /// There is no limit on this by design. Someone who tapped Deny to make a
+  /// box go away, and now wants to record an aeroplane, must be able to get
+  /// back to Allow by pressing the obvious button -- not by being told the app
+  /// is broken and left there.
+  ///
+  /// Two refusals in, Android stops showing its own dialog and simply answers
+  /// no. Nothing tells us that has happened, so the flow is: explain, ask, and
+  /// if it is still refused afterwards offer the settings page. That costs one
+  /// extra tap on the first refusal and rescues every refusal after it.
+  Future<void> _askForMic() async {
+    final bool? go = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) => AlertDialog(
+        icon: const Icon(Icons.mic, size: 36),
+        title: const Text('Turn on the microphone'),
+        content: const Text(
+          'To measure how loud the aircraft is, the app needs to use the '
+          'microphone.\n\n'
+          'The sound stays on this phone. Nothing is uploaded, and nothing is '
+          'sent with a complaint unless you choose to attach it.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Not now'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+    if (go != true || !mounted) return;
+
+    await _arm();
+    if (!mounted || !_micDenied) return;
+
+    final bool? toSettings = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) => AlertDialog(
+        icon: const Icon(Icons.settings, size: 36),
+        title: const Text('One more step'),
+        content: const Text(
+          'The phone is still not letting the app use the microphone.\n\n'
+          'Tap Open settings, choose Permissions, and switch Microphone on. '
+          'Then come back here.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Later'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Open settings'),
+          ),
+        ],
+      ),
+    );
+    if (toSettings == true) {
+      await ref.read(snapServiceProvider).openAppSettings();
+      // didChangeAppLifecycleState re-arms on the way back in.
     }
   }
 
   Future<void> _fixLocation() async {
     await ref.read(snapServiceProvider).openLocationSettings();
     // The status is re-read by didChangeAppLifecycleState on the way back.
-  }
-
-  String _friendlyArmError(Object error) {
-    final String text = error.toString();
-    if (text.contains('permission')) {
-      return 'Microphone permission is needed to measure sound levels. '
-          'Grant it in system settings, then reopen this screen.';
-    }
-    return 'Could not start the microphone: $text';
   }
 
   Future<void> _snap({bool fromWidget = false, bool auto = false}) async {
@@ -337,14 +411,14 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
                     ),
                   ),
                 ),
-              if (!_location.isReady && _armError == null)
+              if (!_location.isReady && _armError == null && !_micDenied)
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
                   child: _Banner(
                     icon: Icons.location_off,
-                    text: '${_location.message} Without one the snap is still '
-                        'measured and saved, but no aircraft can be '
-                        'identified.',
+                    text: '${_location.message} The noise is still measured '
+                        'and the complaint can still be sent — but without a '
+                        'location no aircraft can be named.',
                     action: TextButton(
                       onPressed: _fixLocation,
                       child: Text(
@@ -426,6 +500,8 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
                   fromWidget: _fromWidget,
                   seconds: _elapsed,
                 )
+              else if (_micDenied)
+                _MicButton(onPressed: _askForMic)
               else
                 _RecordButton(onPressed: _snap, busy: false),
               const SizedBox(height: 12),
@@ -435,9 +511,13 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
                         'SEND drafts the complaint and opens your mail app. '
                         'The loudest ${AudioConfig.clipSeconds.round()} s is '
                         'kept either way.'
-                    : 'Not recording. Press RECORD to log an aircraft — a '
-                        'complaint is still worth sending with no sound, no '
-                        'location and no flight named.',
+                    : _micDenied
+                        ? 'The app cannot hear anything yet. Press the button '
+                            'above to let it use the microphone. You can say '
+                            'no and try again as often as you like.'
+                        : 'Not recording. Press RECORD to log an aircraft — a '
+                            'complaint is still worth sending with no sound, '
+                            'no location and no flight named.',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall,
               ),
@@ -486,6 +566,44 @@ class _RecordButton extends StatelessWidget {
             fontSize: 32,
             fontWeight: FontWeight.bold,
             letterSpacing: 4,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// What stands where RECORD stands, when there is no microphone yet.
+///
+/// The same size and shape as the record button rather than a small link in a
+/// banner: it is the one thing to press, so it is the one thing that is big.
+/// Amber, not red -- nothing has gone wrong, something is simply not switched
+/// on yet.
+class _MicButton extends StatelessWidget {
+  const _MicButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 96,
+      child: FilledButton.icon(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xFF8A5300),
+          foregroundColor: Colors.white,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        ),
+        icon: const Icon(Icons.mic_off, size: 32),
+        label: const Text(
+          'TURN ON THE MIC',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 2,
           ),
         ),
       ),

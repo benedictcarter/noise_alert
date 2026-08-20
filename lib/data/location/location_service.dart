@@ -120,6 +120,11 @@ class LocationService {
 
   Future<bool> ensurePermission() async => (await request()).isReady;
 
+  /// The app's own entry in the OS settings, where a refused permission can
+  /// be turned back on. The only way back for a microphone the user has told
+  /// Android to stop asking about.
+  Future<void> openAppSettings() => Geolocator.openAppSettings();
+
   /// Opens the OS screen that can fix whatever [status] reports.
   Future<void> openRelevantSettings(LocationAvailability availability) async {
     if (availability == LocationAvailability.serviceDisabled) {

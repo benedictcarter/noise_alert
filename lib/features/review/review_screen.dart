@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../../core/constants.dart';
 import '../../data/mail/complaint_template.dart';
 import '../../data/mail/mail_sender.dart';
 import '../../data/snap_service.dart';
@@ -81,8 +80,8 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
         _toast(updated.match?.note ??
             'Still no aircraft found for this time and place.');
       }
-    } on Object catch (e) {
-      _toast('Lookup failed: $e');
+    } on Object {
+      _toast('Could not check for aircraft just now.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -103,7 +102,8 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
       if (!mounted) return;
 
       if (!outcome.opened) {
-        _toast(outcome.detail ?? 'No mail app could be opened.');
+        _toast(outcome.detail ??
+            'No email app could be opened on this phone.');
         return;
       }
       ref.read(snapsProvider.notifier).put(
@@ -235,7 +235,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
               initialValue: snap.notes,
               maxLines: 3,
               decoration: const InputDecoration(
-                labelText: 'Notes (optional)',
+                labelText: 'Anything you want to add — optional',
                 hintText: 'e.g. woke the children; third one this hour',
                 border: OutlineInputBorder(),
               ),
@@ -268,7 +268,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
                 child: FilledButton.icon(
                   onPressed: (!canSend || _busy) ? null : () => _compose(snap),
                   icon: const Icon(Icons.mail_outline),
-                  label: Text(_busy ? 'Working…' : 'Compose complaint'),
+                  label: Text(_busy ? 'Working…' : 'Write my complaint'),
                 ),
               ),
             ],
@@ -285,7 +285,8 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Text(
-            'No aircraft could be matched to this event yet.',
+            'No aircraft has been found for this time and place yet. The '
+            'complaint can still be sent without one.',
             style: theme.textTheme.bodyMedium,
           ),
         ),
@@ -297,8 +298,8 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Text(
-            'More than one aircraft fits — nothing has been chosen for you. '
-            'Pick the one you saw or heard, or mark it unidentified.',
+            'More than one aircraft fits, so none has been picked for you. '
+            'Choose the one you saw or heard, or say it was not identified.',
             style: theme.textTheme.bodySmall,
           ),
         ),
@@ -339,16 +340,30 @@ class _MeasurementCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
+            // The rise is the headline, because the rise is what the letter
+            // leads on: a number that means something to a reader who has
+            // never seen a sound meter. The absolute peak sits underneath it
+            // in the same size as everything else, which is the weight it
+            // deserves.
             Row(
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: <Widget>[
                 Text(
-                  metrics.laMaxDb.toStringAsFixed(1),
+                  metrics.excessOverAmbientDb == null
+                      ? metrics.laMaxDb.toStringAsFixed(0)
+                      : metrics.excessOverAmbientDb!.toStringAsFixed(0),
                   style: theme.textTheme.displaySmall,
                 ),
                 const SizedBox(width: 8),
-                Text('dB(A) max', style: theme.textTheme.titleMedium),
+                Expanded(
+                  child: Text(
+                    metrics.excessOverAmbientDb == null
+                        ? 'dB(A) at its loudest'
+                        : 'dB louder than the quiet street',
+                    style: theme.textTheme.titleMedium,
+                  ),
+                ),
               ],
             ),
             if (metrics.hasTrace) ...<Widget>[
@@ -391,46 +406,54 @@ class _MeasurementCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 8),
+            // Plain words on the left, the proper acoustics term in the
+            // brackets. The reader does not need to know what LA90 is, but
+            // the environmental health officer who gets the letter does, and
+            // the two of them have to be looking at the same figure.
             _row(
               theme,
-              'LAeq over the event',
-              '${metrics.laEqDb.toStringAsFixed(1)} dB(A)',
+              'Loudest moment (LAmax)',
+              '${metrics.laMaxDb.toStringAsFixed(1)} dB(A)',
             ),
             _row(
               theme,
-              'Loudest 10 s (LAeq)',
+              'Loudest 10 seconds (LAeq)',
               '${metrics.peakWindowLaEqDb.toStringAsFixed(1)} dB(A)',
             ),
             _row(
               theme,
-              'Background (LA90)',
+              'The quiet street (LA90)',
               metrics.ambientLa90Db == null
                   ? 'not measured'
                   : '${metrics.ambientLa90Db!.toStringAsFixed(1)} dB(A)',
             ),
             _row(
               theme,
-              'Rise above background',
+              'How much louder',
               metrics.excessOverAmbientDb == null
                   ? 'not measured'
                   : '${metrics.excessOverAmbientDb!.toStringAsFixed(1)} dB',
             ),
+            _row(
+              theme,
+              'Whole recording, averaged (LAeq)',
+              '${metrics.laEqDb.toStringAsFixed(1)} dB(A)',
+            ),
             if (snap.markedPeakMs != null)
               _row(
                 theme,
-                'Marked worst moment',
+                'The moment you marked',
                 '${(snap.markedPeakMs! / 1000).toStringAsFixed(0)} s in',
               ),
             if (!metrics.hasAmbient)
               Padding(
                 padding: const EdgeInsets.only(top: 10),
                 child: Text(
-                  'The microphone had only been listening for '
-                  '${metrics.ambientSeconds.toStringAsFixed(0)} s when you '
-                  'pressed, which is too little to establish a background '
-                  'level. Leave the app open for '
-                  '${AudioConfig.preRollSeconds.round()} s before recording and '
-                  'the complaint can quote the rise above background too.',
+                  'This recording was too short to catch a quiet moment to '
+                  'compare the aircraft against, so the complaint quotes how '
+                  'loud it was but not how much louder. Next time keep '
+                  'recording until the aeroplane has gone properly quiet and '
+                  'it will have both.',
                   style: theme.textTheme.bodySmall,
                 ),
               ),
@@ -438,7 +461,8 @@ class _MeasurementCard extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(top: 10),
                 child: Text(
-                  'The microphone hit its limit — it was at least this loud.',
+                  'The sound went past what the microphone can measure, so '
+                  'it was at least this loud, and possibly louder.',
                   style: theme.textTheme.bodySmall
                       ?.copyWith(color: theme.colorScheme.error),
                 ),

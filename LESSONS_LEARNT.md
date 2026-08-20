@@ -468,3 +468,38 @@ attached. Deleted rather than fixed: the audience is largely pensioners who have
 because a plane annoyed them, and a red line about kilohertz makes them close it. If a measurement
 is only accurate after a settling period, do not expose it to the UI at all -- expose it only where
 the code can wait.
+
+## An unknown template token prints itself, so deleting a field can print `{email}`
+
+`ComplaintTemplate._substitute` resolves with `tokens[match.group(1)] ?? match.group(0)!` — an
+unrecognised token is deliberately left standing as literal text, so a typo in a custom letter is
+visible rather than silently swallowed. That is the right behaviour, and there is a test for it.
+
+It also means **removing a field from the profile is not the same as removing its token**. Dropping
+`email` from `ComplainantProfile` and deleting `'email'` from the token map would have been quietly
+correct for every user on the stock letter, and would have posted a literal `{email}` in the sign-off
+of every user who had ever edited theirs — the stored body is a string in the database, and nothing
+migrates it.
+
+The fix is to keep the token and resolve it to `''`. The rule generalises: **a token may be retired
+from `tokenHelp`, but it can never be removed from the map** while any stored letter could still
+contain it.
+
+## `Geolocator.openAppSettings()` opens the app's whole settings page, microphone included
+
+The microphone recovery flow needed a way to reach the OS permission screen, and `record` does not
+offer one. Rather than add `permission_handler` for a single call, `LocationService.openAppSettings()`
+wraps geolocator's — it opens the app entry, not a location-specific page, so it serves any
+permission. Worth knowing before adding a second permissions plugin to this project.
+
+## Android stops showing the permission dialog after two refusals, and never tells you
+
+`record`'s `hasPermission()` both checks and prompts, which is convenient right up to the point
+where the OS has decided the user means it. From the third call onwards the dialog does not appear
+and the call simply returns false — indistinguishable, from Dart, from a user who tapped Deny again.
+
+There is no API that reports "the system will no longer ask". So the recovery flow in
+`_askForMic()` cannot branch on it: it explains, asks, and *if it is still refused afterwards*
+offers the settings page. That costs one redundant dialog on the very first refusal and rescues
+every refusal after it. Trying to be cleverer than this means guessing.
+

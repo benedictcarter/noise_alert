@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'features/history/history_screen.dart';
+import 'features/onboarding/welcome_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/snap/snap_screen.dart';
+import 'providers.dart';
 
 class NoiseAlertApp extends StatelessWidget {
   const NoiseAlertApp({super.key});
@@ -24,9 +26,23 @@ class NoiseAlertApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
       ),
-      home: const HomeShell(),
+      home: const _Root(),
     );
   }
+}
+
+/// The welcome form, or the app.
+///
+/// A ConsumerWidget rather than a route pushed over the top, because
+/// [SnapScreen] opens the microphone in its `initState`. Anything that leaves
+/// it built underneath a welcome screen asks for permission before the user
+/// has been told what the app is, which is how a Deny happens.
+class _Root extends ConsumerWidget {
+  const _Root();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) =>
+      ref.watch(onboardedProvider) ? const HomeShell() : const WelcomeScreen();
 }
 
 /// Which tab is showing.

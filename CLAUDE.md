@@ -8,7 +8,14 @@ Flutter (iOS + Android) app for logging aircraft noise events and generating com
 
 ## Non-negotiables
 - **No personal data leaves the device.** No backend, no analytics, no crash reporter that ships
-  location. Complaints are sent by the user from their own mail account.
+  location. Complaints are sent by the user from their own mail account. Two outbound calls exist
+  and both are deliberate: coordinates to adsb.lol to find the aircraft, and — only when the user
+  presses the button — a postcode to postcodes.io to fill in their town. No name, no email address
+  and no identifier goes with either.
+- **The only mandatory fields are a name and a postcode.** House number, street, town and phone
+  number are all optional, and no email address is asked for at all — the letter goes from the
+  user's own mail account, so the reply address travels with it. `ComplainantProfile.isComplete`
+  is the single definition of "enough to complain with".
 - **Name the closest match, and say that is what it is.** STOP & SEND names the top ADS-B
   candidate outright when it was within `MatchConfig.autoConfirmMaxHorizontalM` (1 km) horizontally;
   beyond that it degrades to STOP & SAVE and the review screen shows confidence and alternates.

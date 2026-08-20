@@ -4,6 +4,35 @@
   LESSONS_LEARNT.md written.
 
 
+## Make it simple enough for someone who is not technical (2026-08-20)
+The audience is largely pensioners, opening the app because a jet has just gone over. Every screen
+had to stop reading as a list of things that might be wrong with their phone.
+
+- **A welcome screen.** `WelcomeScreen` replaces the whole app — not a dialog over it — until there
+  is a name and a postcode. It is rendered instead of `HomeShell` precisely so `SnapScreen` is never
+  built, and therefore never asks for the microphone, before the user has read what the app is for.
+- **Name and postcode are the only mandatory fields.** House number, street, town and phone are
+  optional. `ComplainantProfile.isComplete` is the one definition of enough.
+- **The email address field is gone entirely.** It fed exactly two things: a `bccSelf` switch and an
+  `{email}` sign-off token. Both were redundant — the letter is sent from the user's own account, so
+  the reply address is already on it. Anyone wanting a copy puts themselves in Bcc. The `{email}`
+  token survives resolving to an empty string, because `_substitute` leaves an *unknown* token
+  standing as literal text and a user who had edited their letter would otherwise post "{email}".
+- **Postcode lookup.** `PostcodeService` hits postcodes.io — free, no key, no quota, ONS open data —
+  and fills in the town. Only on a button press, and a failure says "it does not matter, type it
+  yourself" rather than blocking anything.
+- **Settings split into three screens.** A menu, not a form: My details / The complaint email /
+  Recordings and flights. The first row shows the user's details in place, in red if they are still
+  missing. `MyDetailsForm` is shared with the welcome screen so there is one form, not two.
+- **The microphone refusal has a UI at last.** A refused permission is no longer an error banner; the
+  record button itself becomes an amber TURN ON THE MIC, which explains why the microphone is needed,
+  asks again, and — if the phone has stopped showing its own dialog, which Android does after two
+  refusals — offers the app's settings page. Retryable for ever: nothing dead-ends.
+- **String sweep.** "snap" is now "recording" throughout; LAeq/LA90/LAmax carry plain-English labels
+  with the term in brackets; the review screen leads on the rise ("23 dB louder than the quiet
+  street") rather than an absolute figure; and the "microphone hit its limit" and "no background"
+  notes were rewritten so neither reads as the user's fault.
+
 ## Post-roll fix, level chart, and Flightpath Watch branding (2026-08-20)
 - **Endless post-roll fixed.** `captureEventWindow` waited for a *sample count* (20 s x 48 kHz), so
   any handset delivering below 48 kHz stretched the wait in proportion and a stalled stream never

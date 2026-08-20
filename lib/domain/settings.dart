@@ -3,7 +3,6 @@ import 'profile.dart';
 class AppSettings {
   const AppSettings({
     this.attachClipByDefault = false,
-    this.bccSelf = true,
     this.openSkyClientId = '',
     this.openSkyClientSecret = '',
     this.recipientSets = const <RecipientSet>[RecipientSet.defaultSet],
@@ -25,7 +24,6 @@ class AppSettings {
 
   /// BCC the complainant's own address, so their sent record survives even if
   /// their mail client does not keep one.
-  final bool bccSelf;
 
   final String openSkyClientId;
   final String openSkyClientSecret;
@@ -52,7 +50,6 @@ class AppSettings {
 
   AppSettings copyWith({
     bool? attachClipByDefault,
-    bool? bccSelf,
     String? openSkyClientId,
     String? openSkyClientSecret,
     List<RecipientSet>? recipientSets,
@@ -63,7 +60,6 @@ class AppSettings {
   }) =>
       AppSettings(
         attachClipByDefault: attachClipByDefault ?? this.attachClipByDefault,
-        bccSelf: bccSelf ?? this.bccSelf,
         openSkyClientId: openSkyClientId ?? this.openSkyClientId,
         openSkyClientSecret: openSkyClientSecret ?? this.openSkyClientSecret,
         recipientSets: recipientSets ?? this.recipientSets,
@@ -80,7 +76,6 @@ class AppSettings {
       identical(this, other) ||
       other is AppSettings &&
           other.attachClipByDefault == attachClipByDefault &&
-          other.bccSelf == bccSelf &&
           other.openSkyClientId == openSkyClientId &&
           other.openSkyClientSecret == openSkyClientSecret &&
           listEquals(other.recipientSets, recipientSets) &&
@@ -92,7 +87,6 @@ class AppSettings {
   @override
   int get hashCode => Object.hash(
         attachClipByDefault,
-        bccSelf,
         openSkyClientId,
         openSkyClientSecret,
         Object.hashAll(recipientSets),
@@ -104,7 +98,6 @@ class AppSettings {
 
   Map<String, Object?> toJson() => <String, Object?>{
         'attachClipByDefault': attachClipByDefault,
-        'bccSelf': bccSelf,
         'openSkyClientId': openSkyClientId,
         'openSkyClientSecret': openSkyClientSecret,
         'recipientSets':
@@ -127,7 +120,6 @@ class AppSettings {
     }
     return AppSettings(
       attachClipByDefault: json['attachClipByDefault'] as bool? ?? false,
-      bccSelf: json['bccSelf'] as bool? ?? true,
       openSkyClientId: json['openSkyClientId'] as String? ?? '',
       openSkyClientSecret: json['openSkyClientSecret'] as String? ?? '',
       recipientSets:
@@ -152,6 +144,36 @@ class AppSettings {
   /// is the point. The letter is the user's, and a default that silently
   /// reapplies itself is not a default.
   static const List<String> _legacyDefaultBodies = <String>[
+'''
+Dear Sir or Madam,
+
+I am writing to complain about aircraft noise affecting my home.
+
+{atAGlance}
+
+{locationLine}
+
+{aircraftBlock}
+
+{measurementBlock}
+
+{measurementNote}
+
+{chartNote}
+
+{markedPeakNote}
+
+{clipNote}
+
+This aircraft was clearly audible inside my home and disrupted my use of it.
+I would be grateful if you would log this complaint and confirm receipt.
+
+Yours faithfully,
+
+{name}
+{address}
+{email}{phoneLine}
+''',
 '''
 Dear Sir or Madam,
 
@@ -284,7 +306,6 @@ I would be grateful if you would log this complaint and confirm receipt.
 Yours faithfully,
 
 {name}
-{address}
-{email}{phoneLine}
+{address}{phoneLine}
 ''';
 }

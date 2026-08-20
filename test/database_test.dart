@@ -70,7 +70,6 @@ void main() {
       addressLine1: '1 Quiet Lane',
       town: 'Someton',
       postcode: 'AB1 2CD',
-      email: 'resident@example.com',
       phone: '01234 567890',
     );
     await db.saveProfile(profile);

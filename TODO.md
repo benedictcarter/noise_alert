@@ -69,12 +69,12 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
 ## Make it safe for someone who is not technical
 Most users are pensioners. Every screen has to read as "press this, we will handle it", never as a
 list of things that might be wrong with their phone.
-- [ ] Sweep every string in the UI for jargon and for anything that reads as an accusation or a
-      warning. Nothing should suggest the user has done something wrong or that their handset is
-      inadequate.
-- [ ] Decide what the microphone-permission refusal screen says. It currently has no UI at all, and
-      it is the single most likely place someone gets stuck and gives up.
-- [ ] Review the settings screen the same way: it is the most technical surface in the app.
+- [ ] UAT the whole restructure on the handset: welcome form, mic refusal and recovery, the three
+      settings screens, and a real overflight end to end.
+- [ ] The postcode lookup fills in the *council area*, not the post town. For most addresses these
+      are the same word; for some they are not. Watch whether that reads oddly in a real letter.
+- [ ] The review screen still shows five acoustics rows. They are labelled in plain English now,
+      but consider collapsing them behind a "show the detail" tap so the headline stands alone.
 
 ## Record-on-open follow-ups
 - [ ] An auto-started recording is discarded on leaving the Record tab or backgrounding the app.

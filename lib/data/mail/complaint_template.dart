@@ -62,18 +62,12 @@ class ComplaintTemplate {
       settings: settings,
     );
 
-    final List<String> bcc = <String>{
-      ...settings.activeRecipientSet.bcc,
-      if (settings.bccSelf && profile.email.trim().isNotEmpty)
-        profile.email.trim(),
-    }.toList();
-
     return ComplaintDraft(
       subject: _substitute(settings.templateSubject, tokens),
       body: _substitute(settings.templateBody, tokens),
       to: settings.activeRecipientSet.to,
       cc: settings.activeRecipientSet.cc,
-      bcc: bcc,
+      bcc: settings.activeRecipientSet.bcc,
       attachmentPaths: <String>[
         // The chart goes on every letter. Unlike the audio it carries nothing
         // the body does not already state - it is the same numbers, drawn -
@@ -99,7 +93,12 @@ class ComplaintTemplate {
       'address': profile.addressBlock,
       'addressOneLine': profile.addressOneLine,
       'postcode': profile.postcode,
-      'email': profile.email,
+      // No email address is collected any more -- the letter goes from the
+      // user's own account, so the reply-to header already carries it. The
+      // token stays, resolving to nothing, because a letter edited before the
+      // field was dropped still contains it and an unknown token is left
+      // standing in the text as a literal "{email}".
+      'email': '',
       'phone': profile.phone,
       'phoneLine':
           profile.phone.trim().isEmpty ? '' : '\n${profile.phone.trim()}',
@@ -428,7 +427,7 @@ class ComplaintTemplate {
 
   static const String tokenHelp = '''
 Available tokens:
-  {name} {address} {addressOneLine} {postcode} {email} {phone} {phoneLine}
+  {name} {address} {addressOneLine} {postcode} {phone} {phoneLine}
   {datetimeLong} {date} {time} {latitude} {longitude} {locationLine}
   {flight} {callsign} {registration} {aircraftType} {icao24}
   {aircraftDescription} {aircraftBlock}
