@@ -110,3 +110,52 @@ real SQLite through `dart:ffi`, so the tests exercise genuine SQL rather than a 
 with `inMemoryDatabasePath` so each test gets a clean schema with no temp files to clean up. This is
 also why `AppDatabase.open` takes an `overridePath` — `getApplicationDocumentsDirectory()` is itself a
 plugin call and would fail in tests.
+
+## There is no plain `platforms;android-37` any more — only minor versions (2026-08-19)
+**Mechanism:** Google now ships Android platforms with a minor version in the folder name —
+`android-37.0`, `android-37.1`, `android-37.2-beta*` — and there is no bare `android-37` alias.
+A plugin whose Gradle script sets `compileSdkVersion 37` (or whose AGP resolves a compileSdk it
+inherited from an older template) asks the SDK for the hash string `android-37`, which cannot
+resolve, and the build dies with a message that reads like a missing download rather than a naming
+change: `Failed to find target with hash string 'android-37' in: C:\Android\sdk`.
+**Incident:** the first release APK build failed on
+`:permission_handler_android:compileReleaseJavaWithJavac`. `sdkmanager --list` confirmed only
+`platforms;android-37.0` and friends exist, so no amount of installing would have produced
+`android-37`. `permission_handler` was declared but never used — `record` and `geolocator` each
+request their own runtime permission — so dropping it (with `share_plus`, also unused) fixed the
+build outright.
+**Rule:** when a plugin demands a platform hash that `sdkmanager --list` does not offer, check
+whether you need the plugin at all before chasing the SDK. An unused dependency can still break a
+build, because Gradle configures and compiles every module regardless of whether Dart imports it.
+
+## Kotlin incremental compilation corrupts its own caches on Windows (2026-08-19)
+**Mechanism:** the Kotlin incremental compiler memory-maps its lookup caches (`*.tab`) and, on
+Windows, frequently fails to unmap them before closing, because Windows will not let a mapped file be
+truncated or deleted while a view is open. The build then fails at the *end* of an otherwise
+successful module compile with `Could not close incremental caches in
+...\caches-jvm\jvm\kotlin: class-fq-name-to-source.tab, ...`.
+**Incident:** two consecutive release builds failed this way — the first on
+`:record_android:compileReleaseKotlin`, the second on `:audio_session:compileReleaseKotlin`.
+**I misread the first failure as stale build state and ran `flutter clean`; it recurred on a
+different module from a completely clean tree**, which is the tell that it is not stale state at all.
+Setting `kotlin.incremental=false` in `android/gradle.properties` fixed it permanently, and costs
+nothing on a release build, which recompiles everything anyway.
+**Rule:** a build error naming a different module on each run is about the *machine*, not the
+modules. `flutter clean` is the wrong reflex — it burns several minutes and proves nothing, because a
+clean tree reproduces a genuinely environmental failure just as reliably.
+
+## When ADB will not see a phone, MTP still can (2026-08-19)
+**Mechanism:** ADB needs the handset to expose a dedicated ADB *USB interface*, which shows up on
+Windows as a composite-device child ending `&MI_nn`. If the phone enumerates as a single-function
+WPD/MTP device, there is no interface for any driver to bind to and no driver install can conjure
+one — `adb devices` will stay empty however many times you toggle USB debugging.
+**Incident:** an LG G7 ThinQ (`USB\VID_1004&PID_633E\...`) enumerated single-function WPD with no
+`&MI_nn` children, and `Get-PnpDevice` history showed it had never presented an ADB interface under
+any of its four historical PIDs. Restarting the adb server, revoking authorisations, re-toggling
+developer mode, different ports and the Google USB driver all changed nothing. Android 10 was not the
+cause.
+**Workaround that does work:** sideload over MTP from PowerShell —
+`(New-Object -ComObject Shell.Application).NameSpace(17)` lists portable devices; walk to
+`Internal shared storage\Download` and `CopyHere($apkPath, 16)`, then the user taps the file in a
+file manager. `Install unknown apps` must be granted to *the file manager doing the tapping*, not to
+the APK. Slow and manual, but it unblocks on-device testing without ADB.

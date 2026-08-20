@@ -13,9 +13,10 @@ dependencies:
   # audio capture (raw PCM stream) and playback of the saved clip
   record:
   just_audio:
-  # location, permissions, device metadata
+  # location and device metadata. `record` and `geolocator` each request their
+  # own runtime permission, so permission_handler is not needed; it also pins a
+  # compileSdk that no longer exists as a plain platform (see LESSONS_LEARNT).
   geolocator:
-  permission_handler:
   device_info_plus:
   package_info_plus:
   # storage
@@ -24,10 +25,9 @@ dependencies:
   path:
   # networking
   http:
-  # mail + sharing
+  # mail
   flutter_email_sender:
   url_launcher:
-  share_plus:
   # formatting
   intl:
 
