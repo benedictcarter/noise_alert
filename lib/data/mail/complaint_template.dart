@@ -45,6 +45,7 @@ class ComplaintTemplate {
   static final DateFormat _longFormat =
       DateFormat('EEEE d MMMM yyyy, HH:mm:ss');
   static final DateFormat _shortTimeFormat = DateFormat('HH:mm');
+  static final NumberFormat _grouped = NumberFormat('#,##0');
 
   ComplaintDraft render({
     required Snap snap,
@@ -130,6 +131,7 @@ class ComplaintTemplate {
           ? (m.eventDurationMs / 1000).round().toString()
           : 'not measured',
       'measurementBlock': _measurementBlock(snap),
+      'atAGlance': _atAGlance(snap),
       'device': snap.deviceModel,
       'osVersion': snap.osVersion,
       'appVersion': snap.appVersion,
@@ -148,6 +150,60 @@ class ComplaintTemplate {
   /// one. Everything that prints a level goes through here.
   String _db(AcousticMetrics m, double value) =>
       m.hasMeasurement ? value.toStringAsFixed(1) : 'not measured';
+
+  /// The three figures a human checks before believing the rest of the letter.
+  ///
+  /// The letter is sent as plain text -- the composer is handed
+  /// `isHTML: false`, and the mailto: fallback could not carry markup even if
+  /// it were not -- so there is no bold to reach for. An upper-case heading and
+  /// three labelled lines do the same job in every client that has ever
+  /// existed, including the council mail gateway that strips everything.
+  ///
+  /// Lines are never dropped when a figure is missing. "Loudest: not measured"
+  /// is information; a line that quietly vanishes leaves a reader who does not
+  /// know the format assuming the app measured something and they missed it.
+  ///
+  /// Deliberately no column alignment: most clients render plain text in a
+  /// proportional font, so padded columns arrive ragged and look like a
+  /// formatting failure rather than a table.
+  String _atAGlance(Snap snap) {
+    final AcousticMetrics m = snap.metrics;
+    final FlightCandidate? candidate = snap.confirmedCandidate;
+
+    final StringBuffer buffer = StringBuffer('AT A GLANCE')
+      ..writeln()
+      ..writeln('When: ${_longFormat.format(snap.recordedAt)}');
+
+    if (!m.hasMeasurement) {
+      buffer.writeln('Loudest: not measured');
+    } else {
+      // The calibration caveat travels with the number rather than sitting in
+      // a paragraph below it. This block exists to be read on its own, and a
+      // figure skimmed out of context is exactly the one that must not look
+      // like a formal measurement.
+      buffer.write('Loudest: ${_db(m, m.laMaxDb)} dB(A)');
+      buffer.write(m.calibrated ? ' (calibrated)' : ' (uncalibrated)');
+      final double? ambient = m.ambientLa90Db;
+      final double? excess = m.excessOverAmbientDb;
+      if (ambient != null && excess != null) {
+        buffer.write(', against a background of '
+            '${ambient.toStringAsFixed(1)} dB(A) '
+            '-- a rise of ${excess.toStringAsFixed(1)} dB');
+      }
+      buffer.writeln();
+    }
+
+    if (candidate == null) {
+      buffer.write('Aircraft: not identified');
+    } else {
+      buffer.write('Aircraft: ${candidate.aircraft.displayName}, '
+          '${_grouped.format(candidate.heightAboveObserverFt.round())} ft '
+          'above me, ${_grouped.format(candidate.slantRangeM.round())} m away '
+          '(closest match, not verified)');
+    }
+
+    return buffer.toString();
+  }
 
   /// The sound-level section, or what stands in for it.
   ///
@@ -380,7 +436,7 @@ Available tokens:
   {aircraftDescription} {aircraftBlock}
   {heightFt} {slantRangeM} {elevationDeg}
   {laMax} {laEq} {peakWindowLaEq} {ambient} {excess} {eventSeconds}
-  {measurementBlock}
+  {measurementBlock} {atAGlance}
   {device} {osVersion} {appVersion} {measurementNote} {clipNote}
   {chartNote} {markedPeakNote} {notes}
 ''';

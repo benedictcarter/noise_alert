@@ -463,4 +463,76 @@ void main() {
     expect(draft.body, contains('closest to my position'));
     expect(draft.body, contains('not independently verified'));
   });
+
+  group('the at-a-glance block', () {
+    // Ben's ask: "the human can scan the email to see if this is bonkers".
+    // Three figures, at the top, before any prose.
+
+    test('leads with when, how loud and which aircraft', () {
+      final ComplaintDraft draft = template.render(
+        snap: _snap(),
+        profile: _profile,
+        settings: settings,
+      );
+
+      final int glance = draft.body.indexOf('AT A GLANCE');
+      expect(glance, greaterThanOrEqualTo(0));
+      // Before the salutation's follow-on prose, and before the detail
+      // sections it summarises -- a summary further down the page is not one.
+      expect(glance, lessThan(draft.body.indexOf('Aircraft:')));
+      expect(draft.body, contains('When: '));
+      expect(draft.body, contains('21:14:30'));
+      expect(draft.body, contains('Loudest: '));
+    });
+
+    test('an uncalibrated peak says so on the same line', () {
+      // The block is designed to be read on its own, so the caveat cannot be
+      // left to a paragraph further down that a scanning eye skips.
+      final ComplaintDraft draft = template.render(
+        snap: _snap(calibrated: false),
+        profile: _profile,
+        settings: settings,
+      );
+
+      final String line = draft.body
+          .split('\n')
+          .firstWhere((String l) => l.startsWith('Loudest:'));
+
+      expect(line, contains('dB(A)'));
+      expect(line, contains('uncalibrated'));
+    });
+
+    test('the aircraft line carries altitude, distance and the caveat', () {
+      final ComplaintDraft draft = template.render(
+        snap: _snap(),
+        profile: _profile,
+        settings: settings,
+      );
+
+      final String line = draft.body
+          .split('\n')
+          .firstWhere((String l) => l.startsWith('Aircraft: '));
+
+      expect(line, contains('ft above me'));
+      expect(line, contains('m away'));
+      expect(line, contains('closest match, not verified'));
+    });
+
+    test('a missing figure keeps its line rather than disappearing', () {
+      // A vanished line reads as "there was nothing unusual here". "Not
+      // measured" reads as what it is.
+      final ComplaintDraft draft = template.render(
+        snap: _snap(
+          metrics: const AcousticMetrics.unmeasured(),
+          confirmed: false,
+        ),
+        profile: _profile,
+        settings: settings,
+      );
+
+      expect(draft.body, contains('Loudest: not measured'));
+      expect(draft.body, contains('Aircraft: not identified'));
+      expect(draft.body, isNot(contains('0.0 dB')));
+    });
+  });
 }

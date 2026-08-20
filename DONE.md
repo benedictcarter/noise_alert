@@ -174,3 +174,18 @@ All four from Ben's first round of on-device use.
   saved its settings under b8 stops mailing a hard-coded table of zeroes. An edited letter is never
   touched.
 - 98 tests green (was 86).
+
+## The widget records again, and the letter can be scanned (2026-08-20)
+- **Tapping the home-screen widget recorded nothing.** It started a capture that ended in the same
+  millisecond, so the user was thrown to the review screen with "bad state" before they had let go
+  of the phone. Two faults compounded: `awaitEventEnd()` looped on `isRunning`, so a stream that was
+  not up when the event opened ended the capture at once; and `arm()`/`disarm()` overlapped, leaving
+  the service convinced it was armed with the microphone off. Both are fixed, and a capture now
+  starts the recorder itself if it finds it stopped.
+- **AT A GLANCE.** The letter opens with when it happened, how loud it was and which aircraft it
+  was, so a recipient -- or Ben, before he sends it -- can see in three lines whether the figures
+  are plausible. Plain text, because the composer is handed `isHTML: false` and the mailto:
+  fallback could not carry markup anyway; an upper-case heading and labelled lines survive every
+  mail client, which bold characters and HTML do not. The calibration caveat sits on the same line
+  as the decibel figure, since the block is meant to be read on its own.
+- 103 tests green (was 98).

@@ -345,3 +345,47 @@ complaint than an admitted gap.
 **Rule:** a sentinel value is only half the fix. Add the predicate (`hasMeasurement`) *at the same
 time*, and route every formatter through one helper that consults it, so the zero cannot leak into
 output by being forgotten in one branch. Zero is a number; absence is not.
+
+## A synchronous flag cleared before an awaited teardown is a lie for the duration of the await (2026-08-20)
+**Mechanism:** `disarm()` set `_armed = false` and *then* awaited `recorder.stop()`. Between those
+two statements the service reports "not armed" while the microphone stream is still very much alive.
+An `arm()` arriving in that window therefore does the wrong thing twice over: it passes the
+`if (_armed) return;` guard, and its `recorder.start()` hits `if (isRunning) return;` and does
+nothing, because the old subscription has not been cancelled yet. The pending `stop()` then cancels
+it. End state: `_armed == true`, microphone off, and nothing anywhere throws.
+**Incident:** tapping the home-screen widget "frequently/always" produced an empty recording. That
+path is exactly the race -- the app is backgrounded (paused -> `disarm`), the widget is tapped, the
+app resumes and calls `arm()` while the previous `stop()` is still unwinding. It was invisible in
+tests because tests never interleave the two.
+**Rule:** a boolean that mirrors the state of an async resource must not change before the resource
+does. Either flip it *after* the await, or -- better, and what was done here -- keep the in-flight
+transition in a field and have both `arm()` and `disarm()` await it before they look at the flag.
+Serialising is worth more than ordering: it also makes arm-arm and disarm-disarm safe, which
+ordering alone does not.
+
+## A polling loop must distinguish "it stopped" from "it never started" (2026-08-20)
+**Mechanism:** `awaitEventEnd()` was `while (isRunning && !_stopRequested && !_eventFull)`. Reading
+it as "keep waiting while the stream is alive" is right for the case it was written for -- a stream
+that dies mid-recording has given you everything it is going to. But the same condition is false on
+entry when the stream was never up, and the loop exits immediately, returning an empty window as if
+the user had pressed STOP. One condition, two meanings, and the wrong one is silent.
+**Incident:** the widget bug above. The empty window was reported to the user as "bad state: the
+microphone recorded nothing" one millisecond after they pressed record.
+**Rule:** when a loop guard doubles as an entry condition, latch the two apart explicitly (here a
+`sawStream` flag: break only once the stream has been seen alive and then gone). And decide what the
+never-started case should *do* -- here it waits for the user's STOP and hands back an empty window,
+because "no sound" must degrade to a complaint without a measurement, never to no complaint.
+
+## Plain text has no bold, and that is usually the right answer anyway (2026-08-20)
+**Mechanism:** the complaint is composed with `isHTML: false`, and the fallback path builds a
+`mailto:` URI, which is plain text by specification. Making three figures bold therefore means
+switching the body to HTML, keeping a second template in sync with the user-editable plain one,
+HTML-escaping the address and free-text notes, and *still* sending plain text down the fallback.
+The Unicode mathematical-bold alternative avoids all that but makes the numbers unsearchable,
+unreadable to a screen reader, and liable to arrive as boxes at a council mail gateway -- on a
+formal complaint, looking broken costs more than looking flat.
+**Rule:** when the ask is "make these stand out", check whether the real requirement is emphasis or
+*findability*. Ben's was findability -- "the human can scan the email to see if this is bonkers" --
+and an upper-case heading with three labelled lines at the top of the letter serves that better than
+bold buried in the body, at no compatibility cost. Also: do not pad columns to align them. Mail
+clients render plain text proportionally, so aligned columns arrive ragged.

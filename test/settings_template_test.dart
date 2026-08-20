@@ -39,6 +39,37 @@ Yours faithfully,
 {email}{phoneLine}
 ''';
 
+/// The exact default letter as it shipped before `{atAGlance}` existed.
+const String _b9Default = '''
+Dear Sir or Madam,
+
+I am writing to complain about aircraft noise affecting my home.
+
+Date and time: {datetimeLong}
+{locationLine}
+
+{aircraftBlock}
+
+{measurementBlock}
+
+{measurementNote}
+
+{chartNote}
+
+{markedPeakNote}
+
+{clipNote}
+
+This aircraft was clearly audible inside my home and disrupted my use of it.
+I would be grateful if you would log this complaint and confirm receipt.
+
+Yours faithfully,
+
+{name}
+{address}
+{email}{phoneLine}
+''';
+
 void main() {
   group('the stored letter', () {
     test('an untouched older default is upgraded', () {
@@ -51,6 +82,17 @@ void main() {
 
       expect(settings.templateBody, AppSettings.defaultBody);
       expect(settings.templateBody, contains('{measurementBlock}'));
+    });
+
+    test('the previous default is upgraded too, not just the oldest', () {
+      // Every released default has to stay in the list. Keeping only the
+      // oldest would strand exactly the handsets that are most up to date.
+      final AppSettings settings = AppSettings.fromJson(<String, Object?>{
+        'templateBody': _b9Default,
+      });
+
+      expect(settings.templateBody, AppSettings.defaultBody);
+      expect(settings.templateBody, contains('{atAGlance}'));
     });
 
     test('a letter the user edited is left exactly as they wrote it', () {

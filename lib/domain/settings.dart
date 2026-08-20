@@ -185,6 +185,35 @@ Date and time: {datetimeLong}
 
 {aircraftBlock}
 
+{measurementBlock}
+
+{measurementNote}
+
+{chartNote}
+
+{markedPeakNote}
+
+{clipNote}
+
+This aircraft was clearly audible inside my home and disrupted my use of it.
+I would be grateful if you would log this complaint and confirm receipt.
+
+Yours faithfully,
+
+{name}
+{address}
+{email}{phoneLine}
+''',
+'''
+Dear Sir or Madam,
+
+I am writing to complain about aircraft noise affecting my home.
+
+Date and time: {datetimeLong}
+{locationLine}
+
+{aircraftBlock}
+
 Measured sound level
   Maximum (LAmax, fast): {laMax} dB(A)
   Equivalent level over the event (LAeq, {eventSeconds} s): {laEq} dB(A)
@@ -256,7 +285,8 @@ Dear Sir or Madam,
 
 I am writing to complain about aircraft noise affecting my home.
 
-Date and time: {datetimeLong}
+{atAGlance}
+
 {locationLine}
 
 {aircraftBlock}
