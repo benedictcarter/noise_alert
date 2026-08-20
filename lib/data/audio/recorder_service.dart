@@ -291,9 +291,26 @@ class RecorderService {
   ///
   /// Polled on a wall clock rather than counting samples: if the stream stalls
   /// outright, a sample count never arrives and the capture never ends, whereas
-  /// a poll notices [isRunning] going false and gives back what there is.
+  /// a poll notices the stream dying and gives back what there is.
+  ///
+  /// The distinction between a stream that died and one that never started is
+  /// the whole of this method's subtlety. A stream that dies mid-recording has
+  /// given us everything it is going to, so the capture ends. A stream that was
+  /// never running when the event opened must NOT end it: the recording would
+  /// finish in the same millisecond it began, and the user -- who pressed a
+  /// button precisely because an aircraft was overhead -- would be thrown to
+  /// the review screen before they had let go of the phone. In that case we
+  /// wait for their STOP like any other recording and hand back an empty
+  /// window, which downstream turns into a complaint with no sound rather than
+  /// into no complaint at all.
   Future<EventWindow> awaitEventEnd() async {
-    while (isRunning && !_stopRequested && !_eventFull) {
+    bool sawStream = isRunning;
+    while (!_stopRequested && !_eventFull) {
+      if (isRunning) {
+        sawStream = true;
+      } else if (sawStream) {
+        break;
+      }
       await Future<void>.delayed(const Duration(milliseconds: 100));
     }
 

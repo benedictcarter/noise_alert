@@ -126,7 +126,31 @@ class SnapService {
   /// pre-roll buffer and the aircraft track cache both need to already be
   /// running by the time the user reacts to a noise.
   Future<void> arm({required AppSettings settings}) async {
+    // Wait out a disarm that is still unwinding. Without this the two overlap
+    // and leave the microphone shut: disarm() clears _armed synchronously and
+    // only then awaits recorder.stop(), so an arm() arriving in between sees
+    // "not armed", calls recorder.start(), which returns immediately because
+    // the old subscription is technically still alive -- and then the pending
+    // stop() cancels it. The service believes it is armed and the microphone
+    // is off. That is the widget path exactly: the app is backgrounded (paused
+    // -> disarm), the widget is tapped, the app resumes and arms, and the
+    // recording that follows contains nothing at all.
+    await _transition;
     if (_armed) return;
+
+    final Future<void> arming = _arm(settings);
+    _transition = arming;
+    try {
+      await arming;
+    } finally {
+      if (identical(_transition, arming)) _transition = null;
+    }
+  }
+
+  /// Serialises [arm] against [disarm]; see the note in [arm].
+  Future<void>? _transition;
+
+  Future<void> _arm(AppSettings settings) async {
     recorder.calibrationOffsetDb = settings.calibrationOffsetDb;
     await recorder.start();
     _armed = true;
@@ -172,9 +196,17 @@ class SnapService {
   double get eventSeconds => recorder.eventSeconds;
 
   Future<void> disarm() async {
+    await _transition;
     _armed = false;
     lookup.stopTracking();
-    await recorder.stop();
+
+    final Future<void> disarming = recorder.stop();
+    _transition = disarming;
+    try {
+      await disarming;
+    } finally {
+      if (identical(_transition, disarming)) _transition = null;
+    }
   }
 
   /// The button.
@@ -188,8 +220,24 @@ class SnapService {
   }) async {
     final DateTime pressedAt = DateTime.now();
     _abandoned = false;
+
+    // Last line of defence. Opening an event on a stopped microphone records
+    // silence for as long as the user cares to hold the phone up, so if the
+    // stream is not live, spend the moment it takes to start it. The press is
+    // already timestamped, so the complaint still says when the aircraft was
+    // heard; only the first fraction of a second of audio is lost, which is a
+    // far better trade than the whole recording.
+    if (!recorder.isRunning) {
+      try {
+        await recorder.start();
+      } on Object {
+        // No microphone, then. The capture continues regardless and the
+        // complaint goes out without a sound level.
+      }
+    }
+
     // Synchronous, and first: the recording has to begin at the press, so
-    // nothing may be awaited between timestamping it and opening the event.
+    // nothing may be awaited between here and opening the event.
     recorder.startEventCapture();
 
     // The fix is fetched *alongside* the recording rather than before it. A
