@@ -437,3 +437,15 @@ plainly mounted in Explorer.
 **Rule:** never index `[0]` into an MTP device match. Iterate every entry with the name and keep the
 one whose `GetFolder.Items()` actually yields a child folder ("Internal shared storage"). The same
 caution applies to `.Size` on MTP items, which returns 0 -- use `GetDetailsOf($file, 2)`.
+
+## `Folder.CopyHere` is asynchronous and dies with the process (2026-08-20)
+**Mechanism:** `Shell.Application`'s `CopyHere` queues a shell copy and returns immediately. The
+transfer is driven by the calling process's shell COM apartment, so when a short-lived PowerShell
+invocation exits a millisecond later, the copy is torn down before a byte moves -- silently, with no
+error and no partial file. Over MTP the file simply never appears.
+**Incident:** a 53 MB APK "copied" to the handset's Download folder in one PowerShell call, then
+polled for in a second call. Forty polls over two minutes found nothing. The copy had never started.
+**Rule:** issue `CopyHere` and wait for the destination file to appear **in the same process**. Poll
+`$dest.ParseName(name)` until it is non-null and `GetDetailsOf($file, 2)` returns a size (`.Size` is
+0 on MTP items). Same caution as the two-device-entry gotcha above -- Explorer's shell namespace is
+convenient but every one of its affordances is asynchronous or lying.
