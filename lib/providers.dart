@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
 import 'core/device_info.dart';
+import 'core/quick_snap.dart';
 import 'data/audio/recorder_service.dart';
 import 'data/flights/adsb_source.dart';
 import 'data/flights/flight_lookup_service.dart';
@@ -39,6 +40,15 @@ final Provider<http.Client> httpClientProvider =
   final http.Client client = http.Client();
   ref.onDispose(client.close);
   return client;
+});
+
+/// Home-screen widget taps. Created once for the app's lifetime so a tap that
+/// arrives while the snap screen is being rebuilt is not lost.
+final Provider<QuickSnapChannel> quickSnapProvider =
+    Provider<QuickSnapChannel>((Ref ref) {
+  final QuickSnapChannel channel = QuickSnapChannel();
+  ref.onDispose(channel.dispose);
+  return channel;
 });
 
 final Provider<DeviceInfoService> deviceInfoProvider =

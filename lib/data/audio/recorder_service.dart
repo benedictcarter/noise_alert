@@ -47,6 +47,9 @@ class RecorderService {
   /// Wall-clock time corresponding to sample position 0 of the ring buffer.
   DateTime? _streamStart;
 
+  /// Set by [cutCaptureShort] to end the post-roll wait early.
+  bool _cutShort = false;
+
   bool get isRunning => _subscription != null;
   PcmRingBuffer get buffer => _buffer;
   Stream<MeterReading> get meterStream => _meter.stream;
@@ -166,20 +169,86 @@ class RecorderService {
 
   /// Extracts the analysis window around [pressTime], waiting for the post-roll
   /// to actually be recorded first.
-  Future<Float64List> captureEventWindow(DateTime pressTime) async {
+  ///
+  /// Returns only audio that was genuinely captured. The ring buffer pads
+  /// un-recorded history with zeroes, which is right for the buffer and wrong
+  /// for the analysis: digital silence is not quiet, it is *absent*, and
+  /// averaging 25 s of it into a 50 s LAeq drags the figure down by several dB
+  /// while making the ambient L90 look like the bottom of the dynamic range.
+  /// That matters whenever the button is pressed less than
+  /// [AudioConfig.preRollSeconds] after the microphone opened — which is every
+  /// snap triggered from the home-screen widget, and any snap taken promptly
+  /// after opening the app.
+  /// Ends the post-roll wait now, keeping whatever has been recorded.
+  ///
+  /// The aircraft is usually gone well before the full post-roll elapses, and
+  /// standing there watching a progress spinner is the fastest way to make a
+  /// one-button app feel like a chore. Everything downstream already works off
+  /// the real window length, so a short capture is a shorter measurement, not
+  /// a wrong one.
+  void cutCaptureShort() => _cutShort = true;
+
+  /// Clears a pending [cutCaptureShort] before a new capture begins.
+  ///
+  /// Called by the caller rather than by [captureEventWindow], because the
+  /// user can press "stop and save" during the stages that run *before* the
+  /// post-roll wait; resetting inside the wait would silently discard the
+  /// press that arrived a moment earlier.
+  void prepareCapture() => _cutShort = false;
+
+  Future<EventWindow> captureEventWindow(DateTime pressTime) async {
     final int postRollSamples =
         (AudioConfig.postRollSeconds * AudioConfig.sampleRate).round();
     final int pressPosition = samplePositionAt(pressTime);
     final int targetEnd = pressPosition + postRollSamples;
 
-    while (_buffer.totalWritten < targetEnd && isRunning) {
+    while (_buffer.totalWritten < targetEnd && isRunning && !_cutShort) {
       await Future<void>.delayed(const Duration(milliseconds: 100));
     }
 
     final int preRollSamples =
         (AudioConfig.preRollSeconds * AudioConfig.sampleRate).round();
-    final int windowSamples = preRollSamples + postRollSamples;
     final int end = math.min(targetEnd, _buffer.totalWritten);
-    return _buffer.readEndingAt(end, windowSamples);
+    final int postActual = math.max(0, end - pressPosition);
+
+    // What the buffer can actually hand back ending at `end`: everything
+    // recorded so far, capped by the ring's capacity.
+    final int available = math.min(end, _buffer.availableSamples);
+    final int take = math.min(preRollSamples + postActual, available);
+    if (take <= 0) return EventWindow.empty();
+
+    return EventWindow(
+      samples: _buffer.readEndingAt(end, take),
+      preRollSamples: math.max(0, take - postActual),
+      sampleRate: AudioConfig.sampleRate.toDouble(),
+    );
   }
+}
+
+/// The audio for one event, plus how much of it precedes the button press.
+///
+/// The split matters: only the pre-roll may be used for the background level,
+/// and how much pre-roll there was decides whether a background level can be
+/// quoted at all.
+class EventWindow {
+  const EventWindow({
+    required this.samples,
+    required this.preRollSamples,
+    required this.sampleRate,
+  });
+
+  EventWindow.empty()
+      : samples = Float64List(0),
+        preRollSamples = 0,
+        sampleRate = 1;
+
+  final Float64List samples;
+
+  /// Samples at the start of [samples] that were recorded *before* the press.
+  final int preRollSamples;
+
+  final double sampleRate;
+
+  double get preRollSeconds => preRollSamples / sampleRate;
+  bool get isEmpty => samples.isEmpty;
 }

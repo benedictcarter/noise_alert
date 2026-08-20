@@ -22,8 +22,11 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
       file manager; there is no `flutter run` hot reload on this handset, so each change means a
       rebuild and re-copy.
 - [ ] CI: `flutter analyze` + `flutter test` on push (GitHub Actions).
-- [ ] Permission denial / "denied forever" UI states — the services return failures cleanly but the
-      screens do not yet offer "open settings".
+- [ ] Microphone permission denial / "denied forever" UI state. Location is done (banner with
+      "Turn on" / "Settings"); the mic still fails silently.
+- [ ] iOS quick-snap: the Android home-screen widget has no iOS counterpart. `QuickSnapChannel`
+      degrades to "no pending snap" on any platform without the channel, so nothing breaks — but a
+      Control Centre / Lock Screen widget is the iOS equivalent when iOS is unparked.
 
 ## M4 — Evidence quality
 - [ ] Calibration flow beyond the raw offset field (guided side-by-side reading against an SPL meter)

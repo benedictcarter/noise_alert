@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/constants.dart';
 import '../../data/mail/complaint_template.dart';
 import '../../data/mail/mail_sender.dart';
 import '../../data/snap_service.dart';
@@ -229,9 +230,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              'Location: ${snap.latitude.toStringAsFixed(5)}, '
-              '${snap.longitude.toStringAsFixed(5)}'
-              '${snap.gpsAccuracyM == null ? '' : ' (±${snap.gpsAccuracyM!.round()} m)'}\n'
+              '${_locationSummary(snap)}\n'
               'Device: ${snap.deviceModel}, ${snap.osVersion}',
               style: theme.textTheme.bodySmall,
             ),
@@ -348,13 +347,29 @@ class _MeasurementCard extends StatelessWidget {
             _row(
               theme,
               'Background (LA90)',
-              '${metrics.ambientLa90Db.toStringAsFixed(1)} dB(A)',
+              metrics.ambientLa90Db == null
+                  ? 'not measured'
+                  : '${metrics.ambientLa90Db!.toStringAsFixed(1)} dB(A)',
             ),
             _row(
               theme,
               'Rise above background',
-              '${metrics.excessOverAmbientDb.toStringAsFixed(1)} dB',
+              metrics.excessOverAmbientDb == null
+                  ? 'not measured'
+                  : '${metrics.excessOverAmbientDb!.toStringAsFixed(1)} dB',
             ),
+            if (!metrics.hasAmbient)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Text(
+                  'Only ${metrics.preRollSeconds.toStringAsFixed(0)} s was '
+                  'recorded before you pressed, which is too little to '
+                  'establish a background level. Leave the app open for '
+                  '${AudioConfig.preRollSeconds.round()} s before snapping and '
+                  'the complaint can quote the rise above background too.',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
             if (!metrics.calibrated)
               Padding(
                 padding: const EdgeInsets.only(top: 10),
@@ -390,4 +405,20 @@ class _MeasurementCard extends StatelessWidget {
           ],
         ),
       );
+}
+
+/// Never renders a coordinate the app did not actually have. A snap with no fix
+/// says so plainly; 0, 0 would read as a position rather than as an absence.
+String _locationSummary(Snap snap) {
+  if (!snap.hasLocation) {
+    return 'Location: not recorded — no satellite fix at the time.';
+  }
+  final StringBuffer buffer = StringBuffer('Location: ')
+    ..write(snap.latitude!.toStringAsFixed(5))
+    ..write(', ')
+    ..write(snap.longitude!.toStringAsFixed(5));
+  final double? accuracy = snap.gpsAccuracyM;
+  if (accuracy != null) buffer.write(' (±${accuracy.round()} m)');
+  if (snap.staleFix) buffer.write(' — last known position, not a live fix');
+  return buffer.toString();
 }

@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants.dart';
+import '../../core/quick_snap.dart';
 import '../../data/audio/recorder_service.dart';
+import '../../data/location/location_service.dart';
 import '../../data/snap_service.dart';
 import '../../domain/settings.dart';
 import '../../domain/snap.dart';
@@ -28,17 +32,41 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
   String? _armError;
   bool _capturing = false;
   String? _statusLine;
+  LocationStatus _location =
+      const LocationStatus(LocationAvailability.denied);
+  StreamSubscription<void>? _widgetTaps;
+
+  /// Set while a widget-triggered capture is starting, so the screen explains
+  /// why it is recording without anybody having pressed anything.
+  bool _fromWidget = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _arm());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _start());
+  }
+
+  /// Arms the microphone, then honours a widget tap if one brought us here.
+  ///
+  /// Order matters: the recorder has to be running before a capture can wait
+  /// on it, and the permission prompt (if any) has to be answered first.
+  Future<void> _start() async {
+    await _arm();
+    if (!mounted) return;
+
+    final QuickSnapChannel quick = ref.read(quickSnapProvider);
+    _widgetTaps ??= quick.requests.listen((_) => _snap(fromWidget: true));
+
+    if (await quick.consumePending() && mounted) {
+      await _snap(fromWidget: true);
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _widgetTaps?.cancel();
     super.dispose();
   }
 
@@ -48,7 +76,7 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
     // backgrounded needs a foreground service on Android and an audio
     // background mode on iOS, both of which are Phase 2 work.
     if (state == AppLifecycleState.resumed) {
-      _arm();
+      _start();
     } else if (state == AppLifecycleState.paused) {
       if (!_capturing) {
         ref.read(snapServiceProvider).disarm();
@@ -58,13 +86,29 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
 
   Future<void> _arm() async {
     final SnapService service = ref.read(snapServiceProvider);
-    if (service.isArmed) return;
+    if (service.isArmed) {
+      // Already recording, but the user may have just come back from system
+      // settings with location switched on.
+      final LocationStatus status = await service.refreshLocationStatus();
+      if (mounted) setState(() => _location = status);
+      return;
+    }
     try {
       await service.arm(settings: ref.read(settingsProvider));
-      if (mounted) setState(() => _armError = null);
+      if (mounted) {
+        setState(() {
+          _armError = null;
+          _location = service.locationStatus;
+        });
+      }
     } on Object catch (e) {
       if (mounted) setState(() => _armError = _friendlyArmError(e));
     }
+  }
+
+  Future<void> _fixLocation() async {
+    await ref.read(snapServiceProvider).openLocationSettings();
+    // The status is re-read by didChangeAppLifecycleState on the way back.
   }
 
   String _friendlyArmError(Object error) {
@@ -76,10 +120,11 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
     return 'Could not start the microphone: $text';
   }
 
-  Future<void> _snap() async {
+  Future<void> _snap({bool fromWidget = false}) async {
     if (_capturing) return;
     setState(() {
       _capturing = true;
+      _fromWidget = fromWidget;
       _statusLine = 'Getting a location fix…';
     });
 
@@ -117,6 +162,7 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
       if (mounted) {
         setState(() {
           _capturing = false;
+          _fromWidget = false;
           _statusLine = null;
         });
       }
@@ -164,6 +210,25 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
                     ),
                   ),
                 ),
+              if (!_location.isReady && _armError == null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: _Banner(
+                    icon: Icons.location_off,
+                    text: '${_location.message} Without one the snap is still '
+                        'measured and saved, but no aircraft can be '
+                        'identified.',
+                    action: TextButton(
+                      onPressed: _fixLocation,
+                      child: Text(
+                        _location.availability ==
+                                LocationAvailability.serviceDisabled
+                            ? 'Turn on'
+                            : 'Settings',
+                      ),
+                    ),
+                  ),
+                ),
               if (!settings.calibrated && _armError == null)
                 const Padding(
                   padding: EdgeInsets.only(top: 12),
@@ -203,8 +268,14 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
                     ],
                   ),
                 ),
-              _SnapButton(
-                  onPressed: _capturing ? null : _snap, busy: _capturing),
+              if (_capturing)
+                _StopAndSaveButton(
+                  onPressed: () =>
+                      ref.read(snapServiceProvider).finishCaptureEarly(),
+                  fromWidget: _fromWidget,
+                )
+              else
+                _SnapButton(onPressed: _snap, busy: false),
               const SizedBox(height: 16),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -294,6 +365,61 @@ class _Banner extends StatelessWidget {
           if (action != null) action!,
         ],
       ),
+    );
+  }
+}
+
+/// Shown in place of SNAP while the post-roll is still running.
+///
+/// The capture keeps whatever has been recorded, so cutting it short shortens
+/// the measurement rather than invalidating it — the letter quotes the real
+/// event length either way. Waiting out a fixed 20 s countdown is the single
+/// most irritating thing a one-button app can ask for.
+class _StopAndSaveButton extends StatelessWidget {
+  const _StopAndSaveButton({
+    required this.onPressed,
+    required this.fromWidget,
+  });
+
+  final VoidCallback onPressed;
+  final bool fromWidget;
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        SizedBox(
+          width: double.infinity,
+          height: 96,
+          child: FilledButton.tonal(
+            onPressed: onPressed,
+            style: FilledButton.styleFrom(
+              backgroundColor: colors.secondaryContainer,
+              foregroundColor: colors.onSecondaryContainer,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+            ),
+            child: const Text(
+              'STOP & SAVE',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ),
+        if (fromWidget)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              'Started from the home-screen widget, so there is no recording '
+              'from before you tapped — this event has no background level to '
+              'compare against.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+      ],
     );
   }
 }

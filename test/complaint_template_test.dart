@@ -22,11 +22,14 @@ AcousticMetrics _metrics({
   bool calibrated = false,
   bool clipped = false,
   double laMax = 78.4,
+  double? ambient = 38.1,
+  double preRoll = 30,
 }) =>
     AcousticMetrics(
       laEqDb: 68.2,
       laMaxDb: laMax,
-      ambientLa90Db: 38.1,
+      ambientLa90Db: ambient,
+      preRollSeconds: preRoll,
       peakWindowLaEqDb: 71.9,
       peakWindowStartMs: 24000,
       peakWindowDurationMs: 10000,
@@ -75,14 +78,22 @@ Snap _snap({
   bool clipped = false,
   String? clipPath,
   bool attachClip = false,
+  bool located = true,
+  double? ambient = 38.1,
+  double preRoll = 30,
 }) =>
     Snap(
       id: 'snap-1',
       recordedAt: _heardAt,
-      latitude: 51.50012,
-      longitude: -0.10034,
-      gpsAccuracyM: 8,
-      metrics: _metrics(calibrated: calibrated, clipped: clipped),
+      latitude: located ? 51.50012 : null,
+      longitude: located ? -0.10034 : null,
+      gpsAccuracyM: located ? 8 : null,
+      metrics: _metrics(
+        calibrated: calibrated,
+        clipped: clipped,
+        ambient: ambient,
+        preRoll: preRoll,
+      ),
       status: SnapStatus.confirmed,
       match: withMatch ? _match() : null,
       selectedIcao24: confirmed && withMatch ? 'abc123' : null,
@@ -235,5 +246,50 @@ void main() {
     expect(uri.path, 'benedict.carter@gmail.com');
     expect(uri.queryParameters['subject'], draft.subject);
     expect(uri.queryParameters['body'], draft.body);
+  });
+
+  test('a snap with no fix says so instead of quoting a coordinate', () {
+    // The old code stored a missing fix as 0, 0 and the letter printed
+    // "Location: 0.00000, 0.00000" — a real position off the coast of Ghana,
+    // and one the recipient has no way of recognising as a failure.
+    final ComplaintDraft draft = template.render(
+      snap: _snap(located: false),
+      profile: _profile,
+      settings: settings,
+    );
+
+    expect(draft.body, isNot(contains('0.00000')));
+    expect(draft.body, contains('No satellite fix was recorded'));
+    // The home address still anchors the complaint.
+    expect(draft.body, contains('AB1 2CD'));
+  });
+
+  test('a located snap still prints coordinates and their accuracy', () {
+    final ComplaintDraft draft = template.render(
+      snap: _snap(),
+      profile: _profile,
+      settings: settings,
+    );
+
+    expect(draft.body, contains('51.50012, -0.10034'));
+    expect(draft.body, contains('±8 m'));
+  });
+
+  test('with no background measured, no rise above background is claimed', () {
+    // A widget-triggered snap has no pre-roll. Quoting a rise over a
+    // background derived from un-recorded silence would overstate the event by
+    // tens of dB — precisely the direction that would discredit a complaint.
+    final ComplaintDraft draft = template.render(
+      snap: _snap(ambient: null, preRoll: 0),
+      profile: _profile,
+      settings: settings,
+    );
+
+    expect(draft.body, contains('not measured'));
+    expect(draft.body, contains('background level before the event was not '
+        'captured'));
+    expect(draft.body, isNot(contains('Rise above background: 40.3 dB')));
+    // The uncalibrated warning must survive: it is the other honesty clause.
+    expect(draft.body, contains('has NOT been calibrated'));
   });
 }

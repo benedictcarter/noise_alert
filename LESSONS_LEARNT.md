@@ -159,3 +159,52 @@ cause.
 `Internal shared storage\Download` and `CopyHere($apkPath, 16)`, then the user taps the file in a
 file manager. `Install unknown apps` must be granted to *the file manager doing the tapping*, not to
 the APK. Slow and manual, but it unblocks on-device testing without ADB.
+
+## FileProvider silently vetoes attachments from `getApplicationDocumentsDirectory()` (2026-08-20)
+**Mechanism:** `flutter_email_sender` hands each attachment to
+`FileProvider.getUriForFile(activity, packageName + ".file_provider", File(path))`, and the paths it
+declares in its own `shared_file_paths.xml` are only `external-path`, `cache-path` and `files-path`.
+On Android, path_provider maps `getApplicationDocumentsDirectory()` to `<data>/app_flutter` and
+`getApplicationSupportDirectory()` to `<data>/files`. `files-path` means `<data>/files` — so
+`app_flutter` is outside every declared root and `getUriForFile` throws
+`IllegalArgumentException: Failed to find configured root`.
+**Incident:** Ben reported that a complaint with no clip was formatted correctly, but a complaint
+*with* a clip arrived as "a giant wall of text" with no attachment. The clip path was the cause, not
+the body: the throw escaped into our blanket `catch`, which degraded to a `mailto:` URL, and Gmail
+renders a long `mailto:` body as one unbroken block and cannot carry a file at all. Nothing in the
+logs said "attachment" — the visible symptom was entirely about formatting.
+**Rule:** write anything intended for a share/attach intent to `getApplicationSupportDirectory()`
+(or the cache dir), never the documents dir. And a catch-all fallback that changes *transport* will
+mask the real error: the composer is now retried without attachments before `mailto:` is considered,
+so the failure mode degrades one step at a time and is visible.
+
+## A ring buffer zero-fills history it never recorded (2026-08-20)
+**Mechanism:** `PcmRingBuffer.readEndingAt` returns a fixed-length window ending at a given sample
+position. Before the buffer has been filled once, the samples "before" the recording started are
+whatever the buffer was initialised to — zeros. Zeros are not quiet; they are digital silence, tens
+of dB below any real room, and they drag an LAeq average down and make an L90 percentile meaningless.
+**Incident:** found while building the home-screen widget, which fires a capture the instant the mic
+opens. Every widget snap — and every ordinary snap taken within 30 s of opening the app — would have
+computed its background from unrecorded silence and therefore *overstated* the rise above background
+by tens of dB. That is the one direction of error that would discredit a complaint outright.
+**Rule:** a ring buffer must report how much of the window is real, not just hand back the window.
+`captureEventWindow` now returns an `EventWindow` carrying `preRollSamples`, and the analyser returns
+`ambientLa90Db == null` below `minAmbientSeconds` of genuine pre-roll. Modelling "not measured" as a
+null rather than a plausible number is the whole point: a nullable field forces every call site
+(letter, review screen, excess calculation) to decide what to say, where a default would have
+silently produced a confident wrong answer.
+
+## The Bash tool on Windows eats one level of backslash in heredocs (2026-08-20)
+**Mechanism:** a `python - <<'PY'` heredoc is quoted, so the shell should pass it through verbatim.
+Through this tool on Windows it does not: one level of backslash escaping is stripped before Python
+sees the script. `\\'` arrives as `\'`, and `\\n` arrives as a real
+`\n`.
+**Incident:** a generated Dart string ended up containing a bare apostrophe that unterminated the
+literal, and another contained a literal newline inside a single-quoted string — both compile errors
+in code that looked correct in the script. Debugging went to the Dart, not the shell, twice.
+**Rule:** never rely on backslash escapes surviving a heredoc here. Build them arithmetically inside
+Python (`BS = chr(92)`, then `BS + "n"`), pick a quote style that avoids the escape entirely, or
+reword the text. The same trap applies to `'''` appearing inside a Python triple-quoted string when the
+target language uses it too — Dart multi-line strings and Python ones collide, so use `chr(39) * 3`
+and concatenate.
+

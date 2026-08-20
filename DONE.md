@@ -69,3 +69,29 @@ the settings form rebuilt every consumer.
   unmap on Windows and killed two builds on different modules.
 - APK sideloaded to the test handset over MTP — the LG G7 ThinQ exposes no ADB interface, so
   `flutter run` and hot reload are unavailable on it.
+
+## Widget, GPS honesty, stop-and-save, mail attachments (2026-08-20)
+All four from Ben's first round of on-device use.
+
+- **1×1 home-screen widget.** `SnapWidgetProvider` + `snap_widget.xml`; the tap launches
+  `MainActivity` with `snap_now`, and Dart picks it up over `MethodChannel('noise_alert/quick_snap')`
+  by two paths — a pull at startup for a cold launch, a push via `onNewIntent` while running.
+  Handling only the first is the classic bug: the widget then works once per app lifetime.
+- **GPS read 0, 0.** Root cause was two-fold — `capture()` did `fix?.latitude ?? 0`, and the app
+  never showed that location was off device-wide (which it was). Latitude/longitude are now nullable
+  end to end, schema v2 migrates existing `0, 0` rows to NULL, the permission is requested when the
+  snap screen opens rather than mid-capture, and a banner offers "Turn on" or "Settings" depending
+  on which of the four states the device is actually in. `current()` falls back from a high-accuracy
+  fix to a coarse one instead of failing outright.
+- **STOP & SAVE.** Waiting out the full 20 s post-roll was annoying. `cutCaptureShort()` ends the
+  window early and keeps whatever was recorded; the GPS fetch now runs in parallel with the post-roll
+  so a press during the locating stage is not swallowed.
+- **Audio attachments.** Clips are written to `getApplicationSupportDirectory()`, the only path
+  `flutter_email_sender`'s FileProvider actually declares, and the composer is retried without
+  attachments before falling back to `mailto:` (see LESSONS_LEARNT).
+- **Latent bug found on the way:** a snap taken before the ring buffer had filled averaged
+  unrecorded digital silence into the background level. `ambientLa90Db` is now nullable and the
+  letter and review screen say "not measured" rather than quoting an inflated rise.
+
+62 tests, `flutter analyze` clean.
+

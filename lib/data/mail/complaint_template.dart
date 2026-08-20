@@ -91,8 +91,9 @@ class ComplaintTemplate {
       'datetimeLong': _longFormat.format(snap.recordedAt),
       'date': DateFormat('d MMMM yyyy').format(snap.recordedAt),
       'time': _shortTimeFormat.format(snap.recordedAt),
-      'latitude': snap.latitude.toStringAsFixed(5),
-      'longitude': snap.longitude.toStringAsFixed(5),
+      'latitude': snap.latitude?.toStringAsFixed(5) ?? 'not recorded',
+      'longitude': snap.longitude?.toStringAsFixed(5) ?? 'not recorded',
+      'locationLine': _locationLine(snap, profile),
       'flight': _flightLabel(aircraft),
       'callsign': aircraft?.callsign?.trim() ?? '',
       'registration': aircraft?.registration?.trim() ?? '',
@@ -112,8 +113,8 @@ class ComplaintTemplate {
       'laMax': m.laMaxDb.toStringAsFixed(1),
       'laEq': m.laEqDb.toStringAsFixed(1),
       'peakWindowLaEq': m.peakWindowLaEqDb.toStringAsFixed(1),
-      'ambient': m.ambientLa90Db.toStringAsFixed(1),
-      'excess': m.excessOverAmbientDb.toStringAsFixed(1),
+      'ambient': m.ambientLa90Db?.toStringAsFixed(1) ?? 'not measured',
+      'excess': m.excessOverAmbientDb?.toStringAsFixed(1) ?? 'not measured',
       'eventSeconds': (m.eventDurationMs / 1000).round().toString(),
       'device': snap.deviceModel,
       'osVersion': snap.osVersion,
@@ -188,10 +189,21 @@ class ComplaintTemplate {
       buffer.write(
         ' This handset has NOT been calibrated against a reference sound level '
         'meter, so the absolute values should be treated as indicative rather '
-        'than as a formal measurement. The rise above the background level '
-        '(${m.excessOverAmbientDb.toStringAsFixed(1)} dB) does not depend on '
-        'calibration and is reliable.',
+        'than as a formal measurement.',
       );
+      final double? excess = m.excessOverAmbientDb;
+      if (excess != null) {
+        buffer.write(
+          ' The rise above the background level '
+          '(${excess.toStringAsFixed(1)} dB) does not depend on calibration '
+          'and is reliable.',
+        );
+      } else {
+        buffer.write(
+          ' The background level before the event was not captured for this '
+          'measurement, so no rise above background is quoted.',
+        );
+      }
     }
 
     if (m.clipped) {
@@ -201,6 +213,33 @@ class ComplaintTemplate {
       );
     }
 
+    return buffer.toString();
+  }
+
+  /// The "where I was" line, written so a missing fix reads as a plain fact
+  /// rather than as a pair of zeroes the recipient would reasonably read as
+  /// coordinates. The home address is always there as the fallback, and is in
+  /// any case the address the complaint is about.
+  String _locationLine(Snap snap, ComplainantProfile profile) {
+    final String postcode = profile.postcode.trim();
+    final String suffix = postcode.isEmpty ? '' : ' ($postcode)';
+
+    if (!snap.hasLocation) {
+      return 'Location: my home address above$suffix. '
+          'No satellite fix was recorded for this measurement.';
+    }
+
+    final StringBuffer buffer = StringBuffer('Location: ')
+      ..write(snap.latitude!.toStringAsFixed(5))
+      ..write(', ')
+      ..write(snap.longitude!.toStringAsFixed(5));
+    final double? accuracy = snap.gpsAccuracyM;
+    if (accuracy != null) buffer.write(' (±${accuracy.round()} m)');
+    buffer.write(suffix);
+    if (snap.staleFix) {
+      buffer.write(' — taken from the last known position of the handset '
+          'rather than a live fix at the time of the event.');
+    }
     return buffer.toString();
   }
 
@@ -223,7 +262,7 @@ class ComplaintTemplate {
   static const String tokenHelp = '''
 Available tokens:
   {name} {address} {addressOneLine} {postcode} {email} {phone} {phoneLine}
-  {datetimeLong} {date} {time} {latitude} {longitude}
+  {datetimeLong} {date} {time} {latitude} {longitude} {locationLine}
   {flight} {callsign} {registration} {aircraftType} {icao24}
   {aircraftDescription} {aircraftBlock}
   {heightFt} {slantRangeM} {elevationDeg}

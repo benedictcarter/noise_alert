@@ -21,11 +21,20 @@ class NoiseAnalyzer {
   /// |sample| at or above this (full scale = 1.0) counts as clipped.
   final double clipThreshold;
 
+  /// Below this much pre-roll there is no meaningful background to quote. Ten
+  /// blocks of 125 ms is the bare minimum for an L90 to mean anything, and
+  /// three seconds also rules out the case where the microphone opened during
+  /// the event itself.
+  static const double minAmbientSeconds = 3;
+
   /// [samples] must be normalised to -1.0..1.0 and unweighted.
   ///
   /// [ambientSampleCount] is how many samples at the *start* of the buffer are
-  /// treated as pre-event background. Pass 0 to fall back to using the whole
+  /// genuinely pre-event background. Pass 0 to fall back to using the whole
   /// buffer for the ambient statistic.
+  ///
+  /// If that region is shorter than [minAmbientSeconds] the resulting metrics
+  /// carry a null `ambientLa90Db` rather than a fabricated one.
   AcousticMetrics analyze({
     required Float64List samples,
     required double sampleRate,
@@ -33,6 +42,7 @@ class NoiseAnalyzer {
     required bool calibrated,
     int ambientSampleCount = 0,
     double peakWindowSeconds = 10,
+    double? preRollSeconds,
   }) {
     if (samples.isEmpty) {
       throw ArgumentError('samples must not be empty');
@@ -91,9 +101,16 @@ class NoiseAnalyzer {
         start += blockSamples) {
       shortTermLevels.add(levelOf(start, start + blockSamples));
     }
-    final double ambientL90 = shortTermLevels.isEmpty
-        ? levelOf(0, ambientEnd)
-        : _percentile(shortTermLevels, 0.10);
+    // An explicitly-passed ambient region that is too short means the snap was
+    // fired before enough background had been recorded; say so with a null
+    // rather than quoting the level of a buffer that was never filled.
+    final bool ambientMeasurable = ambientSampleCount <= 0 ||
+        ambientSampleCount >= sampleRate * minAmbientSeconds;
+    final double? ambientL90 = !ambientMeasurable
+        ? null
+        : (shortTermLevels.isEmpty
+            ? levelOf(0, ambientEnd)
+            : _percentile(shortTermLevels, 0.10));
 
     // --- loudest peakWindowSeconds slice --------------------------------
     final int windowSamples = math.min(
@@ -117,6 +134,8 @@ class NoiseAnalyzer {
       laEqDb: laEq,
       laMaxDb: laMax,
       ambientLa90Db: ambientL90,
+      preRollSeconds:
+          preRollSeconds ?? (ambientSampleCount / sampleRate),
       peakWindowLaEqDb: peakWindowLaEq,
       peakWindowStartMs: (bestStart / sampleRate * 1000).round(),
       peakWindowDurationMs: (windowSamples / sampleRate * 1000).round(),

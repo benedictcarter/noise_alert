@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A 1x1 cell is roughly 40dp of usable space, so there is room for a label or
+  an icon, not both. The label wins: an unlabelled red circle on a home screen
+  is a guess, and this is a button the user has to find in a hurry.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/snap_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="@drawable/snap_widget_background"
+    android:contentDescription="@string/snap_widget_description"
+    android:padding="4dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/snap_widget_label"
+        android:textColor="@android:color/white"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:maxLines="1" />
+</LinearLayout>

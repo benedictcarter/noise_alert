@@ -41,7 +41,39 @@ class MailSender {
         .toList();
 
     try {
-      await FlutterEmailSender.send(
+      await _compose(draft, attachments);
+      return const MailOutcome(MailResult.composerOpened);
+    } catch (error) {
+      // An attachment failure must not cost the user their letter. The most
+      // common cause is the platform refusing to share the file's directory —
+      // and dropping straight to mailto: for that would throw away the message
+      // formatting as well as the clip, which reads to the user as the app
+      // mangling their complaint. Retry the real composer without the
+      // attachment first; only a composer that will not open at all justifies
+      // the fallback.
+      if (attachments.isNotEmpty) {
+        try {
+          await _compose(draft, const <String>[]);
+          return const MailOutcome(
+            MailResult.composerOpenedWithoutAttachment,
+            detail: 'The audio clip could not be attached, so the complaint '
+                'was opened without it. Everything else is intact.',
+          );
+        } catch (_) {
+          // No composer at all; fall through to mailto:.
+        }
+      }
+
+      // Typically "no email client configured" on Android, or a device with no
+      // Mail account on iOS. mailto: often still resolves to a webmail handler.
+      final MailOutcome fallback = await _sendViaMailto(draft);
+      if (fallback.opened) return fallback;
+      return MailOutcome(MailResult.failed, detail: '$error');
+    }
+  }
+
+  Future<void> _compose(ComplaintDraft draft, List<String> attachments) =>
+      FlutterEmailSender.send(
         Email(
           subject: draft.subject,
           body: draft.body,
@@ -52,15 +84,6 @@ class MailSender {
           isHTML: false,
         ),
       );
-      return const MailOutcome(MailResult.composerOpened);
-    } catch (error) {
-      // Typically "no email client configured" on Android, or a device with no
-      // Mail account on iOS. mailto: often still resolves to a webmail handler.
-      final MailOutcome fallback = await _sendViaMailto(draft);
-      if (fallback.opened) return fallback;
-      return MailOutcome(MailResult.failed, detail: '$error');
-    }
-  }
 
   Future<MailOutcome> _sendViaMailto(ComplaintDraft draft) async {
     final Uri uri = buildMailtoUri(draft);
@@ -73,9 +96,11 @@ class MailSender {
             ? MailResult.composerOpened
             : MailResult.composerOpenedWithoutAttachment,
         detail: draft.attachmentPaths.isEmpty
-            ? null
-            : 'The audio clip could not be attached automatically — share it '
-                'separately from the history screen.',
+            ? 'No mail app accepted the complaint directly, so it was opened '
+                'through a mailto: link. Some clients reflow the text.'
+            : 'No mail app accepted the complaint directly, so it was opened '
+                'through a mailto: link — the audio clip is not attached and '
+                'some clients reflow the text.',
       );
     } catch (error) {
       return MailOutcome(MailResult.failed, detail: '$error');

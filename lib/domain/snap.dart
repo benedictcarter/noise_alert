@@ -23,10 +23,10 @@ class Snap {
   const Snap({
     required this.id,
     required this.recordedAt,
-    required this.latitude,
-    required this.longitude,
     required this.metrics,
     required this.status,
+    this.latitude,
+    this.longitude,
     this.gpsAccuracyM,
     this.gpsAltitudeM,
     this.clipPath,
@@ -39,6 +39,7 @@ class Snap {
     this.osVersion = '',
     this.appVersion = '',
     this.notes = '',
+    this.staleFix = false,
   });
 
   final String id;
@@ -47,10 +48,20 @@ class Snap {
   /// The aircraft's closest approach was earlier — see [FlightMatch].
   final DateTime recordedAt;
 
-  final double latitude;
-  final double longitude;
+  /// Null when no fix was available. **Not** defaulted to zero: 0, 0 is a real
+  /// place in the Gulf of Guinea, and a letter quoting it, or a flight search
+  /// centred on it, would be worse than an honest "location unknown".
+  final double? latitude;
+  final double? longitude;
   final double? gpsAccuracyM;
   final double? gpsAltitudeM;
+
+  /// The fix came from the last-known cache rather than a live reading, so the
+  /// user may have moved since. Still worth having — it is almost always the
+  /// same garden — but the letter says which it was.
+  final bool staleFix;
+
+  bool get hasLocation => latitude != null && longitude != null;
 
   final AcousticMetrics metrics;
   final SnapStatus status;
@@ -127,6 +138,7 @@ class Snap {
         longitude: longitude,
         gpsAccuracyM: gpsAccuracyM,
         gpsAltitudeM: gpsAltitudeM,
+        staleFix: staleFix,
         metrics: metrics,
         status: status ?? this.status,
         clipPath: clipPath ?? this.clipPath,
@@ -161,6 +173,7 @@ class Snap {
         'os_version': osVersion,
         'app_version': appVersion,
         'notes': notes,
+        'stale_fix': staleFix ? 1 : 0,
       };
 
   static Snap fromRow(Map<String, Object?> row) {
@@ -171,8 +184,8 @@ class Snap {
         row['recorded_at'] as int,
         isUtc: true,
       ).toLocal(),
-      latitude: (row['latitude'] as num).toDouble(),
-      longitude: (row['longitude'] as num).toDouble(),
+      latitude: (row['latitude'] as num?)?.toDouble(),
+      longitude: (row['longitude'] as num?)?.toDouble(),
       gpsAccuracyM: (row['gps_accuracy_m'] as num?)?.toDouble(),
       gpsAltitudeM: (row['gps_altitude_m'] as num?)?.toDouble(),
       metrics: AcousticMetrics.fromJson(
@@ -198,6 +211,7 @@ class Snap {
       osVersion: row['os_version'] as String? ?? '',
       appVersion: row['app_version'] as String? ?? '',
       notes: row['notes'] as String? ?? '',
+      staleFix: (row['stale_fix'] as int? ?? 0) == 1,
     );
   }
 }

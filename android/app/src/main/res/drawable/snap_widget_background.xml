@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <!-- The same red as the in-app SNAP button, so the two read as one thing. -->
+    <solid android:color="#B3261E" />
+</shape>

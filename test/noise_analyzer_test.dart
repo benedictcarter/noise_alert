@@ -112,7 +112,7 @@ void main() {
       ambientSampleCount: (10 * _fs).round(),
       peakWindowSeconds: 5,
     );
-    expect(shifted.excessOverAmbientDb, closeTo(m.excessOverAmbientDb, 0.001));
+    expect(shifted.excessOverAmbientDb, closeTo(m.excessOverAmbientDb!, 0.001));
     expect(shifted.laMaxDb, closeTo(m.laMaxDb + 17, 0.001));
   });
 
@@ -163,5 +163,79 @@ void main() {
     expect(back.peakWindowStartMs, m.peakWindowStartMs);
     expect(back.calibrated, m.calibrated);
     expect(back.sampleRate, m.sampleRate);
+  });
+
+  test('too little pre-roll yields no ambient level rather than a wrong one', () {
+    // The widget fires a capture the instant the mic opens, and the ring buffer
+    // zero-fills the history it never recorded. Averaging digital silence into
+    // an L90 would report a background tens of dB below anything real and so
+    // inflate the quoted rise — the one direction that would discredit the
+    // complaint. Below minAmbientSeconds the answer is "not measured".
+    final Float64List samples = _concat(<Float64List>[
+      _tone(seconds: 1, amplitude: 0.002),
+      _tone(seconds: 4, amplitude: 0.2),
+    ]);
+
+    final AcousticMetrics m = analyzer.analyze(
+      samples: samples,
+      sampleRate: _fs,
+      calibrationOffsetDb: _offset,
+      calibrated: false,
+      peakWindowSeconds: 1,
+      ambientSampleCount: (1 * _fs).round(),
+      preRollSeconds: 1,
+    );
+
+    expect(m.ambientLa90Db, isNull);
+    expect(m.hasAmbient, isFalse);
+    expect(m.excessOverAmbientDb, isNull);
+    // The event itself is still measured; only the comparison is withheld.
+    expect(m.laMaxDb, closeTo(_expectedDb(0.2), 0.3));
+    expect(m.preRollSeconds, 1);
+  });
+
+  test('exactly minAmbientSeconds of pre-roll is enough to measure', () {
+    final Float64List samples = _concat(<Float64List>[
+      _tone(seconds: NoiseAnalyzer.minAmbientSeconds, amplitude: 0.002),
+      _tone(seconds: 4, amplitude: 0.2),
+    ]);
+
+    final AcousticMetrics m = analyzer.analyze(
+      samples: samples,
+      sampleRate: _fs,
+      calibrationOffsetDb: _offset,
+      calibrated: false,
+      peakWindowSeconds: 1,
+      ambientSampleCount: (NoiseAnalyzer.minAmbientSeconds * _fs).round(),
+      preRollSeconds: NoiseAnalyzer.minAmbientSeconds,
+    );
+
+    expect(m.ambientLa90Db, closeTo(_expectedDb(0.002), 0.5));
+    expect(m.hasAmbient, isTrue);
+  });
+
+  test('a short pre-roll survives the JSON round trip as a null ambient', () {
+    // Old records have no preRollSeconds key at all; new ones must not lose the
+    // distinction between "quiet background" and "background never captured".
+    const AcousticMetrics m = AcousticMetrics(
+      laEqDb: 68.2,
+      laMaxDb: 78.4,
+      ambientLa90Db: null,
+      preRollSeconds: 0,
+      peakWindowLaEqDb: 71.9,
+      peakWindowStartMs: 0,
+      peakWindowDurationMs: 10000,
+      eventDurationMs: 20000,
+      clipped: false,
+      calibrated: false,
+      calibrationOffsetDb: _offset,
+      sampleRate: _fs,
+    );
+
+    final AcousticMetrics back = AcousticMetrics.fromJson(m.toJson());
+
+    expect(back.ambientLa90Db, isNull);
+    expect(back.preRollSeconds, 0);
+    expect(back.hasAmbient, isFalse);
   });
 }

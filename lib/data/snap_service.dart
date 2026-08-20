@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
@@ -72,6 +73,24 @@ class SnapService {
   bool _armed = false;
   bool get isArmed => _armed;
 
+  LocationStatus _locationStatus =
+      const LocationStatus(LocationAvailability.denied);
+
+  /// What the location layer could do at the last check. The snap screen shows
+  /// this before the button is pressed, so a missing permission is a thing the
+  /// user fixes in advance rather than discovers afterwards.
+  LocationStatus get locationStatus => _locationStatus;
+
+  /// Re-checks without prompting. Called on resume, so returning from system
+  /// settings updates the screen.
+  Future<LocationStatus> refreshLocationStatus() async {
+    _locationStatus = await location.check();
+    return _locationStatus;
+  }
+
+  Future<void> openLocationSettings() =>
+      location.openRelevantSettings(_locationStatus.availability);
+
   /// Opens the microphone and starts polling for nearby aircraft.
   ///
   /// Called when the snap screen appears, not when the button is pressed: the
@@ -83,19 +102,27 @@ class SnapService {
     await recorder.start();
     _armed = true;
 
+    // Ask for location now, not at the moment of the press. A permission
+    // dialog appearing after the button press costs the user the seconds
+    // during which the aircraft is still overhead.
+    try {
+      _locationStatus = await location.request();
+    } on Object {
+      _locationStatus = const LocationStatus(LocationAvailability.denied);
+    }
+
     // Best-effort: the last known fix is good enough to aim the ADS-B query,
     // and waiting for a fresh one would leave the track cache empty for the
     // first several seconds.
-    try {
-      final SnapLocation? seed = await location.lastKnown();
-      if (seed != null) {
-        lookup.startTracking(
-            latitude: seed.latitude, longitude: seed.longitude);
-      }
-    } on Object {
-      // No fix yet; capture() will query and start tracking then.
+    final SnapLocation? seed = _locationStatus.lastFix;
+    if (seed != null) {
+      lookup.startTracking(latitude: seed.latitude, longitude: seed.longitude);
     }
   }
+
+  /// Stops waiting for the rest of the post-roll and saves what is recorded.
+  /// Safe at any point: outside a capture it does nothing.
+  void finishCaptureEarly() => recorder.cutCaptureShort();
 
   Future<void> disarm() async {
     _armed = false;
@@ -113,25 +140,42 @@ class SnapService {
     String notes = '',
   }) async {
     final DateTime pressedAt = DateTime.now();
+    recorder.prepareCapture();
 
-    _emit(CaptureStage.locating);
-    final SnapLocation? fix = await _bestEffortLocation();
+    // The fix is fetched *alongside* the post-roll rather than before it. A
+    // cold receiver can take ten seconds, and there is no reason to spend them
+    // standing still: the press is already timestamped, the microphone is
+    // already running, and the aircraft is already leaving. Serialising the
+    // two used to add the whole GPS wait to every capture.
+    final Future<SnapLocation?> pendingFix = _bestEffortLocation();
 
     _emit(
       CaptureStage.recording,
       'Recording the tail of the event (${AudioConfig.postRollSeconds} s)…',
     );
-    final Float64List samples = await recorder.captureEventWindow(pressedAt);
+    final EventWindow window = await recorder.captureEventWindow(pressedAt);
+    final Float64List samples = window.samples;
+
+    _emit(CaptureStage.locating);
+    final SnapLocation? fix = await pendingFix;
 
     _emit(CaptureStage.analysing);
+    // The ambient window can only be as long as the pre-roll actually was. A
+    // snap fired from the widget, or seconds after opening the app, has less
+    // than the full 30 s — the analyzer returns a null background rather than
+    // measuring one out of audio that does not exist.
+    final int ambientSamples = math.min(
+      (AudioConfig.ambientWindowSeconds * AudioConfig.sampleRate).round(),
+      window.preRollSamples,
+    );
     final AcousticMetrics metrics = analyzer.analyze(
       samples: samples,
       sampleRate: AudioConfig.sampleRate.toDouble(),
       calibrationOffsetDb: settings.calibrationOffsetDb,
       calibrated: settings.calibrated,
-      ambientSampleCount:
-          (AudioConfig.ambientWindowSeconds * AudioConfig.sampleRate).round(),
+      ambientSampleCount: ambientSamples,
       peakWindowSeconds: AudioConfig.clipSeconds.toDouble(),
+      preRollSeconds: window.preRollSeconds,
     );
 
     final DeviceDescription device = await deviceInfo.describe();
@@ -145,10 +189,11 @@ class SnapService {
     Snap snap = Snap(
       id: id,
       recordedAt: pressedAt,
-      latitude: fix?.latitude ?? 0,
-      longitude: fix?.longitude ?? 0,
+      latitude: fix?.latitude,
+      longitude: fix?.longitude,
       gpsAccuracyM: fix?.accuracyM,
       gpsAltitudeM: fix?.altitudeM,
+      staleFix: fix?.stale ?? false,
       metrics: metrics,
       status: SnapStatus.unmatched,
       clipPath: clipPath,
@@ -161,8 +206,12 @@ class SnapService {
     await database.upsertSnap(snap);
 
     if (fix == null) {
-      _emit(CaptureStage.done,
-          'Saved without a location fix — no flight lookup.');
+      _emit(
+        CaptureStage.done,
+        'Saved without a location fix — ${_locationStatus.isReady ? 'the '
+            'receiver did not report a position in time' : _locationStatus
+            .message} No flight lookup is possible without one.',
+      );
       return snap;
     }
 
@@ -177,9 +226,25 @@ class SnapService {
   /// Live sources first; if they turn up nothing and the snap is still inside
   /// OpenSky's one-hour retrospective window, back-fill from there.
   Future<Snap> resolveMatch(Snap snap, {bool preferHistorical = false}) async {
+    if (!snap.hasLocation) {
+      // Searching from a guessed position is worse than not searching: the
+      // matcher would happily name an aircraft that was 5,000 km away.
+      final Snap unlocated = snap.copyWith(
+        match: FlightMatch.none(
+          searchedFrom: snap.recordedAt,
+          searchedTo: snap.recordedAt,
+          note: 'No location was recorded for this snap, so the aircraft '
+              'cannot be identified.',
+        ),
+        status: SnapStatus.unmatched,
+      );
+      await database.upsertSnap(unlocated);
+      return unlocated;
+    }
+
     final Observer observer = Observer(
-      latitude: snap.latitude,
-      longitude: snap.longitude,
+      latitude: snap.latitude!,
+      longitude: snap.longitude!,
       altitudeM: snap.gpsAltitudeM ?? 0,
     );
 
@@ -313,7 +378,7 @@ class SnapService {
   Future<SnapLocation?> _bestEffortLocation() async {
     try {
       final SnapLocation fix = await location.current(
-        timeout: const Duration(seconds: 8),
+        timeout: const Duration(seconds: 12),
       );
       if (!lookup.isTracking) {
         lookup.startTracking(latitude: fix.latitude, longitude: fix.longitude);
@@ -346,8 +411,15 @@ class SnapService {
               .round();
       final int end = (start + length).clamp(0, samples.length);
 
+      // Support directory, *not* the documents directory. On Android
+      // path_provider maps documents to `<data>/app_flutter`, which is outside
+      // every root flutter_email_sender's FileProvider declares
+      // (`files-path`, `cache-path`, `external-path`). Attaching a clip from
+      // there makes FileProvider.getUriForFile throw, the send fails, and the
+      // user gets a mangled mailto: fallback with no attachment. Support maps
+      // to `<data>/files`, which the provider can serve.
       final Directory dir = Directory(
-        p.join((await getApplicationDocumentsDirectory()).path, 'clips'),
+        p.join((await getApplicationSupportDirectory()).path, 'clips'),
       );
       final File file = await wavWriter.write(
         path: p.join(dir.path, '$id.wav'),

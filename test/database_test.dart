@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noise_alert/data/storage/database.dart';
 import 'package:noise_alert/domain/acoustic_metrics.dart';
@@ -12,6 +15,7 @@ const AcousticMetrics _metrics = AcousticMetrics(
   laEqDb: 68.2,
   laMaxDb: 78.4,
   ambientLa90Db: 38.1,
+  preRollSeconds: 30,
   peakWindowLaEqDb: 71.9,
   peakWindowStartMs: 24000,
   peakWindowDurationMs: 10000,
@@ -231,4 +235,154 @@ void main() {
     // history screen deletes optimistically.
     await db.deleteSnap('a');
   });
+
+  test('a snap with no fix round trips as null, not as zero', () async {
+    // 0, 0 is a real place. Storing it for "unknown" would put a coordinate in
+    // the Gulf of Guinea into a complaint letter and centre the flight search
+    // there, which is worse than admitting the fix is missing.
+    final Snap unlocated = Snap(
+      id: 'no-fix',
+      recordedAt: DateTime(2026, 8, 19, 12),
+      metrics: _metrics,
+      status: SnapStatus.unmatched,
+      deviceModel: 'LG G7 ThinQ',
+      osVersion: 'Android 10 (SDK 29)',
+      appVersion: '0.1.0+1',
+    );
+
+    await db.upsertSnap(unlocated);
+    final Snap? read = await db.snapById('no-fix');
+
+    expect(read, isNotNull);
+    expect(read!.latitude, isNull);
+    expect(read.longitude, isNull);
+    expect(read.hasLocation, isFalse);
+  });
+
+  test('a cached last-known fix is marked stale across the round trip',
+      () async {
+    await db.upsertSnap(
+      Snap(
+        id: 'stale-fix',
+        recordedAt: DateTime(2026, 8, 19, 12),
+        latitude: 51.5,
+        longitude: -0.1,
+        staleFix: true,
+        metrics: _metrics,
+        status: SnapStatus.unmatched,
+      ),
+    );
+
+    expect((await db.snapById('stale-fix'))!.staleFix, isTrue);
+  });
+
+  test('back-fill skips snaps with no location', () async {
+    // There is nothing to ask OpenSky: the query is a radius around a point we
+    // do not have. Left in, it would burn the rate limit on every poll forever.
+    final DateTime now = DateTime.now();
+    await db.upsertSnap(_snap(id: 'located', at: now));
+    await db.upsertSnap(
+      Snap(
+        id: 'unlocated',
+        recordedAt: now,
+        metrics: _metrics,
+        status: SnapStatus.unmatched,
+      ),
+    );
+
+    expect(
+      (await db.backfillableSnaps()).map((Snap s) => s.id).toList(),
+      <String>['located'],
+    );
+  });
+
+  group('v1 to v2 migration', () {
+    // A real file, not inMemoryDatabasePath: an in-memory database is destroyed
+    // when it is closed, so there would be nothing left to re-open and upgrade.
+    late Directory dir;
+    late String path;
+
+    setUp(() async {
+      dir = await Directory.systemTemp.createTemp('noise_alert_migration');
+      path = '${dir.path}/noise_alert.db';
+    });
+
+    tearDown(() => dir.delete(recursive: true));
+
+    Future<void> seedV1(double lat, double lon) async {
+      final Database v1 = await openDatabase(
+        path,
+        version: 1,
+        onCreate: (Database db, int _) async {
+          await db.execute(
+            'CREATE TABLE kv (key TEXT PRIMARY KEY, value TEXT NOT NULL)',
+          );
+          // The v1 shape verbatim: NOT NULL coordinates, no stale_fix column.
+          await db.execute(_v1SnapsTable);
+        },
+      );
+      await v1.insert('snaps', <String, Object?>{
+        'id': 'legacy',
+        'recorded_at': DateTime(2026, 8, 18, 11).millisecondsSinceEpoch,
+        'latitude': lat,
+        'longitude': lon,
+        'metrics_json': jsonEncode(_metrics.toJson()),
+        'status': 'unmatched',
+      });
+      await v1.close();
+    }
+
+    test('a 0, 0 row becomes a genuinely absent fix', () async {
+      await seedV1(0, 0);
+
+      final AppDatabase upgraded = await AppDatabase.open(overridePath: path);
+      addTearDown(upgraded.close);
+      final Snap? snap = await upgraded.snapById('legacy');
+
+      expect(snap, isNotNull);
+      expect(snap!.latitude, isNull);
+      expect(snap.longitude, isNull);
+      expect(snap.hasLocation, isFalse);
+      // Everything else must survive: these are the user's own records.
+      expect(snap.metrics.laMaxDb, 78.4);
+      expect(snap.status, SnapStatus.unmatched);
+    });
+
+    test('a real fix is carried through untouched', () async {
+      await seedV1(51.50012, -0.10034);
+
+      final AppDatabase upgraded = await AppDatabase.open(overridePath: path);
+      addTearDown(upgraded.close);
+      final Snap snap = (await upgraded.snapById('legacy'))!;
+
+      expect(snap.latitude, closeTo(51.50012, 1e-9));
+      expect(snap.longitude, closeTo(-0.10034, 1e-9));
+      expect(snap.staleFix, isFalse);
+    });
+  });
 }
+
+/// The v1 snaps table, reproduced so the migration is tested against what
+/// shipped rather than against a paraphrase of it.
+const String _v1SnapsTable = '''
+  CREATE TABLE snaps (
+    id TEXT PRIMARY KEY,
+    recorded_at INTEGER NOT NULL,
+    latitude REAL NOT NULL,
+    longitude REAL NOT NULL,
+    gps_accuracy_m REAL,
+    gps_altitude_m REAL,
+    metrics_json TEXT NOT NULL,
+    status TEXT NOT NULL,
+    clip_path TEXT,
+    attach_clip INTEGER NOT NULL DEFAULT 0,
+    match_json TEXT,
+    selected_icao24 TEXT,
+    unidentified INTEGER NOT NULL DEFAULT 0,
+    sent_at INTEGER,
+    device_model TEXT NOT NULL DEFAULT '',
+    os_version TEXT NOT NULL DEFAULT '',
+    app_version TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT ''
+  )
+''';

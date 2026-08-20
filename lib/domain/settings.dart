@@ -165,7 +165,7 @@ Dear Sir or Madam,
 I am writing to complain about aircraft noise affecting my home.
 
 Date and time: {datetimeLong}
-Location: {latitude}, {longitude} ({postcode})
+{locationLine}
 
 {aircraftBlock}
 
