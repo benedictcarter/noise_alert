@@ -21,8 +21,6 @@ const AcousticMetrics _metrics = AcousticMetrics(
   peakWindowDurationMs: 10000,
   eventDurationMs: 50000,
   clipped: false,
-  calibrated: false,
-  calibrationOffsetDb: 120,
   sampleRate: 48000,
 );
 
@@ -88,8 +86,6 @@ void main() {
       () async {
     const AppSettings settings = AppSettings(
       attachClipByDefault: true,
-      calibrationOffsetDb: 117.5,
-      calibrated: true,
       templateSubject: 'Custom subject',
       templateBody: 'Custom body with {laMax}.',
       openSkyClientId: 'client-id',
@@ -105,8 +101,6 @@ void main() {
     await db.saveSettings(settings);
 
     final AppSettings back = await db.loadSettings();
-    expect(back.calibrationOffsetDb, 117.5);
-    expect(back.calibrated, isTrue);
     expect(back.templateBody, 'Custom body with {laMax}.');
     expect(back.openSkyClientId, 'client-id');
     expect(back.recipientSets.single.label, 'Heathrow');
@@ -160,7 +154,6 @@ void main() {
     expect(back.recordedAt.isAtSameMomentAs(at), isTrue);
     expect(back.latitude, closeTo(51.50012, 1e-9));
     expect(back.metrics.laMaxDb, 78.4);
-    expect(back.metrics.calibrated, isFalse);
     expect(back.status, SnapStatus.confirmed);
     expect(back.attachClip, isTrue);
     expect(back.clipPath, '/data/clip.wav');

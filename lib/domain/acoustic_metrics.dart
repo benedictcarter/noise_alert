@@ -1,10 +1,11 @@
 /// Sound level figures for one noise event.
 ///
-/// Everything is A-weighted and expressed in dB(A). Whether those numbers mean
-/// anything in absolute terms depends on [calibrated] — see
-/// `CalibrationSettings`. An uncalibrated reading is still perfectly useful as
-/// a *relative* figure (how far above the ambient background the aircraft was),
-/// which is why [ambientLa90Db] and [excessOverAmbientDb] exist.
+/// Everything is A-weighted and expressed in dB(A), against the fixed
+/// full-scale reference in [LevelReference]. The figure the complaint turns on
+/// is [excessOverAmbientDb]: how far the loudest moment rose above the
+/// quietest. That comparison is between two readings from the same microphone
+/// in the same minute, so whatever the handset's absolute error is, it appears
+/// in both and cancels.
 class AcousticMetrics {
   const AcousticMetrics({
     required this.laEqDb,
@@ -17,8 +18,6 @@ class AcousticMetrics {
     required this.peakWindowDurationMs,
     required this.eventDurationMs,
     required this.clipped,
-    required this.calibrated,
-    required this.calibrationOffsetDb,
     required this.sampleRate,
     this.levelTrace = const <double>[],
     this.traceIntervalMs = 250,
@@ -43,8 +42,6 @@ class AcousticMetrics {
         peakWindowDurationMs = 0,
         eventDurationMs = 0,
         clipped = false,
-        calibrated = false,
-        calibrationOffsetDb = 0,
         sampleRate = 0,
         levelTrace = const <double>[],
         traceIntervalMs = 250;
@@ -68,8 +65,10 @@ class AcousticMetrics {
         peakWindowDurationMs: json['peakWindowDurationMs'] as int,
         eventDurationMs: json['eventDurationMs'] as int,
         clipped: (json['clipped'] as int) == 1,
-        calibrated: (json['calibrated'] as int) == 1,
-        calibrationOffsetDb: (json['calibrationOffsetDb'] as num).toDouble(),
+        // 'calibrated' and 'calibrationOffsetDb' appear in records written
+        // before the calibration setting was removed. They are read past
+        // deliberately: the scale is fixed now, and an old row's stored offset
+        // would only reintroduce a distinction the app no longer makes.
         sampleRate: (json['sampleRate'] as num).toDouble(),
         // Absent in records written before the chart existed. An empty trace
         // means "no chart", not "a flat line at zero".
@@ -88,12 +87,18 @@ class AcousticMetrics {
   /// airports and environmental health teams actually respond to.
   final double laMaxDb;
 
-  /// Background level from the pre-roll: the level exceeded 90% of the time.
+  /// The background: how quiet it got, taken across the whole recording.
   ///
-  /// Null when there was too little pre-roll to measure a background at all —
-  /// a snap fired seconds after the microphone opened has nothing to compare
-  /// the event against. Reporting a number derived from un-recorded silence
-  /// would make every such event look far more excessive than it was.
+  /// Not a mean — a mean is dragged upwards by the aircraft, which is the very
+  /// thing being measured against. This is the level exceeded 90% of the time
+  /// (L90), which is the standard way of writing down "the quiet floor" and is
+  /// what the absolute minimum is trying to be. The true minimum is not used
+  /// because it is one 125 ms block: a single dropout, buffer glitch or gap
+  /// between traffic sets the floor twenty decibels too low and every event
+  /// then looks preposterously excessive.
+  ///
+  /// Null only when the recording was too short for a quiet moment to exist in
+  /// it (see `NoiseAnalyzer.minAmbientSeconds`).
   final double? ambientLa90Db;
 
   /// Seconds of [levelTrace] that precede the button press.
@@ -123,8 +128,6 @@ class AcousticMetrics {
   /// than reported and the figure is a lower bound only.
   final bool clipped;
 
-  final bool calibrated;
-  final double calibrationOffsetDb;
   final double sampleRate;
 
   /// Short-term A-weighted level, one value every [traceIntervalMs], covering
@@ -151,9 +154,13 @@ class AcousticMetrics {
   /// a claim about the world rather than a gap in the evidence.
   bool get hasMeasurement => sampleRate > 0 && eventDurationMs > 0;
 
-  /// How far the event rose above the local background. Valid even when
-  /// uncalibrated, because the offset cancels — which is why it is the figure
-  /// the complaint leads on. Null when no background could be measured.
+  /// How far the loudest moment rose above the quietest — the figure the
+  /// complaint leads on.
+  ///
+  /// Both readings come from the same microphone in the same minute, so the
+  /// handset's absolute error is in both and cancels: this number is right
+  /// even where the dB(A) figures either side of it are a few decibels out.
+  /// Null when the recording was too short to contain a quiet moment.
   double? get excessOverAmbientDb {
     final double? ambient = ambientLa90Db;
     return ambient == null ? null : laMaxDb - ambient;
@@ -170,11 +177,9 @@ class AcousticMetrics {
         'peakWindowDurationMs': peakWindowDurationMs,
         'eventDurationMs': eventDurationMs,
         'clipped': clipped ? 1 : 0,
-        'calibrated': calibrated ? 1 : 0,
-        'calibrationOffsetDb': calibrationOffsetDb,
         'sampleRate': sampleRate,
-        // One decimal place: the chart is a few hundred pixels wide and the
-        // measurement is not calibrated to better than a decibel anyway, so
+        // One decimal place: the chart is a few hundred pixels wide and a
+        // phone microphone is not good to better than a decibel anyway, so
         // full float precision would triple the row size for nothing.
         'levelTrace': <double>[
           for (final double v in levelTrace)

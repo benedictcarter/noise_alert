@@ -434,16 +434,6 @@ class _MeasurementCard extends StatelessWidget {
                   style: theme.textTheme.bodySmall,
                 ),
               ),
-            if (!metrics.calibrated)
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Text(
-                  'Uncalibrated handset: treat the absolute figures as '
-                  'indicative. The rise above background does not depend on '
-                  'calibration.',
-                  style: theme.textTheme.bodySmall,
-                ),
-              ),
             if (metrics.clipped)
               Padding(
                 padding: const EdgeInsets.only(top: 10),

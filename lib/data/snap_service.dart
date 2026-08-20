@@ -151,7 +151,6 @@ class SnapService {
   Future<void>? _transition;
 
   Future<void> _arm(AppSettings settings) async {
-    recorder.calibrationOffsetDb = settings.calibrationOffsetDb;
     await recorder.start();
     _armed = true;
 
@@ -347,10 +346,9 @@ class SnapService {
       );
     }
 
-    // The background can only be as long as the microphone had been listening.
-    // A recording started from the widget, or the instant the app opened, has
-    // less than the full 30 s — the analyzer returns a null background rather
-    // than measuring one out of audio that does not exist.
+    // The background now comes out of the recording itself — the quiet
+    // stretches either side of the flyover. The pre-roll is passed anyway as a
+    // fallback for a recording stopped too soon to contain one.
     final Float64List ambient = window.ambient;
     final int ambientWanted =
         (AudioConfig.ambientWindowSeconds * sampleRate).round();
@@ -359,8 +357,6 @@ class SnapService {
       return analyzer.analyzeSource(
         samples: Pcm16Samples(samples),
         sampleRate: sampleRate,
-        calibrationOffsetDb: settings.calibrationOffsetDb,
-        calibrated: settings.calibrated,
         // The most recent slice of the pre-roll, not the oldest: the street a
         // few seconds before the aircraft is the fairest comparison.
         ambient: FloatSamples(

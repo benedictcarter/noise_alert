@@ -7,9 +7,6 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
       `benedict.carter@gmail.com` only; `Cc:` is now `info@flightpathwatch.co.uk`.
 - [ ] **UAT:** run the app on a handset, record a real overflight (RECORD -> STOP), check the
       letter reads right. `noise_alert_b7.apk`.
-- [ ] Decide whether a real SPL meter can be borrowed for a one-off calibration (offset per handset).
-      Until then every letter carries the "NOT been calibrated" paragraph and leads on excess over
-      ambient, which is offset-independent.
 - [ ] **iOS is parked** (2026-08-19, Ben: no Mac and no access to one). Windows cannot build or sign
       an iOS app. When iOS matters, the route is **cloud macOS CI** — Codemagic (free tier, built for
       Flutter, does signing + TestFlight upload) or GitHub Actions `macos-latest`. No Mac needed.
@@ -47,7 +44,6 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
       original vector ever turns up, drop it in and re-run `scripts/make_icons.py`.
 
 ## M4 — Evidence quality
-- [ ] Calibration flow beyond the raw offset field (guided side-by-side reading against an SPL meter)
 - [ ] CSV export of all snaps; share sheet
 - [ ] Multiple named recipient sets (the model supports a list; the UI edits only the first)
 - [ ] Re-open / resend a sent complaint from history
@@ -71,10 +67,6 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
 - [ ] Android 14+ foreground-service declaration if M6 ships
 
 ## Record-on-open follow-ups
-- [ ] The app records from the moment it opens, so there is no pre-roll and therefore no background
-      level on a normal capture — the letter loses the rise-above-background figure, which is the
-      one number an uncalibrated handset cannot distort. Decide whether that is the right trade
-      permanently, or whether the meter should keep a background from the *previous* session.
 - [ ] An auto-started recording is discarded on leaving the Record tab or backgrounding the app.
       Check on the handset that this does not eat a recording the user did mean to keep (e.g. they
       pull down the notification shade mid-flyover).

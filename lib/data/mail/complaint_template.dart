@@ -36,7 +36,10 @@ class ComplaintDraft {
 ///
 ///  * a named flight is described as the closest ADS-B match and as not
 ///    independently verified, because the app now names one without asking;
-///  * an uncalibrated sound level is always labelled as such;
+///  * the letter leads on the gap between the loudest moment and the quietest,
+///    not on an absolute figure. Two readings from the same microphone minutes
+///    apart can be compared with each other whatever the handset's own error
+///    is; a lone dB(A) figure invites an argument about the handset;
 ///  * a level that was never measured is never printed as a number. A missing
 ///    reading is stored as zero, and "0.0 dB(A)" is a claim, not a gap.
 class ComplaintTemplate {
@@ -177,20 +180,18 @@ class ComplaintTemplate {
     if (!m.hasMeasurement) {
       buffer.writeln('Loudest: not measured');
     } else {
-      // The calibration caveat travels with the number rather than sitting in
-      // a paragraph below it. This block exists to be read on its own, and a
-      // figure skimmed out of context is exactly the one that must not look
-      // like a formal measurement.
-      buffer.write('Loudest: ${_db(m, m.laMaxDb)} dB(A)');
-      buffer.write(m.calibrated ? ' (calibrated)' : ' (uncalibrated)');
       final double? ambient = m.ambientLa90Db;
       final double? excess = m.excessOverAmbientDb;
       if (ambient != null && excess != null) {
-        buffer.write(', against a background of '
-            '${ambient.toStringAsFixed(1)} dB(A) '
-            '-- a rise of ${excess.toStringAsFixed(1)} dB');
+        // The rise first. It is the figure that survives every objection a
+        // recipient can make about a phone being used as a sound level meter,
+        // so it is the one a skimming eye should land on.
+        buffer.writeln('Loudest: ${excess.toStringAsFixed(1)} dB above the '
+            'background -- ${_db(m, m.laMaxDb)} dB(A) at its peak, against '
+            '${ambient.toStringAsFixed(1)} dB(A) when it was quiet');
+      } else {
+        buffer.writeln('Loudest: ${_db(m, m.laMaxDb)} dB(A) at its peak');
       }
-      buffer.writeln();
     }
 
     if (candidate == null) {
@@ -225,19 +226,25 @@ class ComplaintTemplate {
     }
 
     final StringBuffer buffer = StringBuffer('Measured sound level')
-      ..writeln()
-      ..writeln('  Maximum (LAmax, fast): ${_db(m, m.laMaxDb)} dB(A)')
-      ..writeln('  Equivalent level over the event '
-          '(LAeq, ${(m.eventDurationMs / 1000).round()} s): '
-          '${_db(m, m.laEqDb)} dB(A)');
-    // Always stated, even when absent: a recipient comparing complaints needs
-    // to see that the background is missing rather than have the line vanish.
-    buffer.writeln('  Background before the event (LA90): '
-        '${m.ambientLa90Db?.toStringAsFixed(1) ?? 'not measured'} dB(A)');
+      ..writeln();
+    // The rise leads, because it is the figure that does not depend on the
+    // handset: the peak and the background were read by the same microphone
+    // minutes apart, so whatever its error is, it is in both and cancels.
     final double? excess = m.excessOverAmbientDb;
     if (excess != null) {
-      buffer.writeln('  Rise above background: ${excess.toStringAsFixed(1)} dB');
+      buffer.writeln('  Rise above the background: '
+          '${excess.toStringAsFixed(1)} dB');
     }
+    buffer
+      ..writeln('  Loudest moment (LAmax, fast): ${_db(m, m.laMaxDb)} dB(A)')
+      // Always stated, even when absent: a recipient comparing complaints
+      // needs to see that the background is missing rather than have the line
+      // silently vanish.
+      ..writeln('  Background, quietest 10% of the recording (LA90): '
+          '${m.ambientLa90Db?.toStringAsFixed(1) ?? 'not measured'} dB(A)')
+      ..writeln('  Average over the whole recording '
+          '(LAeq, ${(m.eventDurationMs / 1000).round()} s): '
+          '${_db(m, m.laEqDb)} dB(A)');
     return buffer.toString().trimRight();
   }
 
@@ -249,10 +256,10 @@ class ComplaintTemplate {
     if (!snap.metrics.hasTrace) return '';
     final AcousticMetrics m = snap.metrics;
     final String window = (m.eventDurationMs / 1000).round().toString();
-    return 'Attached: a chart of the A-weighted sound level over the $window s '
-        'either side of the event, marked with the moment I logged it'
-        '${m.hasAmbient ? ' and with the background level before it' : ''}. '
-        '${LevelChartLabels.caption(calibrated: m.calibrated)}';
+    return 'Attached: a chart of the A-weighted sound level across the '
+        '$window s of the recording, marked with the moment I logged it'
+        '${m.hasAmbient ? ' and with the background level' : ''}. '
+        '${LevelChartLabels.caption()}';
   }
 
   /// The moment the complainant marked as the worst of the flyover.
@@ -349,30 +356,21 @@ class ComplaintTemplate {
         'with IEC 61672 A-weighting and fast (125 ms) time weighting.',
       );
 
-    if (m.calibrated) {
+    // What the figures are, stated once and without apology. The comparison
+    // is between two readings taken by one microphone within a few minutes of
+    // each other, which is what makes the rise worth quoting.
+    final double? excess = m.excessOverAmbientDb;
+    if (excess != null) {
       buffer.write(
-        ' The handset was calibrated against a reference sound level meter '
-        '(offset ${m.calibrationOffsetDb.toStringAsFixed(1)} dB).',
+        ' The peak and the background were both read by that microphone during '
+        'this one recording, so the ${excess.toStringAsFixed(1)} dB between '
+        'them is a like-for-like comparison.',
       );
     } else {
       buffer.write(
-        ' This handset has NOT been calibrated against a reference sound level '
-        'meter, so the absolute values should be treated as indicative rather '
-        'than as a formal measurement.',
+        ' The recording was too short to contain a quiet moment to compare the '
+        'peak against, so no rise above the background is quoted.',
       );
-      final double? excess = m.excessOverAmbientDb;
-      if (excess != null) {
-        buffer.write(
-          ' The rise above the background level '
-          '(${excess.toStringAsFixed(1)} dB) does not depend on calibration '
-          'and is reliable.',
-        );
-      } else {
-        buffer.write(
-          ' The background level before the event was not captured for this '
-          'measurement, so no rise above background is quoted.',
-        );
-      }
     }
 
     if (m.clipped) {

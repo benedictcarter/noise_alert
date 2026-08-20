@@ -1,10 +1,7 @@
-import '../core/constants.dart';
 import 'profile.dart';
 
 class AppSettings {
   const AppSettings({
-    this.calibrationOffsetDb = CalibrationDefaults.fullScaleDbSpl,
-    this.calibrated = false,
     this.attachClipByDefault = false,
     this.bccSelf = true,
     this.openSkyClientId = '',
@@ -15,13 +12,6 @@ class AppSettings {
     this.templateSubject = defaultSubject,
     this.templateBody = defaultBody,
   });
-
-  /// dB SPL that a full-scale signal corresponds to on this handset.
-  final double calibrationOffsetDb;
-
-  /// True once the user has entered a reference reading. Until then every
-  /// complaint says the figure is uncalibrated.
-  final bool calibrated;
 
   /// Whether the saved clip is attached to the complaint unless the user says
   /// otherwise.
@@ -61,8 +51,6 @@ class AppSettings {
       );
 
   AppSettings copyWith({
-    double? calibrationOffsetDb,
-    bool? calibrated,
     bool? attachClipByDefault,
     bool? bccSelf,
     String? openSkyClientId,
@@ -74,8 +62,6 @@ class AppSettings {
     String? templateBody,
   }) =>
       AppSettings(
-        calibrationOffsetDb: calibrationOffsetDb ?? this.calibrationOffsetDb,
-        calibrated: calibrated ?? this.calibrated,
         attachClipByDefault: attachClipByDefault ?? this.attachClipByDefault,
         bccSelf: bccSelf ?? this.bccSelf,
         openSkyClientId: openSkyClientId ?? this.openSkyClientId,
@@ -93,8 +79,6 @@ class AppSettings {
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is AppSettings &&
-          other.calibrationOffsetDb == calibrationOffsetDb &&
-          other.calibrated == calibrated &&
           other.attachClipByDefault == attachClipByDefault &&
           other.bccSelf == bccSelf &&
           other.openSkyClientId == openSkyClientId &&
@@ -107,8 +91,6 @@ class AppSettings {
 
   @override
   int get hashCode => Object.hash(
-        calibrationOffsetDb,
-        calibrated,
         attachClipByDefault,
         bccSelf,
         openSkyClientId,
@@ -121,8 +103,6 @@ class AppSettings {
       );
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'calibrationOffsetDb': calibrationOffsetDb,
-        'calibrated': calibrated,
         'attachClipByDefault': attachClipByDefault,
         'bccSelf': bccSelf,
         'openSkyClientId': openSkyClientId,
@@ -146,9 +126,6 @@ class AppSettings {
       sets = sets.map(RecipientSet.seedGroupCc).toList();
     }
     return AppSettings(
-      calibrationOffsetDb: (json['calibrationOffsetDb'] as num?)?.toDouble() ??
-          CalibrationDefaults.fullScaleDbSpl,
-      calibrated: json['calibrated'] as bool? ?? false,
       attachClipByDefault: json['attachClipByDefault'] as bool? ?? false,
       bccSelf: json['bccSelf'] as bool? ?? true,
       openSkyClientId: json['openSkyClientId'] as String? ?? '',

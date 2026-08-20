@@ -10,7 +10,6 @@ import '../../data/audio/recorder_service.dart';
 import '../../data/location/location_service.dart';
 import '../../data/mail/mail_sender.dart';
 import '../../data/snap_service.dart';
-import '../../domain/settings.dart';
 import '../../domain/snap.dart';
 import '../../providers.dart';
 import '../chart/live_level_chart.dart';
@@ -25,13 +24,11 @@ import 'level_meter.dart';
 /// starts on arrival and only STOP ends it: nothing else knows when the
 /// aircraft has gone.
 ///
-/// The price is the background level. The rise above background is the one
-/// figure in the letter an uncalibrated handset cannot distort, and it needs
-/// [AudioConfig.preRollSeconds] of street recorded *before* the event to
-/// measure against — which an app that starts recording on launch does not
-/// have. The analyzer then quotes no rise at all, which understates the
-/// nuisance rather than overstating it, and that is the right direction for
-/// the error to fall. Catching the aircraft matters more than grading it.
+/// The background comes out of the recording itself — the quietest stretches
+/// of it, which on a recording that runs from before the aircraft until after
+/// it has gone are the street with no jet over it. That is why recording from
+/// launch costs nothing: the comparison the letter leads on is peak against
+/// quiet, and both halves of it are inside the same recording.
 ///
 /// A recording nobody asked for must also be easy to walk away from, so an
 /// auto-started one is discarded the moment the user leaves this tab or
@@ -337,7 +334,6 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
   @override
   Widget build(BuildContext context) {
     final AsyncValue<MeterReading> meter = ref.watch(meterProvider);
-    final AppSettings settings = ref.watch(settingsProvider);
     final ThemeData theme = Theme.of(context);
 
     return Scaffold(
@@ -376,16 +372,6 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
                             : 'Settings',
                       ),
                     ),
-                  ),
-                ),
-              if (!settings.calibrated && _armError == null)
-                const Padding(
-                  padding: EdgeInsets.only(top: 12),
-                  child: _Banner(
-                    icon: Icons.info_outline,
-                    text: 'Uncalibrated handset — levels are indicative. Every '
-                        'complaint says so, and quotes the rise above '
-                        'background, which does not depend on calibration.',
                   ),
                 ),
               Expanded(

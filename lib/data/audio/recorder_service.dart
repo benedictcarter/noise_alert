@@ -23,10 +23,8 @@ class MeterReading {
 /// the press, which is the background the letter compares the event against.
 /// Also publishes a smoothed level for the meter.
 class RecorderService {
-  RecorderService({AudioRecorder? recorder, double? calibrationOffsetDb})
+  RecorderService({AudioRecorder? recorder})
       : _recorder = recorder ?? AudioRecorder(),
-        calibrationOffsetDb =
-            calibrationOffsetDb ?? CalibrationDefaults.fullScaleDbSpl,
         _buffer = PcmRingBuffer.forSeconds(
           AudioConfig.ringBufferSeconds,
           AudioConfig.sampleRate.toDouble(),
@@ -83,7 +81,6 @@ class RecorderService {
 
   /// Only affects the on-screen meter; each snap is analysed with the offset
   /// in force at the time of the press.
-  double calibrationOffsetDb;
 
   Future<bool> hasPermission() => _recorder.hasPermission();
 
@@ -111,7 +108,7 @@ class RecorderService {
           // to VOICE_RECOGNITION, which is still far flatter than the default.
           audioSource: AndroidAudioSource.unprocessed,
           // Never route to a Bluetooth headset: a different microphone with a
-          // different sensitivity would silently invalidate the calibration.
+          // different sensitivity would silently shift the whole scale.
           manageBluetooth: false,
         ),
         iosConfig: IosRecordConfig(
@@ -197,9 +194,9 @@ class RecorderService {
       _meter.add(
         MeterReading(
           levelDb: _runningMeanSquare <= 0
-              ? calibrationOffsetDb - 200
+              ? LevelReference.fullScaleDbSpl - 200
               : 10 * math.log(_runningMeanSquare) / math.ln10 +
-                  calibrationOffsetDb,
+                  LevelReference.fullScaleDbSpl,
           clipping: _clipping,
         ),
       );

@@ -10,10 +10,9 @@ import 'package:flutter/material.dart';
 /// chart shows what the complainant saw should be looking at the same drawing,
 /// not a second implementation of it that has drifted.
 ///
-/// The painter takes no opinion on whether the levels are calibrated. That
-/// caveat belongs in the caption and in the letter, and is added by
-/// [LevelChartLabels.caption] so it cannot be forgotten in one place and not
-/// the other.
+/// The painter draws numbers and nothing else. What they are and what they
+/// should be read against belongs in the caption, written once in
+/// [LevelChartLabels.caption] so the screen and the letter cannot drift.
 class LevelChartPainter extends CustomPainter {
   const LevelChartPainter({
     required this.levels,
@@ -369,15 +368,13 @@ class LevelChartLabels {
 
   /// Sentence describing the chart, for the letter and for the screen.
   ///
-  /// Carries the calibration caveat: the chart is the most persuasive-looking
-  /// thing in the email and therefore the most important not to over-claim.
-  static String caption({required bool calibrated}) => calibrated
-      ? 'A-weighted sound level against time, measured with a calibrated '
-          'offset for this handset.'
-      : 'A-weighted sound level against time. The vertical scale is '
-          'UNCALIBRATED and the absolute values may be several decibels out; '
-          'the shape of the event and its rise above the background are not '
-          'affected by that offset.';
+  /// The chart is the most persuasive-looking thing in the email, so it says
+  /// what it is showing and lets the shape make the argument: the gap between
+  /// the peak and the quiet stretches either side is the point of it.
+  static String caption() =>
+      'A-weighted sound level against time, over the whole recording. The '
+      'quiet stretches either side of the aircraft are the background the '
+      'peak is measured against.';
 }
 
 /// Renders the chart to a PNG off-screen.

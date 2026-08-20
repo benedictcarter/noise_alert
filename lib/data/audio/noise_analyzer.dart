@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import '../../core/constants.dart';
 import '../../domain/acoustic_metrics.dart';
 import 'a_weighting.dart';
 
@@ -66,10 +67,13 @@ class NoiseAnalyzer {
   /// |sample| at or above this (full scale = 1.0) counts as clipped.
   final double clipThreshold;
 
-  /// Below this much pre-roll there is no meaningful background to quote. Ten
-  /// blocks of 125 ms is the bare minimum for an L90 to mean anything, and
-  /// three seconds also rules out the case where the microphone opened during
-  /// the event itself.
+  /// Below this much audio there is no meaningful background to quote.
+  ///
+  /// Ten blocks of 125 ms is the bare minimum for an L90 to mean anything. A
+  /// recording shorter than this is all aircraft and no street, so its quiet
+  /// floor would be the aircraft itself and the rise above it would be nearly
+  /// zero -- a figure that reads as "this was not loud" when the truth is
+  /// "this was not measured for long enough to say".
   static const double minAmbientSeconds = 3;
 
   /// Cadence of the level-over-time trace. 250 ms gives 200 points for a 50 s
@@ -88,17 +92,12 @@ class NoiseAnalyzer {
 
   /// [samples] must be normalised to -1.0..1.0 and unweighted.
   ///
-  /// [ambientSampleCount] is how many samples at the *start* of the buffer are
-  /// genuinely pre-event background. Pass 0 to fall back to using the whole
-  /// buffer for the ambient statistic.
-  ///
-  /// If that region is shorter than [minAmbientSeconds] the resulting metrics
-  /// carry a null `ambientLa90Db` rather than a fabricated one.
+  /// The background is measured from [samples] itself -- see [analyzeSource].
+  /// [ambient] is only a fallback for a recording too short to contain a quiet
+  /// moment of its own.
   AcousticMetrics analyze({
     required Float64List samples,
     required double sampleRate,
-    required double calibrationOffsetDb,
-    required bool calibrated,
     int ambientSampleCount = 0,
     SampleSource? ambient,
     int traceIntervalMs = defaultTraceIntervalMs,
@@ -108,8 +107,6 @@ class NoiseAnalyzer {
       analyzeSource(
         samples: FloatSamples(samples),
         sampleRate: sampleRate,
-        calibrationOffsetDb: calibrationOffsetDb,
-        calibrated: calibrated,
         ambientSampleCount: ambientSampleCount,
         ambient: ambient,
         traceIntervalMs: traceIntervalMs,
@@ -119,16 +116,21 @@ class NoiseAnalyzer {
 
   /// As [analyze], but reading the event from any [SampleSource].
   ///
-  /// [ambient] is the background recorded *before* the event, when it was
-  /// captured separately — which is now the normal case: the trace and the clip
-  /// start at the button press, and the pre-roll exists only to say what the
-  /// street sounded like beforehand. When it is null the older behaviour
-  /// applies and the first [ambientSampleCount] samples of the event are used.
+  /// The background comes from the recording itself: the level exceeded 90% of
+  /// the time across the whole of it. The app starts recording the moment it
+  /// opens and stops when the user says so, so the recording routinely holds
+  /// the street before and after the aircraft as well as the aircraft, and the
+  /// quiet parts of it are the fairest available statement of what the street
+  /// sounds like without a jet over it. Measuring the background from a
+  /// separate pre-roll, as this used to, means no background at all whenever
+  /// the recording began at the press -- which is now every recording.
+  ///
+  /// [ambient] and [ambientSampleCount] survive as a fallback for a recording
+  /// shorter than [minAmbientSeconds], where there is no quiet moment inside
+  /// the recording to find.
   AcousticMetrics analyzeSource({
     required SampleSource samples,
     required double sampleRate,
-    required double calibrationOffsetDb,
-    required bool calibrated,
     int ambientSampleCount = 0,
     SampleSource? ambient,
     int traceIntervalMs = defaultTraceIntervalMs,
@@ -186,8 +188,8 @@ class NoiseAnalyzer {
       }
     }
 
-    final double laEq = _toDb(totalEnergy / n, calibrationOffsetDb);
-    final double laMax = _toDb(maxMeanSquare, calibrationOffsetDb);
+    final double laEq = _toDb(totalEnergy / n);
+    final double laMax = _toDb(maxMeanSquare);
 
     // Prefix sums over the block energies make every windowed LAeq an O(1)
     // lookup, at 1/blockSamples of the memory the per-sample version needed.
@@ -199,30 +201,32 @@ class NoiseAnalyzer {
     double levelOfBlocks(int from, int to) {
       final int count = to - from;
       if (count <= 0) return double.negativeInfinity;
-      return _toDb(
-        (prefix[to] - prefix[from]) / (count * blockSamples),
-        calibrationOffsetDb,
-      );
+      return _toDb((prefix[to] - prefix[from]) / (count * blockSamples));
     }
 
-    // --- ambient L90 ------------------------------------------------------
-    final SampleSource? ambientSource = ambient ??
+    // --- the background: how quiet it got ---------------------------------
+    // Taken from the recording itself. The L90 of a two-minute recording that
+    // contains a forty-second flyover is the street either side of it, which
+    // is exactly the comparison the complaint wants to make. Only when the
+    // recording is too short for that -- the user stopped almost immediately
+    // -- does the separately captured pre-roll get a look in.
+    final int minAmbientSamples = (sampleRate * minAmbientSeconds).round();
+    final SampleSource? fallback = ambient ??
         (ambientSampleCount > 0
             ? samples.slice(0, math.min(ambientSampleCount, n))
             : null);
-    final int ambientLength = ambientSource?.length ?? n;
-    // An ambient region that is too short means the microphone had not been
-    // listening long enough; say so with a null rather than quoting the level
-    // of a buffer that was never filled.
-    final bool ambientMeasurable =
-        ambientSource == null || ambientLength >= sampleRate * minAmbientSeconds;
-    final double? ambientL90 = !ambientMeasurable
+
+    SampleSource? backgroundSource;
+    if (n >= minAmbientSamples) {
+      backgroundSource = samples;
+    } else if (fallback != null && fallback.length >= minAmbientSamples) {
+      backgroundSource = fallback;
+    }
+
+    final int ambientLength = backgroundSource?.length ?? 0;
+    final double? ambientL90 = backgroundSource == null
         ? null
-        : _l90(
-            ambientSource ?? samples,
-            sampleRate: sampleRate,
-            calibrationOffsetDb: calibrationOffsetDb,
-          );
+        : _l90(backgroundSource, sampleRate: sampleRate);
 
     // --- loudest peakWindowSeconds slice ----------------------------------
     final int windowBlocks = blocks == 0
@@ -269,8 +273,6 @@ class NoiseAnalyzer {
       peakWindowDurationMs: (peakWindowSamples / sampleRate * 1000).round(),
       eventDurationMs: (n / sampleRate * 1000).round(),
       clipped: clipped,
-      calibrated: calibrated,
-      calibrationOffsetDb: calibrationOffsetDb,
       levelTrace: trace,
       traceIntervalMs: traceIntervalMs,
       sampleRate: sampleRate,
@@ -279,15 +281,11 @@ class NoiseAnalyzer {
 
   /// The level exceeded 90% of the time, over its own A-weighting pass.
   ///
-  /// Separate from the event pass because the background is now recorded in a
-  /// different buffer: the ring holds the half-minute before the press, the
-  /// event store holds everything after it, and neither is a slice of the
-  /// other.
-  double _l90(
-    SampleSource source, {
-    required double sampleRate,
-    required double calibrationOffsetDb,
-  }) {
+  /// A second pass rather than a reuse of the 25 ms block energies above,
+  /// because a percentile needs the 125 ms statistical window the standard is
+  /// written in, and because the fallback source is a different buffer
+  /// entirely.
+  double _l90(SampleSource source, {required double sampleRate}) {
     final int blockSamples =
         math.max(1, (sampleRate * shortTermWindowMs / 1000).round());
     final AWeighting weighting = AWeighting(sampleRate);
@@ -303,17 +301,23 @@ class NoiseAnalyzer {
       total += sq;
       acc += sq;
       if (++inBlock == blockSamples) {
-        levels.add(_toDb(acc / blockSamples, calibrationOffsetDb));
+        levels.add(_toDb(acc / blockSamples));
         acc = 0;
         inBlock = 0;
       }
     }
 
-    if (levels.isEmpty) return _toDb(total / n, calibrationOffsetDb);
+    if (levels.isEmpty) return _toDb(total / n);
     return _percentile(levels, 0.10);
   }
 
   /// [fraction] 0.10 gives L90 (the level exceeded 90% of the time).
+  ///
+  /// Not 0.0. The true minimum is a single 125 ms block, and one dropout,
+  /// buffer underrun or momentary gap in the traffic puts it twenty decibels
+  /// below anything real -- which would then be subtracted from the peak and
+  /// reported as the rise. The tenth percentile is what "the quietest it got"
+  /// actually means once you have to defend the number.
   static double _percentile(List<double> values, double fraction) {
     final List<double> sorted = List<double>.of(values)..sort();
     final int index =
@@ -321,9 +325,10 @@ class NoiseAnalyzer {
     return sorted[index];
   }
 
-  static double _toDb(double meanSquare, double offsetDb) {
-    if (meanSquare <= 0) return offsetDb - 200;
-    return 10 * math.log(meanSquare) / math.ln10 + offsetDb;
+  static double _toDb(double meanSquare) {
+    if (meanSquare <= 0) return LevelReference.fullScaleDbSpl - 200;
+    return 10 * math.log(meanSquare) / math.ln10 +
+        LevelReference.fullScaleDbSpl;
   }
 }
 

@@ -19,7 +19,6 @@ const ComplainantProfile _profile = ComplainantProfile(
 );
 
 AcousticMetrics _metrics({
-  bool calibrated = false,
   bool clipped = false,
   double laMax = 78.4,
   double? ambient = 38.1,
@@ -38,8 +37,6 @@ AcousticMetrics _metrics({
       peakWindowDurationMs: 10000,
       eventDurationMs: 50000,
       clipped: clipped,
-      calibrated: calibrated,
-      calibrationOffsetDb: 120,
       sampleRate: 48000,
     );
 
@@ -78,7 +75,6 @@ Snap _snap({
   bool confirmed = true,
   bool unidentified = false,
   bool withMatch = true,
-  bool calibrated = false,
   bool clipped = false,
   String? clipPath,
   bool attachClip = false,
@@ -96,7 +92,6 @@ Snap _snap({
       gpsAccuracyM: located ? 8 : null,
       metrics: metrics ??
           _metrics(
-            calibrated: calibrated,
             clipped: clipped,
             ambient: ambient,
             preRoll: preRoll,
@@ -154,7 +149,7 @@ void main() {
     expect(draft.body, isNot(contains('{')));
   });
 
-  test('an uncalibrated handset is declared, with its make and OS', () {
+  test('the handset is named, and the rise is what the letter leads on', () {
     final ComplaintDraft draft = template.render(
       snap: _snap(),
       profile: _profile,
@@ -163,19 +158,25 @@ void main() {
 
     expect(draft.body, contains('Google Pixel 8'));
     expect(draft.body, contains('Android 15 (SDK 35)'));
-    expect(draft.body, contains('NOT been calibrated'));
-    expect(draft.body, contains('40.3 dB')); // 78.4 − 38.1, offset-independent
+    // 78.4 - 38.1. The peak and the background came off the same microphone
+    // minutes apart, so this figure is unaffected by whatever that microphone
+    // is individually out by.
+    expect(draft.body, contains('40.3 dB'));
+    expect(draft.body, contains('like-for-like'));
   });
 
-  test('a calibrated handset says so instead', () {
+  test('the letter never apologises for the handset', () {
+    // Deliberate: there is no calibration setting any more, and a paragraph
+    // conceding that the figures may be wrong invites a recipient to dismiss
+    // the whole complaint rather than read the comparison it is built on.
     final ComplaintDraft draft = template.render(
-      snap: _snap(calibrated: true),
+      snap: _snap(),
       profile: _profile,
       settings: settings,
     );
 
-    expect(draft.body, contains('was calibrated against a reference'));
-    expect(draft.body, isNot(contains('NOT been calibrated')));
+    expect(draft.body.toLowerCase(), isNot(contains('calibrat')));
+    expect(draft.body, isNot(contains('indicative')));
   });
 
   test('clipping is disclosed as a lower bound', () {
@@ -295,11 +296,8 @@ void main() {
     );
 
     expect(draft.body, contains('not measured'));
-    expect(draft.body, contains('background level before the event was not '
-        'captured'));
-    expect(draft.body, isNot(contains('Rise above background: 40.3 dB')));
-    // The uncalibrated warning must survive: it is the other honesty clause.
-    expect(draft.body, contains('has NOT been calibrated'));
+    expect(draft.body, contains('too short to contain a quiet moment'));
+    expect(draft.body, isNot(contains('Rise above the background: 40.3 dB')));
   });
 
   test('the chart is described in the letter and attached to it', () {
@@ -314,9 +312,10 @@ void main() {
 
     expect(draft.attachmentPaths, contains('/tmp/snap-1-level.png'));
     expect(draft.body, contains('Attached: a chart'));
-    // The calibration caveat must travel with the picture, not only with the
-    // numbers - a chart reads as far more authoritative than a line of text.
-    expect(draft.body, contains('UNCALIBRATED'));
+    // The caption has to say what the picture is being read against, not only
+    // what it plots - a chart reads as far more authoritative than a line of
+    // text, and on its own it is just a wiggly line with numbers beside it.
+    expect(draft.body, contains('background the peak is measured against'));
   });
 
   test('no trace means no chart sentence at all', () {
@@ -485,11 +484,11 @@ void main() {
       expect(draft.body, contains('Loudest: '));
     });
 
-    test('an uncalibrated peak says so on the same line', () {
-      // The block is designed to be read on its own, so the caveat cannot be
-      // left to a paragraph further down that a scanning eye skips.
+    test('the loud line leads with the rise, not the absolute figure', () {
+      // The block is designed to be read on its own, so the comparison that
+      // makes the number mean something has to be on the same line as it.
       final ComplaintDraft draft = template.render(
-        snap: _snap(calibrated: false),
+        snap: _snap(),
         profile: _profile,
         settings: settings,
       );
@@ -498,8 +497,9 @@ void main() {
           .split('\n')
           .firstWhere((String l) => l.startsWith('Loudest:'));
 
-      expect(line, contains('dB(A)'));
-      expect(line, contains('uncalibrated'));
+      expect(line, startsWith('Loudest: 40.3 dB above the background'));
+      expect(line, contains('78.4 dB(A) at its peak'));
+      expect(line, contains('38.1 dB(A) when it was quiet'));
     });
 
     test('the aircraft line carries altitude, distance and the caveat', () {

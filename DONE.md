@@ -189,3 +189,28 @@ All four from Ben's first round of on-device use.
   mail client, which bold characters and HTML do not. The calibration caveat sits on the same line
   as the decibel figure, since the block is meant to be read on its own.
 - 103 tests green (was 98).
+
+
+## Calibration removed; the letter leads on peak vs background (2026-08-20)
+- **The whole calibration concept is gone.** No settings section, no offset field, no "I have
+  calibrated this handset" switch, no `calibrated` / `calibrationOffsetDb` on `AcousticMetrics` or
+  `AppSettings`, no uncalibrated banner on the main screen, no caveat on the review screen, no
+  UNCALIBRATED wording on the chart caption, no apologetic paragraph in the letter. The full-scale
+  reference is fixed at 120 dB SPL in `LevelReference` and never varies. Rows written by earlier
+  builds still carry the two dropped JSON keys; `AcousticMetrics.fromJson` reads past them so no
+  logged event becomes unopenable.
+- **The background is now the LA90 of the recording itself**, not a mean and not the true minimum.
+  A mean is dragged up by the aircraft; the true minimum is one 125 ms block, so a single dropout
+  would put the floor twenty decibels low and inflate every rise. The tenth percentile is the
+  standard definition of "background noise level" and is what the minimum is trying to be.
+- **Record-on-open no longer costs the background figure.** The pre-roll buffer is now only a
+  fallback for a recording stopped inside `NoiseAnalyzer.minAmbientSeconds` (3 s); anything longer
+  supplies its own quiet street. This closes the first "Record-on-open follow-ups" item.
+- **The letter was rewritten around the rise.** AT A GLANCE now reads
+  `Loudest: 40.3 dB above the background -- 78.4 dB(A) at its peak, against 38.1 dB(A) when it was
+  quiet`; the measurement block leads with the rise, then LAmax, then the background labelled
+  "quietest 10% of the recording (LA90)", then LAeq labelled as the average over the whole
+  recording. The method note states handset, OS, sample rate and weighting, then that the peak and
+  the background were read by one microphone in one recording, so the gap is like-for-like.
+- CLAUDE.md's "never present uncalibrated dB" non-negotiable replaced with the rise-over-background
+  rule; PLAN.md's calibration screen and M4 calibration item removed.

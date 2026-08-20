@@ -9,16 +9,16 @@ class AudioConfig {
   /// Seconds of audio held live while the snap screen is open.
   static const double ringBufferSeconds = 60;
 
-  /// Recorded before the button press, and used *only* to establish what the
-  /// street sounded like beforehand.
+  /// Recorded before the button press, and now only a fallback.
   ///
-  /// The event itself starts at the press: the graph, the LAeq and the clip all
-  /// begin when the user says the aircraft is here. The look-back survives
-  /// because the rise above background is the one figure in the letter that an
-  /// uncalibrated microphone cannot distort, and it needs a background.
+  /// The background is taken from the recording itself — its quietest tenth
+  /// — because a recording that runs from before the aircraft until after it
+  /// has gone contains its own quiet street. The look-back survives for the one
+  /// case that does not: a recording stopped within
+  /// [NoiseAnalyzer.minAmbientSeconds], which is all aircraft and no street.
   static const double preRollSeconds = 30;
 
-  /// Leading slice of the pre-roll used to establish the background level.
+  /// Leading slice of the pre-roll used as that fallback background.
   static const double ambientWindowSeconds = 10;
 
   /// Hard stop on a single recording.
@@ -39,15 +39,20 @@ class AudioConfig {
   static const int meterIntervalMs = 100;
 }
 
-class CalibrationDefaults {
+class LevelReference {
   /// dB SPL corresponding to a full-scale (rms = 1.0) signal.
   ///
-  /// Phone MEMS microphones typically have an acoustic overload point around
-  /// 120–125 dB SPL and digital full scale is set near it, so 120 is the least
-  /// wrong default. It is still a guess: every snap taken on this default is
-  /// flagged `calibrated: false` and the email says so explicitly. The one
-  /// figure that survives a bad offset is the excess over the local background,
-  /// because the offset cancels in the subtraction.
+  /// Phone MEMS microphones have an acoustic overload point around 120–125 dB
+  /// SPL and digital full scale is set near it, so 120 is the least wrong
+  /// figure to hang the scale on. It is fixed, and there is no user-facing
+  /// calibration: asking someone to borrow a reference sound level meter
+  /// before they may complain about a jet is a way of ensuring nobody
+  /// complains.
+  ///
+  /// It also does not much matter. The number the complaint turns on is the
+  /// gap between the loudest moment and the quietest, and this offset appears
+  /// in both, so it cancels in the subtraction. A handset several decibels out
+  /// still reports the right *rise*.
   static const double fullScaleDbSpl = 120.0;
 }
 

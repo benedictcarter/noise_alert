@@ -389,3 +389,51 @@ formal complaint, looking broken costs more than looking flat.
 and an upper-case heading with three labelled lines at the top of the letter serves that better than
 bold buried in the body, at no compatibility cost. Also: do not pad columns to align them. Mail
 clients render plain text proportionally, so aligned columns arrive ragged.
+
+## "Use the minimum, not the average" means L90, not the minimum (2026-08-20)
+**Mechanism:** the complaint leads on peak-minus-background, so the background is subtracted from
+the headline figure and any error in it lands in the number a council reads first. An *average*
+background is wrong for the obvious reason -- the aircraft is in it, and a mean over a recording
+half-filled by a flyover sits a few dB below the flyover, so a 40 dB event reports as a 3 dB one.
+But the *true minimum* is wrong too, and less obviously: it is one 125 ms block out of hundreds, so
+a buffer underrun, a moment another app grabbed the microphone, or a lull between cars sets the
+floor twenty to a hundred decibels below anything real, and the letter then claims a rise that is
+self-evidently nonsense. A single bad block cannot be averaged away; it *is* the statistic.
+**Incident:** Ben asked for "min = plausible background". Implemented literally as `min()`, the
+first digital-silence block in a recording would have produced a rise of ~100 dB. The tenth
+percentile (LA90, the level exceeded 90% of the time -- the standard acoustic definition of
+"background noise level") is what the instruction actually means: it is robust to a handful of bad
+blocks and still finds the quiet street rather than the mean.
+**Rule:** when a statistic feeds a number someone will argue with, prefer a percentile to an
+extremum. Extrema have no averaging behind them, so every glitch in the pipeline is a candidate
+answer. Corollary discovered here: taking the background from the *whole recording* rather than a
+pre-roll captured before the button press also fixed record-on-open, which had left every normal
+capture with no background at all -- a recording that runs from before the aircraft until after it
+has gone contains its own quiet street.
+
+## Hedging a measurement is not the same as being honest about it (2026-08-20)
+**Mechanism:** the letter used to carry "this handset has NOT been calibrated ... treat the absolute
+values as indicative rather than as a formal measurement", plus an UNCALIBRATED caption on the
+chart, plus a banner on the main screen, plus a calibration settings page. Each was individually
+defensible. Together they told the recipient, before any figure, that the sender did not trust their
+own evidence -- which is an invitation to bin the complaint rather than read it.
+**Incident:** Ben: "just remove all the uncalibrated crap". The replacement states the method once
+and factually (handset, OS, sample rate, weighting) and then says what makes the comparison valid:
+the peak and the background came off the same microphone in the same recording, so the gap between
+them is like-for-like. Nothing is claimed that is not true, and nothing is conceded that was not
+asked about.
+**Rule:** honesty is stating what was done and what it means. Repeatedly apologising for the
+limitations of the method is a different thing, and it costs credibility rather than earning it.
+Say it once, in the place a reader checking the method would look.
+
+## One MTP device can appear twice under `NameSpace(17)` (2026-08-20)
+**Mechanism:** sideloading over MTP walks `Shell.Application`'s "This PC" namespace to find the
+phone. An Android handset frequently enumerates as *two* entries with the same display name -- one
+real, one an empty shell (a stale or secondary MTP function). `@($pc.Items() | Where-Object { $_.Name
+-eq 'G7 ThinQ' })[0]` picks whichever came first, and if that is the empty one, `.GetFolder` is null
+and the script dies on "You cannot call a method on a null-valued expression".
+**Incident:** cost twenty minutes chasing a phantom "phone not connected" while the phone was
+plainly mounted in Explorer.
+**Rule:** never index `[0]` into an MTP device match. Iterate every entry with the name and keep the
+one whose `GetFolder.Items()` actually yields a child folder ("Internal shared storage"). The same
+caution applies to `.Size` on MTP items, which returns 0 -- use `GetDetailsOf($file, 2)`.

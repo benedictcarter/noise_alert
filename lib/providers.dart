@@ -103,7 +103,6 @@ final StateNotifierProvider<ProfileController, ComplainantProfile>
 final Provider<RecorderService> recorderProvider =
     Provider<RecorderService>((Ref ref) {
   final RecorderService service = RecorderService(
-    calibrationOffsetDb: ref.read(settingsProvider).calibrationOffsetDb,
   );
   ref.onDispose(service.dispose);
   return service;

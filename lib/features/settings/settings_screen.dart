@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants.dart';
@@ -139,39 +138,6 @@ class SettingsScreen extends ConsumerWidget {
               'recording.',
             ),
           ),
-          const _SectionHeader('Calibration'),
-          const _Explainer(
-            'A phone microphone has no calibration certificate. Until you check '
-            'it against a real sound level meter, every complaint states that '
-            'the figures are uncalibrated and quotes the rise above background '
-            'as well — that figure is unaffected by the offset below.',
-          ),
-          _Field(
-            label: 'Full-scale level (dB SPL)',
-            value: settings.calibrationOffsetDb.toStringAsFixed(1),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: <TextInputFormatter>[
-              FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-            ],
-            onChanged: (String v) {
-              final double? parsed = double.tryParse(v);
-              if (parsed != null && parsed > 40 && parsed < 200) {
-                config.edit(
-                    (AppSettings s) => s.copyWith(calibrationOffsetDb: parsed));
-              }
-            },
-          ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            value: settings.calibrated,
-            onChanged: (bool v) =>
-                config.edit((AppSettings s) => s.copyWith(calibrated: v)),
-            title: const Text('I have calibrated this handset'),
-            subtitle: const Text(
-              'Only tick this after comparing against a reference meter. It '
-              'changes what the complaint claims.',
-            ),
-          ),
           const _SectionHeader('Flight data'),
           const _Explainer(
             'Live matching uses adsb.lol and airplanes.live, which need no '
@@ -298,7 +264,6 @@ class _Field extends StatefulWidget {
     required this.value,
     required this.onChanged,
     this.keyboardType,
-    this.inputFormatters,
     this.textCapitalization = TextCapitalization.sentences,
     this.maxLines = 1,
     this.obscure = false,
@@ -308,7 +273,6 @@ class _Field extends StatefulWidget {
   final String value;
   final ValueChanged<String> onChanged;
   final TextInputType? keyboardType;
-  final List<TextInputFormatter>? inputFormatters;
   final TextCapitalization textCapitalization;
   final int maxLines;
   final bool obscure;
@@ -334,7 +298,6 @@ class _FieldState extends State<_Field> {
           controller: _controller,
           onChanged: widget.onChanged,
           keyboardType: widget.keyboardType,
-          inputFormatters: widget.inputFormatters,
           textCapitalization: widget.textCapitalization,
           maxLines: widget.obscure ? 1 : widget.maxLines,
           obscureText: widget.obscure,
