@@ -12,4 +12,5 @@ Flutter (iOS + Android) app for logging aircraft noise events and generating com
 - **Never state a flight the user has not confirmed.** Matching is probabilistic; the review screen
   always shows confidence and alternates.
 - **Never present uncalibrated dB as an absolute measurement.** Label it in the UI and in the email.
-- Audio clips are optional, default off, and previewable before sending.
+- **An audio clip is always saved** (the loudest 10 s, on the device only). The only question
+  put to the user is whether to *attach* it, and it is previewable before sending.

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <!-- The same red as the in-app SNAP button, so the two read as one thing.
+    <!-- The same red as the in-app RECORD button, so the two read as one thing.
          A pill rather than the old circle: the widget now carries a plane and
          a word, and a circle wastes the width both of them need. -->
     <solid android:color="#B3261E" />

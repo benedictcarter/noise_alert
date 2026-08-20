@@ -233,3 +233,55 @@ line 250 lines away from the edit. Recovered with `git show HEAD:test/database_t
 **Rule:** insert before the closing brace by *slicing and rejoining*, not by truncating —
 `s[:i] + extra + s[i:]` — or anchor on a unique string near the insertion point. And prefer keeping
 helper constants above `main()` so the file has no tail to lose.
+
+## An unbounded recording turns per-sample analysis into an OOM (2026-08-20)
+**Mechanism:** the analyzer was written when a capture was a fixed 50 s. It allocated the
+A-weighted signal, the squared signal and a per-sample prefix sum — three `Float64List`s the length
+of the recording, 24 bytes per sample — which is fine at 50 s (~58 MB) and fatal the moment the
+user decides when to stop. Five minutes at 48 kHz is 14.4 M samples: ~345 MB of working arrays on a
+phone, on top of the recording itself.
+**Incident:** removing the 20 s auto-stop turned a bounded allocation into an unbounded one. Nothing
+failed in test — the test tones are seconds long — the fault only exists on a real flyover someone
+watches all the way out.
+**Rule:** when a length becomes user-controlled, re-audit every allocation that is proportional to
+it. The fix here is worth copying: sum A-weighted energy into fixed **25 ms blocks** in a single
+pass and prefix-sum over *blocks* rather than samples. 25 ms was chosen because it divides the
+125 ms statistical window, the 250 ms trace cadence and the 50 ms peak hop exactly, so no metric
+changes its meaning; working memory drops to ~8 bytes per sample, and to 2 bytes when the source is
+Int16 behind a `SampleSource` interface.
+
+## A growing buffer spikes memory exactly when you cannot afford it (2026-08-20)
+**Mechanism:** the two obvious ways to accumulate an unknown-length recording both peak at more than
+they hold. A doubling `Int16List` copies old into new at every resize — 1.5x the final size at the
+worst moment — and a list of chunks concatenated at the end peaks at 2x, because the chunks are
+still alive while the joined array is being filled. Both spikes land *during* the recording or at
+the instant it ends, which is the worst possible time on a phone that is also holding a camera-grade
+audio stream and a map.
+**Rule:** if there is a hard cap, allocate the cap up front. `Int16List(maxEventSeconds * rate *
+1.1)` is claimed once at the press, when there is nothing else in flight, and handed out at the end
+as an `Int16List.sublistView` — no copy, no spike, and the allocation either succeeds immediately or
+fails before the user has been promised a recording. The 1.1 is headroom for a handset delivering
+above the requested sample rate.
+
+## One field meaning two things silently rewrites old records (2026-08-20)
+**Mechanism:** `AcousticMetrics.preRollSeconds` meant both "how far into the trace the button press
+sits" and "how many seconds of background we had to measure against". While the pre-roll was always
+part of the capture those were the same number. The moment the recording started at the press they
+diverged: the press is now at 0, but there were still 30 s of background. Reusing the field for
+either meaning would have been wrong for the other, and — worse — would have silently re-drawn every
+*stored* chart, moving the press marker on records the user had already read and sent.
+**Rule:** when a field's two meanings come apart, split the field and give the *old* name the meaning
+that stored data already carries. `preRollSeconds` kept the trace-offset meaning (now 0 for new
+records), the new `ambientSeconds` carries the background length, and `fromJson` falls back to
+`preRollSeconds` when `ambientSeconds` is absent, so a v1 record still marks its press in the right
+place.
+
+## Long heredocs to Bash fail where short ones work (2026-08-20)
+**Mechanism:** `python - <<'PYEOF'` with a ~200-line body repeatedly died with
+`unexpected EOF while looking for matching "'"`, while the same idiom at 30 lines worked all session.
+Whatever the size threshold is — quoting, buffering, or the tool's own escaping — it is not
+detectable from the script, and the failure blames a quote that is perfectly balanced.
+**Rule:** write anything over ~100 lines to a `.py` file with the Write tool and run
+`python <abs path>`. Costs one extra tool call and removes a whole class of unexplainable failure.
+Related: a Dart `'$id.wav'` inside a *non-raw* Python string becomes `'\$id.wav'` and then never
+matches the file — either use a raw string, or split the replacement so the `$` is not in it.

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
@@ -123,9 +122,12 @@ class SnapService {
     }
   }
 
-  /// Stops waiting for the rest of the post-roll and saves what is recorded.
+  /// Ends the recording and saves it. The user's STOP.
   /// Safe at any point: outside a capture it does nothing.
-  void finishCaptureEarly() => recorder.cutCaptureShort();
+  void finishCaptureEarly() => recorder.stopEventCapture();
+
+  /// Seconds recorded so far, for the running clock on the button.
+  double get eventSeconds => recorder.eventSeconds;
 
   Future<void> disarm() async {
     _armed = false;
@@ -143,21 +145,20 @@ class SnapService {
     String notes = '',
   }) async {
     final DateTime pressedAt = DateTime.now();
-    recorder.prepareCapture();
+    // Synchronous, and first: the recording has to begin at the press, so
+    // nothing may be awaited between timestamping it and opening the event.
+    recorder.startEventCapture();
 
-    // The fix is fetched *alongside* the post-roll rather than before it. A
+    // The fix is fetched *alongside* the recording rather than before it. A
     // cold receiver can take ten seconds, and there is no reason to spend them
     // standing still: the press is already timestamped, the microphone is
     // already running, and the aircraft is already leaving. Serialising the
     // two used to add the whole GPS wait to every capture.
     final Future<SnapLocation?> pendingFix = _bestEffortLocation();
 
-    _emit(
-      CaptureStage.recording,
-      'Recording the tail of the event (${AudioConfig.postRollSeconds} s)…',
-    );
-    final EventWindow window = await recorder.captureEventWindow(pressedAt);
-    final Float64List samples = window.samples;
+    _emit(CaptureStage.recording, 'Recording — press STOP when it has passed.');
+    final EventWindow window = await recorder.awaitEventEnd();
+    final Int16List samples = window.samples;
     // What the microphone actually delivered, which is not always what was
     // asked for. Every duration and every filter below is derived from this
     // rather than from AudioConfig.sampleRate.
@@ -166,37 +167,49 @@ class SnapService {
     _emit(CaptureStage.locating);
     final SnapLocation? fix = await pendingFix;
 
+    if (window.isEmpty) {
+      throw StateError(
+        'The microphone delivered nothing between RECORD and STOP.',
+      );
+    }
+
     _emit(CaptureStage.analysing);
-    // The ambient window can only be as long as the pre-roll actually was. A
-    // snap fired from the widget, or seconds after opening the app, has less
-    // than the full 30 s — the analyzer returns a null background rather than
-    // measuring one out of audio that does not exist.
-    final int ambientSamples = math.min(
-      (AudioConfig.ambientWindowSeconds * sampleRate).round(),
-      window.preRollSamples,
-    );
-    final AcousticMetrics metrics = analyzer.analyze(
-      samples: samples,
+    // The background can only be as long as the microphone had been listening.
+    // A recording started from the widget, or seconds after opening the app,
+    // has less than the full 30 s — the analyzer returns a null background
+    // rather than measuring one out of audio that does not exist.
+    final Float64List ambient = window.ambient;
+    final int ambientWanted =
+        (AudioConfig.ambientWindowSeconds * sampleRate).round();
+    final AcousticMetrics metrics = analyzer.analyzeSource(
+      samples: Pcm16Samples(samples),
       sampleRate: sampleRate,
       calibrationOffsetDb: settings.calibrationOffsetDb,
       calibrated: settings.calibrated,
-      ambientSampleCount: ambientSamples,
+      // The most recent slice of the pre-roll, not the oldest: the street a few
+      // seconds before the aircraft is the fairest thing to compare it against.
+      ambient: FloatSamples(
+        ambient.length > ambientWanted
+            ? Float64List.sublistView(ambient, ambient.length - ambientWanted)
+            : ambient,
+      ),
       peakWindowSeconds: AudioConfig.clipSeconds.toDouble(),
-      preRollSeconds: window.preRollSeconds,
+      preRollSeconds: 0,
     );
 
     final DeviceDescription device = await deviceInfo.describe();
     final String id = _idFor(pressedAt);
 
-    String? clipPath;
-    if (settings.keepClip) {
-      clipPath = await _writeClip(
-        id: id,
-        samples: samples,
-        metrics: metrics,
-        sampleRate: sampleRate,
-      );
-    }
+    // Always written. Whether it is *attached* is the user's decision, made on
+    // the review screen with the clip in front of them; whether it exists is
+    // not a question worth asking at capture time, when the audio is the one
+    // thing that cannot be recovered afterwards.
+    final String? clipPath = await _writeClip(
+      id: id,
+      samples: samples,
+      metrics: metrics,
+      sampleRate: sampleRate,
+    );
 
     Snap snap = Snap(
       id: id,
@@ -316,6 +329,21 @@ class SnapService {
     return updated;
   }
 
+  /// Records where the user says the worst of the flyover was.
+  ///
+  /// Pass null to go back to letting the measured maximum speak for itself.
+  /// This never changes a measured figure: the clip was cut at capture time
+  /// from the loudest slice and stays there, and the letter quotes the marked
+  /// moment as the complainant's own account of it.
+  Future<Snap> setMarkedPeak(Snap snap, int? millis) async {
+    final Snap updated = snap.copyWith(
+      markedPeakMs: millis,
+      clearMarkedPeak: millis == null,
+    );
+    await database.upsertSnap(updated);
+    return updated;
+  }
+
   Future<Snap> setNotes(Snap snap, String notes) async {
     final Snap updated = snap.copyWith(notes: notes);
     await database.upsertSnap(updated);
@@ -415,7 +443,7 @@ class SnapService {
   /// Writes the loudest [AudioConfig.clipSeconds] of the event, not the first.
   Future<String?> _writeClip({
     required String id,
-    required Float64List samples,
+    required Int16List samples,
     required AcousticMetrics metrics,
     required double sampleRate,
   }) async {
@@ -439,7 +467,10 @@ class SnapService {
       );
       final File file = await wavWriter.write(
         path: p.join(dir.path, '$id.wav'),
-        samples: Float64List.sublistView(samples, start, end),
+        // Converted a slice at a time: a five-minute recording turned into
+        // doubles in one go would cost four times what holding it as PCM16
+        // costs, for the sake of the ten seconds actually being saved.
+        samples: pcm16SliceToFloat(samples, start, end),
         sourceSampleRate: sampleRate,
       );
       return file.path;

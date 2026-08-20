@@ -129,6 +129,7 @@ class ComplaintTemplate {
       'measurementNote': _measurementNote(snap),
       'clipNote': _clipNote(snap),
       'chartNote': _chartNote(snap),
+      'markedPeakNote': _markedPeakNote(snap),
       'notes': snap.notes,
     };
   }
@@ -145,6 +146,36 @@ class ComplaintTemplate {
         'either side of the event, marked with the moment I logged it'
         '${m.hasAmbient ? ' and with the background level before it' : ''}. '
         '${LevelChartLabels.caption(calibrated: m.calibrated)}';
+  }
+
+  /// The moment the complainant marked as the worst of the flyover.
+  ///
+  /// Deliberately written in the first person and kept apart from every
+  /// measured figure. The mark is a claim about experience -- closest approach,
+  /// or whatever actually made the noise unbearable -- and a recipient who
+  /// reads it as a second measurement, then finds it disagrees with LAmax, has
+  /// been handed a reason to dismiss the whole letter.
+  String _markedPeakNote(Snap snap) {
+    final int? marked = snap.markedPeakMs;
+    if (marked == null) return '';
+    final AcousticMetrics m = snap.metrics;
+    final String at = (marked / 1000).round().toString();
+
+    final StringBuffer buffer = StringBuffer()
+      ..write('The worst of it, as I experienced it, was about $at s into the '
+          'recording');
+    final int index = m.traceIntervalMs <= 0
+        ? -1
+        : (marked / m.traceIntervalMs).round();
+    if (index >= 0 && index < m.levelTrace.length) {
+      buffer.write(' (${m.levelTrace[index].toStringAsFixed(1)} dB(A) at that '
+          'moment)');
+    }
+    buffer.write('. That is my own account of when the aircraft was at its '
+        'most intrusive, not a separate measurement -- the figures above are '
+        'the measured ones, and the maximum they quote may fall elsewhere in '
+        'the recording.');
+    return buffer.toString();
   }
 
   String _flightLabel(AircraftSample? aircraft) {
@@ -290,6 +321,6 @@ Available tokens:
   {heightFt} {slantRangeM} {elevationDeg}
   {laMax} {laEq} {peakWindowLaEq} {ambient} {excess} {eventSeconds}
   {device} {osVersion} {appVersion} {measurementNote} {clipNote}
-  {chartNote} {notes}
+  {chartNote} {markedPeakNote} {notes}
 ''';
 }

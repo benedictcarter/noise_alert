@@ -239,6 +239,87 @@ void main() {
     expect(back.hasAmbient, isFalse);
   });
 
+  group('an event that starts at the press', () {
+    // The build that this group tests changed what a recording is: RECORD
+    // starts the event, so the trace no longer carries a pre-roll and the
+    // background has to arrive as a buffer of its own.
+    test('the background comes from the separate buffer, not from the event',
+        () {
+      final Float64List quiet = _tone(seconds: 10, amplitude: 0.001);
+      final Float64List loud = _tone(seconds: 8, amplitude: 0.2);
+
+      final AcousticMetrics m = analyzer.analyzeSource(
+        samples: FloatSamples(loud),
+        sampleRate: _fs,
+        calibrationOffsetDb: _offset,
+        calibrated: false,
+        ambient: FloatSamples(quiet),
+        preRollSeconds: 0,
+      );
+
+      // The quiet street, not the aircraft: an ambient taken from the event
+      // itself would wipe out the rise above background, which is the only
+      // figure in the letter that does not depend on calibration.
+      expect(m.ambientLa90Db, closeTo(_expectedDb(0.001), 1.5));
+      expect(m.laEqDb, closeTo(_expectedDb(0.2), 0.5));
+      expect(m.ambientSeconds, closeTo(10, 0.01));
+      // Nothing precedes the press any more, so the marker sits at zero.
+      expect(m.preRollSeconds, 0);
+      expect(m.eventDurationMs, closeTo(8000, 30));
+    });
+
+    test('PCM16 samples measure the same as the floats they came from', () {
+      // The event is held as Int16List so a five-minute recording fits in
+      // memory. That is only safe if it measures identically.
+      final Float64List floats = _tone(seconds: 5, amplitude: 0.3);
+      final Int16List pcm = Int16List(floats.length);
+      for (int i = 0; i < floats.length; i++) {
+        pcm[i] = (floats[i] * 32767).round();
+      }
+
+      final AcousticMetrics fromFloats = analyzer.analyzeSource(
+        samples: FloatSamples(floats),
+        sampleRate: _fs,
+        calibrationOffsetDb: _offset,
+        calibrated: false,
+        preRollSeconds: 0,
+      );
+      final AcousticMetrics fromPcm = analyzer.analyzeSource(
+        samples: Pcm16Samples(pcm),
+        sampleRate: _fs,
+        calibrationOffsetDb: _offset,
+        calibrated: false,
+        preRollSeconds: 0,
+      );
+
+      expect(fromPcm.laEqDb, closeTo(fromFloats.laEqDb, 0.05));
+      expect(fromPcm.laMaxDb, closeTo(fromFloats.laMaxDb, 0.05));
+      expect(fromPcm.levelTrace.length, fromFloats.levelTrace.length);
+    });
+
+    test('a long recording is measured in one pass without a copy of itself',
+        () {
+      // Five minutes at 48 kHz. The old analyzer built three Float64 arrays
+      // the length of the recording -- about 345 MB -- and would have died
+      // here; this is the regression guard for that.
+      final Int16List pcm = Int16List((300 * _fs).round());
+      for (int i = 0; i < pcm.length; i++) {
+        pcm[i] = (0.1 * 32767 * math.sin(2 * math.pi * 1000 * i / _fs)).round();
+      }
+
+      final AcousticMetrics m = analyzer.analyzeSource(
+        samples: Pcm16Samples(pcm),
+        sampleRate: _fs,
+        calibrationOffsetDb: _offset,
+        calibrated: false,
+        preRollSeconds: 0,
+      );
+
+      expect(m.laEqDb, closeTo(_expectedDb(0.1), 0.5));
+      expect(m.eventDurationMs, closeTo(300000, 50));
+    });
+  });
+
   test('the level trace follows the shape of the event', () {
     // 6 s quiet, 4 s loud, 6 s quiet: the trace is what the chart in the
     // letter is drawn from, so it has to show the rise where the rise was.

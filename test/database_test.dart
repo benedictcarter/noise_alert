@@ -87,7 +87,6 @@ void main() {
   test('settings round-trip, including the edited letter and recipients',
       () async {
     const AppSettings settings = AppSettings(
-      keepClip: true,
       attachClipByDefault: true,
       calibrationOffsetDb: 117.5,
       calibrated: true,
@@ -106,7 +105,6 @@ void main() {
     await db.saveSettings(settings);
 
     final AppSettings back = await db.loadSettings();
-    expect(back.keepClip, isTrue);
     expect(back.calibrationOffsetDb, 117.5);
     expect(back.calibrated, isTrue);
     expect(back.templateBody, 'Custom body with {laMax}.');
@@ -220,6 +218,21 @@ void main() {
       (await db.backfillableSnaps()).map((Snap s) => s.id).toList(),
       <String>['recent'],
     );
+  });
+
+test('a marked worst moment survives the round trip and can be cleared',
+      () async {
+    final Snap snap = _snap(id: 'marked', at: DateTime(2026, 8, 19, 21))
+        .copyWith(markedPeakMs: 42500);
+    await db.upsertSnap(snap);
+
+    expect((await db.snapById('marked'))!.markedPeakMs, 42500);
+
+    // Clearing has to survive too: copyWith cannot express "back to null"
+    // through the value alone, which is exactly the bug clearMarkedPeak exists
+    // to prevent.
+    await db.upsertSnap(snap.copyWith(clearMarkedPeak: true));
+    expect((await db.snapById('marked'))!.markedPeakMs, isNull);
   });
 
   test('deleting a snap removes it and leaves the rest alone', () async {
@@ -346,6 +359,23 @@ void main() {
       // Everything else must survive: these are the user's own records.
       expect(snap.metrics.laMaxDb, 78.4);
       expect(snap.status, SnapStatus.unmatched);
+    });
+
+    test('a v1 database gains the marked-peak column on the way to v3',
+        () async {
+      // The column was added by an ALTER on top of the v2 rebuild, so the
+      // 1 -> 3 path is the one that can go wrong: a chain that only ever runs
+      // one hop in testing will happily skip a step in the field.
+      await seedV1(51.50012, -0.10034);
+
+      final AppDatabase upgraded = await AppDatabase.open(overridePath: path);
+      addTearDown(upgraded.close);
+
+      final Snap legacy = (await upgraded.snapById('legacy'))!;
+      expect(legacy.markedPeakMs, isNull);
+
+      await upgraded.upsertSnap(legacy.copyWith(markedPeakMs: 7000));
+      expect((await upgraded.snapById('legacy'))!.markedPeakMs, 7000);
     });
 
     test('a real fix is carried through untouched', () async {

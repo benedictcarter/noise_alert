@@ -11,6 +11,7 @@ class AcousticMetrics {
     required this.laMaxDb,
     required this.ambientLa90Db,
     required this.preRollSeconds,
+    this.ambientSeconds = 0,
     required this.peakWindowLaEqDb,
     required this.peakWindowStartMs,
     required this.peakWindowDurationMs,
@@ -31,6 +32,11 @@ class AcousticMetrics {
         // Absent in v1 records, which always had the full pre-roll by
         // construction: there was no way to snap without one.
         preRollSeconds: (json['preRollSeconds'] as num?)?.toDouble() ?? 30,
+        // Records written before the recording started at the press had the
+        // background inside the trace, so the two figures were the same thing.
+        ambientSeconds: (json['ambientSeconds'] as num?)?.toDouble() ??
+            (json['preRollSeconds'] as num?)?.toDouble() ??
+            30,
         peakWindowLaEqDb: (json['peakWindowLaEqDb'] as num).toDouble(),
         peakWindowStartMs: json['peakWindowStartMs'] as int,
         peakWindowDurationMs: json['peakWindowDurationMs'] as int,
@@ -64,10 +70,17 @@ class AcousticMetrics {
   /// would make every such event look far more excessive than it was.
   final double? ambientLa90Db;
 
-  /// Seconds of audio in the analysed window that precede the button press.
-  /// Quoted in the letter so the recipient can see the event was captured
-  /// whole rather than caught halfway through.
+  /// Seconds of [levelTrace] that precede the button press.
+  ///
+  /// Zero for anything captured by this build: pressing RECORD starts the
+  /// recording, so the trace begins at the press. Non-zero only for records
+  /// from the builds that captured a rolling pre-roll into the same window,
+  /// where the chart has to mark where the press fell.
   final double preRollSeconds;
+
+  /// Seconds of background recorded *before* the press, from which
+  /// [ambientLa90Db] was measured. Not part of [levelTrace].
+  final double ambientSeconds;
 
   bool get hasAmbient => ambientLa90Db != null;
 
@@ -115,6 +128,7 @@ class AcousticMetrics {
         'laMaxDb': laMaxDb,
         'ambientLa90Db': ambientLa90Db,
         'preRollSeconds': preRollSeconds,
+        'ambientSeconds': ambientSeconds,
         'peakWindowLaEqDb': peakWindowLaEqDb,
         'peakWindowStartMs': peakWindowStartMs,
         'peakWindowDurationMs': peakWindowDurationMs,

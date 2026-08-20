@@ -60,6 +60,17 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
     }
   }
 
+  /// Moves (or clears) the marker for the worst moment of the flyover.
+  ///
+  /// Written straight through rather than held in screen state: the marker ends
+  /// up in the letter, and a drag that survived only until the screen was
+  /// popped would be a claim the user thought they had made.
+  Future<void> _setMarkedPeak(Snap snap, int? millis) async {
+    final Snap updated =
+        await ref.read(snapServiceProvider).setMarkedPeak(snap, millis);
+    ref.read(snapsProvider.notifier).put(updated);
+  }
+
   Future<void> _retryLookup(Snap snap) async {
     setState(() => _busy = true);
     try {
@@ -159,7 +170,6 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
     _initFrom(snap);
 
     final ThemeData theme = Theme.of(context);
-    final AcousticMetrics m = snap.metrics;
     final bool canSend = _unidentified || _selected != null;
 
     return Scaffold(
@@ -173,7 +183,10 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
           children: <Widget>[
-            _MeasurementCard(metrics: m),
+            _MeasurementCard(
+              snap: snap,
+              onMarkChanged: (int? millis) => _setMarkedPeak(snap, millis),
+            ),
             const SizedBox(height: 20),
             Text('Which aircraft was it?', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
@@ -309,13 +322,17 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
 }
 
 class _MeasurementCard extends StatelessWidget {
-  const _MeasurementCard({required this.metrics});
+  const _MeasurementCard({required this.snap, required this.onMarkChanged});
 
-  final AcousticMetrics metrics;
+  final Snap snap;
+
+  /// Milliseconds into the trace, or null to go back to the measured maximum.
+  final ValueChanged<int?> onMarkChanged;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final AcousticMetrics metrics = snap.metrics;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -343,11 +360,34 @@ class _MeasurementCard extends StatelessWidget {
                 intervalMs: metrics.traceIntervalMs,
                 pressAtSeconds: metrics.preRollSeconds,
                 ambientDb: metrics.ambientLa90Db,
+                markedAtSeconds: snap.markedPeakMs == null
+                    ? null
+                    : snap.markedPeakMs! / 1000,
+                onMarkChanged: (double seconds) =>
+                    onMarkChanged((seconds * 1000).round()),
               ),
               const SizedBox(height: 4),
-              Text(
-                'Attached to the complaint as a picture.',
-                style: theme.textTheme.bodySmall,
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      snap.markedPeakMs == null
+                          ? 'Attached to the complaint as a picture. Tap or '
+                              'drag on it to mark the worst moment — closest '
+                              'approach, or whatever actually made the noise '
+                              'unbearable.'
+                          : 'Attached as a picture, with your marker on it. '
+                              'The letter says the moment is yours, not the '
+                              'meter\'s.',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ),
+                  if (snap.markedPeakMs != null)
+                    TextButton(
+                      onPressed: () => onMarkChanged(null),
+                      child: const Text('Clear'),
+                    ),
+                ],
               ),
             ],
             const SizedBox(height: 8),
@@ -375,14 +415,21 @@ class _MeasurementCard extends StatelessWidget {
                   ? 'not measured'
                   : '${metrics.excessOverAmbientDb!.toStringAsFixed(1)} dB',
             ),
+            if (snap.markedPeakMs != null)
+              _row(
+                theme,
+                'Marked worst moment',
+                '${(snap.markedPeakMs! / 1000).toStringAsFixed(0)} s in',
+              ),
             if (!metrics.hasAmbient)
               Padding(
                 padding: const EdgeInsets.only(top: 10),
                 child: Text(
-                  'Only ${metrics.preRollSeconds.toStringAsFixed(0)} s was '
-                  'recorded before you pressed, which is too little to '
-                  'establish a background level. Leave the app open for '
-                  '${AudioConfig.preRollSeconds.round()} s before snapping and '
+                  'The microphone had only been listening for '
+                  '${metrics.ambientSeconds.toStringAsFixed(0)} s when you '
+                  'pressed, which is too little to establish a background '
+                  'level. Leave the app open for '
+                  '${AudioConfig.preRollSeconds.round()} s before recording and '
                   'the complaint can quote the rise above background too.',
                   style: theme.textTheme.bodySmall,
                 ),

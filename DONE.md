@@ -121,3 +121,25 @@ All four from Ben's first round of on-device use.
   letter and review screen say "not measured" rather than quoting an inflated rise.
 
 62 tests, `flutter analyze` clean.
+
+## Record until STOP, always-saved clips, and a draggable worst moment (2026-08-20)
+- **The recording starts at the press.** RECORD opens the event; nothing before the press is in the
+  graph, the LAeq or the clip. The 30 s ring buffer still runs, but now for one purpose only: a
+  snapshot of the street taken at the instant of the press, carried to the analyzer as a *separate*
+  buffer (`EventWindow.ambient`) so the rise above background — the one figure an uncalibrated
+  handset cannot distort — survives.
+- **Nothing stops the recording but STOP.** The fixed 20 s post-roll is gone; the person holding the
+  phone is the only one who knows when the aircraft has gone. The button counts *up*, and a
+  5-minute cap (`AudioConfig.maxEventSeconds`) exists purely as a memory backstop.
+- **A clip is always saved**, on the device only. The keep-or-not switch is gone from the snap
+  screen and from settings; the only remaining question is whether to *attach* it.
+- **SNAP is now RECORD** — the button, the nav bar tab, the progress text and the home-screen widget.
+- **The user can drag the peak marker.** Tapping or dragging on the review chart marks the worst
+  moment as *experienced* — closest approach, or whatever actually made the noise unbearable. It is
+  stored as `Snap.markedPeakMs` (schema v3), drawn on the attached chart in a distinct colour, and
+  written into the letter as `{markedPeakNote}` in the first person and explicitly *not* as a
+  measurement.
+- **The analyzer was rewritten to stream.** One pass, 25 ms block energies and a prefix sum over
+  blocks, plus a `SampleSource` abstraction so the event stays `Int16List`. Without this a 5-minute
+  recording needed ~345 MB of Float64 working arrays; it now needs ~29 MB in total.
+- 86 tests green (was 72).

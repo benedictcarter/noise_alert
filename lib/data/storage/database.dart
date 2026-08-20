@@ -16,7 +16,7 @@ import '../../domain/snap.dart';
 class AppDatabase {
   AppDatabase._(this._db);
 
-  static const int _schemaVersion = 2;
+  static const int _schemaVersion = 3;
   static const String _kvTable = 'kv';
   static const String _snapTable = 'snaps';
 
@@ -77,7 +77,8 @@ class AppDatabase {
       os_version TEXT NOT NULL DEFAULT '',
       app_version TEXT NOT NULL DEFAULT '',
       notes TEXT NOT NULL DEFAULT '',
-      stale_fix INTEGER NOT NULL DEFAULT 0
+      stale_fix INTEGER NOT NULL DEFAULT 0,
+      marked_peak_ms INTEGER
     )
   ''';
 
@@ -106,6 +107,13 @@ class AppDatabase {
       await db.execute('ALTER TABLE ${_snapTable}_v2 RENAME TO $_snapTable');
       await db.execute(
         'CREATE INDEX idx_snaps_recorded_at ON $_snapTable (recorded_at DESC)',
+      );
+    }
+    if (from >= 2 && to >= 3) {
+      // Only for tables the v2 branch above did not just build from the current
+      // schema, which already has the column.
+      await db.execute(
+        'ALTER TABLE $_snapTable ADD COLUMN marked_peak_ms INTEGER',
       );
     }
   }

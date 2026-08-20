@@ -5,7 +5,8 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
 ## Blocked on Ben
 - [ ] Confirm the airport noise-team address for the default recipient set. `To:` is still
       `benedict.carter@gmail.com` only; `Cc:` is now `info@flightpathwatch.co.uk`.
-- [ ] **UAT:** run the app on a handset, snap a real overflight, check the letter reads right.
+- [ ] **UAT:** run the app on a handset, record a real overflight (RECORD -> STOP), check the
+      letter reads right. `noise_alert_b7.apk`.
 - [ ] Decide whether a real SPL meter can be borrowed for a one-off calibration (offset per handset).
       Until then every letter carries the "NOT been calibrated" paragraph and leads on excess over
       ambient, which is offset-independent.
@@ -16,7 +17,7 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
       Also needs the Apple Developer Program (£79/$99 a year) before TestFlight — not yet.
 
 ## Next up
-- [ ] First on-device smoke test on Android: permissions, live meter, snap → review → mail composer
+- [ ] First on-device smoke test on Android: permissions, live meter, record → review → mail composer
       end to end. Release APK is **sideloaded to the LG G7 ThinQ** (`Download/noise_alert.apk`, over
       MTP — the phone exposes no ADB interface at all, see LESSONS_LEARNT; each build is copied
       under a new name, `_b2`/`_b3`/`_b4`, because deleting over MTP hangs). Install and run from a
@@ -28,6 +29,17 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
 - [ ] iOS quick-snap: the Android home-screen widget has no iOS counterpart. `QuickSnapChannel`
       degrades to "no pending snap" on any platform without the channel, so nothing breaks — but a
       Control Centre / Lock Screen widget is the iOS equivalent when iOS is unparked.
+
+## Record-until-stop follow-ups
+- [ ] The 5-minute cap (`AudioConfig.maxEventSeconds`) is a hard stop with no warning before it —
+      the recording just ends and is marked truncated. Decide whether the UI should say so as it
+      approaches, or whether the cap should be raised.
+- [ ] The marked worst moment is annotation only. It cannot re-cut the clip, because the full event
+      audio is discarded after analysis — only the measured loudest 10 s is written to disk. If the
+      mark should move the clip, the event WAV has to be kept until the review screen is done with
+      it.
+- [ ] Widget label is "RECORD", not "FPW RECORD": at 11sp bold the longer string runs close enough
+      to the two-cell width to risk clipping. Check on the handset and lengthen it if it fits.
 
 ## Branding
 - [ ] iOS launch screen and `LaunchImage` still carry the old placeholder artwork — regenerate when

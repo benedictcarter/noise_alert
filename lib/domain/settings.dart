@@ -5,7 +5,6 @@ class AppSettings {
   const AppSettings({
     this.calibrationOffsetDb = CalibrationDefaults.fullScaleDbSpl,
     this.calibrated = false,
-    this.keepClip = false,
     this.attachClipByDefault = false,
     this.bccSelf = true,
     this.openSkyClientId = '',
@@ -24,17 +23,14 @@ class AppSettings {
   /// complaint says the figure is uncalibrated.
   final bool calibrated;
 
-  /// Whether to save an audio clip with each snap.
+  /// Whether the saved clip is attached to the complaint unless the user says
+  /// otherwise.
   ///
-  /// Off by default and deliberately so: a microphone left recording in a
-  /// residential street picks up the neighbours as readily as the aeroplane,
-  /// and the recording is the one part of a snap that carries other people's
-  /// personal data.
-  final bool keepClip;
-
-  /// Whether a saved clip is attached to the complaint unless the user says
-  /// otherwise. Separate from [keepClip] — keeping a clip for your own records
-  /// and emailing it to an airport are different decisions.
+  /// A clip is always saved — it is the one part of a recording that cannot be
+  /// recovered later, and it never leaves the phone on its own. Sending it is a
+  /// separate decision, made on the review screen with the clip in front of
+  /// you, because a microphone in a residential street picks up the neighbours
+  /// as readily as the aeroplane.
   final bool attachClipByDefault;
 
   /// BCC the complainant's own address, so their sent record survives even if
@@ -67,7 +63,6 @@ class AppSettings {
   AppSettings copyWith({
     double? calibrationOffsetDb,
     bool? calibrated,
-    bool? keepClip,
     bool? attachClipByDefault,
     bool? bccSelf,
     String? openSkyClientId,
@@ -81,7 +76,6 @@ class AppSettings {
       AppSettings(
         calibrationOffsetDb: calibrationOffsetDb ?? this.calibrationOffsetDb,
         calibrated: calibrated ?? this.calibrated,
-        keepClip: keepClip ?? this.keepClip,
         attachClipByDefault: attachClipByDefault ?? this.attachClipByDefault,
         bccSelf: bccSelf ?? this.bccSelf,
         openSkyClientId: openSkyClientId ?? this.openSkyClientId,
@@ -101,7 +95,6 @@ class AppSettings {
       other is AppSettings &&
           other.calibrationOffsetDb == calibrationOffsetDb &&
           other.calibrated == calibrated &&
-          other.keepClip == keepClip &&
           other.attachClipByDefault == attachClipByDefault &&
           other.bccSelf == bccSelf &&
           other.openSkyClientId == openSkyClientId &&
@@ -116,7 +109,6 @@ class AppSettings {
   int get hashCode => Object.hash(
         calibrationOffsetDb,
         calibrated,
-        keepClip,
         attachClipByDefault,
         bccSelf,
         openSkyClientId,
@@ -131,7 +123,6 @@ class AppSettings {
   Map<String, Object?> toJson() => <String, Object?>{
         'calibrationOffsetDb': calibrationOffsetDb,
         'calibrated': calibrated,
-        'keepClip': keepClip,
         'attachClipByDefault': attachClipByDefault,
         'bccSelf': bccSelf,
         'openSkyClientId': openSkyClientId,
@@ -158,7 +149,6 @@ class AppSettings {
       calibrationOffsetDb: (json['calibrationOffsetDb'] as num?)?.toDouble() ??
           CalibrationDefaults.fullScaleDbSpl,
       calibrated: json['calibrated'] as bool? ?? false,
-      keepClip: json['keepClip'] as bool? ?? false,
       attachClipByDefault: json['attachClipByDefault'] as bool? ?? false,
       bccSelf: json['bccSelf'] as bool? ?? true,
       openSkyClientId: json['openSkyClientId'] as String? ?? '',
@@ -196,6 +186,8 @@ Measured sound level
 {measurementNote}
 
 {chartNote}
+
+{markedPeakNote}
 
 {clipNote}
 

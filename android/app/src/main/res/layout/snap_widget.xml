@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   Mark over word, not side by side: at two cells wide the row is only about
-  90 dp, and the mark is nearly 3:1, so setting "FPW SNAP" beside it would
-  leave the label a space too narrow to hold the word.
+  90 dp, and the mark is nearly 3:1, so setting the label beside it would
+  leave it a space too narrow to hold the word. The plane mark carries the
+  brand, so the label is just RECORD -- "FPW RECORD" at 11sp bold runs close
+  enough to the cell width to risk being clipped on a dense launcher grid.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/snap_widget_root"

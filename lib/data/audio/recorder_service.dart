@@ -16,10 +16,12 @@ class MeterReading {
   final bool clipping;
 }
 
-/// Owns the microphone while the snap screen is open.
+/// Owns the microphone while the record screen is open.
 ///
-/// Keeps a rolling [PcmRingBuffer] so that pressing the button can reach
-/// backwards in time, and publishes a smoothed level for the meter.
+/// The event itself starts at the button press. The rolling [PcmRingBuffer] is
+/// kept for one other purpose: a snapshot of the street taken at the instant of
+/// the press, which is the background the letter compares the event against.
+/// Also publishes a smoothed level for the meter.
 class RecorderService {
   RecorderService({AudioRecorder? recorder, double? calibrationOffsetDb})
       : _recorder = recorder ?? AudioRecorder(),
@@ -47,10 +49,35 @@ class RecorderService {
   /// Wall-clock time corresponding to sample position 0 of the ring buffer.
   DateTime? _streamStart;
 
-  /// Set by [cutCaptureShort] to end the post-roll wait early.
-  bool _cutShort = false;
+  /// Set by [stopEventCapture]; ends the recording at the next poll.
+  bool _stopRequested = false;
+
+  /// The event being recorded, allocated at the press and sized for
+  /// [AudioConfig.maxEventSeconds].
+  ///
+  /// Allocated whole rather than grown: a doubling buffer would need 1.5x the
+  /// final size live at the moment it resizes, and a chunk list would need 2x
+  /// to concatenate. One fixed allocation at the press has no such spike, and
+  /// the finished recording is handed out as a view onto it.
+  Int16List? _event;
+  int _eventLength = 0;
+  bool _eventFull = false;
+
+  /// The background recorded before the press, snapshotted out of the ring the
+  /// instant the button was hit. Not part of the event.
+  Float64List _ambient = Float64List(0);
+
+  /// Sample rate in force when the event started. Frozen so the length of the
+  /// recording and the pitch of the saved clip cannot disagree.
+  double _eventRate = AudioConfig.sampleRate.toDouble();
 
   bool get isRunning => _subscription != null;
+
+  /// True between [startEventCapture] and [awaitEventEnd] returning.
+  bool get isCapturing => _event != null;
+
+  /// Seconds recorded so far in the current event, for the on-screen clock.
+  double get eventSeconds => _eventLength / _eventRate;
   PcmRingBuffer get buffer => _buffer;
   Stream<MeterReading> get meterStream => _meter.stream;
 
@@ -146,6 +173,7 @@ class RecorderService {
 
   void _onChunk(Uint8List bytes) {
     _buffer.addPcm16Bytes(bytes);
+    _appendToEvent(bytes);
     _retuneWeightingIfNeeded();
 
     const double tau = 0.125;
@@ -209,112 +237,120 @@ class RecorderService {
 
   static const int _rateSettleMicros = 2000000;
 
-  /// Sample position in the ring buffer corresponding to wall-clock [time].
+  /// Starts recording an event at this instant.
   ///
-  /// Clamped to what has actually been written: audio always lags real time by
-  /// the driver buffer, so the clock alone would point past the end of the
-  /// recording and quietly ask for samples that have not arrived.
-  int samplePositionAt(DateTime time) {
-    final DateTime? start = _streamStart;
-    if (start == null) return 0;
-    final int fromClock =
-        (time.difference(start).inMicroseconds * effectiveSampleRate / 1e6)
-            .round();
-    return math.min(fromClock, _buffer.totalWritten);
+  /// Called the moment RECORD is pressed, and deliberately synchronous: the
+  /// first sample of the event has to be the first sample after the press, so
+  /// there is nothing here that can be awaited in between.
+  ///
+  /// The pre-roll is not part of the event. It is snapshotted out of the ring
+  /// here and used for one thing only — the background level the letter
+  /// compares the event against.
+  void startEventCapture() {
+    _stopRequested = false;
+    _eventFull = false;
+    _eventLength = 0;
+    _eventRate = effectiveSampleRate;
+
+    final int end = _buffer.totalWritten;
+    final int wanted = (AudioConfig.preRollSeconds * _eventRate).round();
+    // Only what was genuinely recorded. The ring pads un-recorded history with
+    // zeroes, which is right for the ring and wrong for a background level:
+    // digital silence is not quiet, it is absent, and an L90 taken over it
+    // would sit tens of dB below anything real and inflate the quoted rise.
+    final int available = math.min(end, _buffer.availableSamples);
+    final int take = math.min(wanted, available);
+    _ambient = take > 0 ? _buffer.readEndingAt(end, take) : Float64List(0);
+
+    // Ten percent over the cap, so a microphone delivering slightly faster than
+    // it claimed does not end the recording before the user does.
+    _event = Int16List(
+      (AudioConfig.maxEventSeconds * _eventRate * 1.1).round(),
+    );
   }
 
-  /// Ends the post-roll wait now, keeping whatever has been recorded.
-  ///
-  /// The aircraft is usually gone well before the full post-roll elapses, and
-  /// standing there watching a progress spinner is the fastest way to make a
-  /// one-button app feel like a chore. Everything downstream already works off
-  /// the real window length, so a short capture is a shorter measurement, not
-  /// a wrong one.
-  void cutCaptureShort() => _cutShort = true;
+  /// Ends the recording. The user's STOP, and nothing else.
+  void stopEventCapture() => _stopRequested = true;
 
-  /// Clears a pending [cutCaptureShort] before a new capture begins.
-  ///
-  /// Called by the caller rather than by [captureEventWindow], because the
-  /// user can press "stop and save" during the stages that run *before* the
-  /// post-roll wait; resetting inside the wait would silently discard the
-  /// press that arrived a moment earlier.
-  void prepareCapture() => _cutShort = false;
+  void _appendToEvent(Uint8List bytes) {
+    final Int16List? event = _event;
+    if (event == null || _eventFull) return;
 
-  /// Extracts the analysis window around [pressTime], after waiting out the
-  /// post-roll.
-  ///
-  /// Returns only audio that was genuinely captured. The ring buffer pads
-  /// un-recorded history with zeroes, which is right for the buffer and wrong
-  /// for the analysis: digital silence is not quiet, it is *absent*, and
-  /// averaging 25 s of it into a 50 s LAeq drags the figure down by several dB
-  /// while making the ambient L90 look like the bottom of the dynamic range.
-  /// That matters whenever the button is pressed less than
-  /// [AudioConfig.preRollSeconds] after the microphone opened — which is every
-  /// snap triggered from the home-screen widget, and any snap taken promptly
-  /// after opening the app.
-  ///
-  /// The returned [EventWindow] carries the sample rate that was really
-  /// delivered, so the caller never has to assume [AudioConfig.sampleRate].
-  Future<EventWindow> captureEventWindow(DateTime pressTime) async {
-    // Wall clock, not a sample count. The post-roll is defined as a stretch of
-    // *time* after the press, and waiting for a number of samples instead makes
-    // the wait as wrong as the sample rate is: at a real 16 kHz, a 20 s
-    // post-roll expressed as 960 000 samples takes a minute, and if the stream
-    // stalls outright it never ends at all. A deadline cannot overrun, whatever
-    // the microphone decides to do.
-    final DateTime deadline = pressTime.add(
-      Duration(milliseconds: (AudioConfig.postRollSeconds * 1000).round()),
-    );
+    final int count = bytes.lengthInBytes ~/ 2;
+    final ByteData view = ByteData.sublistView(bytes, 0, count * 2);
+    final int room = event.length - _eventLength;
+    final int take = math.min(count, room);
+    for (int i = 0; i < take; i++) {
+      event[_eventLength + i] = view.getInt16(i * 2, Endian.little);
+    }
+    _eventLength += take;
+    if (take < count || _eventLength >= event.length) _eventFull = true;
+  }
 
-    final int pressPosition = samplePositionAt(pressTime);
-
-    while (DateTime.now().isBefore(deadline) && isRunning && !_cutShort) {
+  /// Waits for STOP and returns everything recorded since the press.
+  ///
+  /// Polled on a wall clock rather than counting samples: if the stream stalls
+  /// outright, a sample count never arrives and the capture never ends, whereas
+  /// a poll notices [isRunning] going false and gives back what there is.
+  Future<EventWindow> awaitEventEnd() async {
+    while (isRunning && !_stopRequested && !_eventFull) {
       await Future<void>.delayed(const Duration(milliseconds: 100));
     }
 
-    final double rate = effectiveSampleRate;
-    final int preRollSamples = (AudioConfig.preRollSeconds * rate).round();
-    final int end = _buffer.totalWritten;
-    final int postActual = math.max(0, end - pressPosition);
+    final Int16List? event = _event;
+    final int length = _eventLength;
+    final bool truncated = _eventFull;
+    _event = null;
+    _eventLength = 0;
+    _eventFull = false;
 
-    // What the buffer can actually hand back ending at `end`: everything
-    // recorded so far, capped by the capacity of the ring.
-    final int available = math.min(end, _buffer.availableSamples);
-    final int take = math.min(preRollSamples + postActual, available);
-    if (take <= 0) return EventWindow.empty();
+    if (event == null || length <= 0) return EventWindow.empty();
 
     return EventWindow(
-      samples: _buffer.readEndingAt(end, take),
-      preRollSamples: math.max(0, take - postActual),
-      sampleRate: rate,
+      samples: Int16List.sublistView(event, 0, length),
+      ambient: _ambient,
+      sampleRate: _eventRate,
+      truncated: truncated,
     );
   }
 }
 
-/// The audio for one event, plus how much of it precedes the button press.
+/// The audio for one event, plus the background recorded before it.
 ///
-/// The split matters: only the pre-roll may be used for the background level,
-/// and how much pre-roll there was decides whether a background level can be
-/// quoted at all.
+/// The two are separate buffers, not two halves of one: the event starts at the
+/// button press, and the background is whatever the microphone had already
+/// heard. Only the background may be used for the ambient level, and how much
+/// of it there was decides whether an ambient level can be quoted at all.
 class EventWindow {
   const EventWindow({
     required this.samples,
-    required this.preRollSamples,
+    required this.ambient,
     required this.sampleRate,
+    this.truncated = false,
   });
 
   EventWindow.empty()
-      : samples = Float64List(0),
-        preRollSamples = 0,
-        sampleRate = 1;
+      : samples = _noSamples,
+        ambient = _noAmbient,
+        sampleRate = 1,
+        truncated = false;
 
-  final Float64List samples;
+  static final Int16List _noSamples = Int16List(0);
+  static final Float64List _noAmbient = Float64List(0);
 
-  /// Samples at the start of [samples] that were recorded *before* the press.
-  final int preRollSamples;
+  /// Everything recorded from the press until STOP, as it arrived.
+  final Int16List samples;
+
+  /// Normalised background from before the press. Empty when there was none.
+  final Float64List ambient;
 
   final double sampleRate;
 
-  double get preRollSeconds => preRollSamples / sampleRate;
+  /// The recording hit [AudioConfig.maxEventSeconds] and was ended for the
+  /// user. The measurement is still valid, it is just not the whole flyover.
+  final bool truncated;
+
+  double get ambientSeconds => ambient.length / sampleRate;
+  double get durationSeconds => samples.length / sampleRate;
   bool get isEmpty => samples.isEmpty;
 }

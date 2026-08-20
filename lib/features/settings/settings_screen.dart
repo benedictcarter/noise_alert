@@ -123,27 +123,20 @@ class SettingsScreen extends ConsumerWidget {
                 'Keeps your own copy even if your mail app does not.'),
           ),
           const _SectionHeader('Recordings'),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            value: settings.keepClip,
-            onChanged: (bool v) =>
-                config.edit((AppSettings s) => s.copyWith(keepClip: v)),
-            title: const Text('Save an audio clip with each snap'),
-            subtitle: const Text(
-              'The loudest ${AudioConfig.clipSeconds} s of the event, saved on '
-              'this phone.',
-            ),
+          const _Explainer(
+            'Every recording keeps its loudest '
+            '${AudioConfig.clipSeconds} s as an audio clip on this phone. '
+            'Nothing is uploaded, and nothing is sent unless you attach it.',
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             value: settings.attachClipByDefault,
-            onChanged: settings.keepClip
-                ? (bool v) => config
-                    .edit((AppSettings s) => s.copyWith(attachClipByDefault: v))
-                : null,
+            onChanged: (bool v) => config
+                .edit((AppSettings s) => s.copyWith(attachClipByDefault: v)),
             title: const Text('Attach the clip by default'),
             subtitle: const Text(
-              'You can still play it back and change your mind on each snap.',
+              'You can still play it back and change your mind on each '
+              'recording.',
             ),
           ),
           const _SectionHeader('Calibration'),

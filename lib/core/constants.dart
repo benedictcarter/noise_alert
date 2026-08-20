@@ -9,15 +9,25 @@ class AudioConfig {
   /// Seconds of audio held live while the snap screen is open.
   static const double ringBufferSeconds = 60;
 
-  /// Captured before the button press. A low overflight is audible for roughly
-  /// 30 s and the human reaction lands well after the peak, so we look back.
+  /// Recorded before the button press, and used *only* to establish what the
+  /// street sounded like beforehand.
+  ///
+  /// The event itself starts at the press: the graph, the LAeq and the clip all
+  /// begin when the user says the aircraft is here. The look-back survives
+  /// because the rise above background is the one figure in the letter that an
+  /// uncalibrated microphone cannot distort, and it needs a background.
   static const double preRollSeconds = 30;
-
-  /// Captured after the button press.
-  static const double postRollSeconds = 20;
 
   /// Leading slice of the pre-roll used to establish the background level.
   static const double ambientWindowSeconds = 10;
+
+  /// Hard stop on a single recording.
+  ///
+  /// The user ends the recording, not a timer — but an app left recording in a
+  /// pocket must not grow without limit. Five minutes is far longer than any
+  /// overflight and costs about 29 MB of PCM16 at 48 kHz, which the analyser
+  /// then reads in place rather than converting.
+  static const double maxEventSeconds = 300;
 
   /// Length of the attachable clip, taken from the loudest part of the event.
   static const double clipSeconds = 10;

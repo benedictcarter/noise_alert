@@ -21,9 +21,30 @@ class LevelChartPainter extends CustomPainter {
     required this.palette,
     this.pressAtSeconds,
     this.ambientDb,
+    this.markedAtSeconds,
     this.markMaximum = true,
     this.showAxes = true,
   });
+
+  /// Left gutter, where the decibel scale is written.
+  static const double axisGutter = 34;
+
+  /// Seconds into a trace [dx] pixels across a chart [width] wide.
+  ///
+  /// Public so the review screen can turn a drag into a time without
+  /// re-deriving the plot geometry: two implementations of the same mapping is
+  /// how a marker ends up half a gutter away from the finger that placed it.
+  static double secondsAt(
+    double dx,
+    double width,
+    double totalSeconds, {
+    bool showAxes = true,
+  }) {
+    final double left = showAxes ? axisGutter : 0;
+    final double span = width - left;
+    if (span <= 0 || totalSeconds <= 0) return 0;
+    return (((dx - left) / span) * totalSeconds).clamp(0, totalSeconds);
+  }
 
   /// dB(A), oldest first, one value every [intervalMs].
   final List<double> levels;
@@ -39,6 +60,15 @@ class LevelChartPainter extends CustomPainter {
   /// in which case no line is drawn rather than one at an invented level.
   final double? ambientDb;
 
+  /// A moment the *user* marked, in seconds from the start of the trace.
+  ///
+  /// The measured maximum is where the microphone was loudest; this is where
+  /// the person standing under it says the aircraft was worst — closest
+  /// approach, or the part that actually made the room unusable. They are
+  /// often not the same instant, and only one of them is evidence of what was
+  /// experienced. Null until the user places it.
+  final double? markedAtSeconds;
+
   final bool markMaximum;
   final bool showAxes;
 
@@ -53,7 +83,7 @@ class LevelChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final double leftGutter = showAxes ? 34 : 0;
+    final double leftGutter = showAxes ? axisGutter : 0;
     final double bottomGutter = showAxes ? 18 : 0;
     final Rect plot = Rect.fromLTRB(
       leftGutter,
@@ -128,6 +158,40 @@ class LevelChartPainter extends CustomPainter {
             ..color = palette.press
             ..strokeWidth = 1.2);
       _label(canvas, 'pressed', Offset(x + 3, plot.top + 2), palette.press, 10);
+    }
+
+    final double? marked = markedAtSeconds;
+    if (marked != null && levels.isNotEmpty) {
+      final int index = (marked * 1000 / intervalMs)
+          .floor()
+          .clamp(0, levels.length - 1);
+      final double x = xFor((index + 0.5) * intervalMs / 1000);
+      final double y = yFor(levels[index]);
+      final Paint stroke = Paint()
+        ..color = palette.marked
+        ..strokeWidth = 1.6;
+      canvas.drawLine(Offset(x, plot.top), Offset(x, plot.bottom), stroke);
+      canvas.drawCircle(Offset(x, y), 6, Paint()..color = palette.marked);
+      canvas.drawCircle(
+        Offset(x, y),
+        6,
+        Paint()
+          ..color = palette.background
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2,
+      );
+      _label(
+        canvas,
+        'worst: ${levels[index].toStringAsFixed(0)} dB(A) at '
+        '${marked.toStringAsFixed(0)} s',
+        Offset(
+          (x + 9).clamp(plot.left, math.max(plot.left, plot.right - 150)),
+          plot.bottom - 14,
+        ),
+        palette.marked,
+        10,
+        bold: true,
+      );
     }
 
     if (markMaximum) {
@@ -226,6 +290,7 @@ class LevelChartPainter extends CustomPainter {
       old.levels != levels ||
       old.ambientDb != ambientDb ||
       old.pressAtSeconds != pressAtSeconds ||
+      old.markedAtSeconds != markedAtSeconds ||
       old.palette != palette;
 }
 
@@ -244,6 +309,7 @@ class LevelChartPalette {
     required this.fill,
     required this.ambient,
     required this.press,
+    required this.marked,
   });
 
   factory LevelChartPalette.forEmail() => const LevelChartPalette(
@@ -254,6 +320,7 @@ class LevelChartPalette {
         fill: Color(0x1AB3261E),
         ambient: Color(0xFF1B5E20),
         press: Color(0xFF1565C0),
+        marked: Color(0xFF6A1B9A),
       );
 
   factory LevelChartPalette.of(ThemeData theme) {
@@ -266,6 +333,7 @@ class LevelChartPalette {
       fill: c.primary.withValues(alpha: 0.12),
       ambient: c.tertiary,
       press: c.secondary,
+      marked: c.tertiary,
     );
   }
 
@@ -276,6 +344,7 @@ class LevelChartPalette {
   final Color fill;
   final Color ambient;
   final Color press;
+  final Color marked;
 
   @override
   bool operator ==(Object other) =>
@@ -286,11 +355,12 @@ class LevelChartPalette {
       other.trace == trace &&
       other.fill == fill &&
       other.ambient == ambient &&
-      other.press == press;
+      other.press == press &&
+      other.marked == marked;
 
   @override
   int get hashCode =>
-      Object.hash(background, grid, axis, trace, fill, ambient, press);
+      Object.hash(background, grid, axis, trace, fill, ambient, press, marked);
 }
 
 /// The one place the chart's caption is written.

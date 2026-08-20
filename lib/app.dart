@@ -56,7 +56,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           NavigationDestination(
             icon: Icon(Icons.mic_none),
             selectedIcon: Icon(Icons.mic),
-            label: 'Snap',
+            label: 'Record',
           ),
           NavigationDestination(
             icon: Icon(Icons.history),

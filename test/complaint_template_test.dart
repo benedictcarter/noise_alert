@@ -85,6 +85,7 @@ Snap _snap({
   double? ambient = 38.1,
   double preRoll = 30,
   bool trace = true,
+  int? markedPeakMs,
 }) =>
     Snap(
       id: 'snap-1',
@@ -105,6 +106,7 @@ Snap _snap({
       unidentifiedAircraft: unidentified,
       clipPath: clipPath,
       attachClip: attachClip,
+      markedPeakMs: markedPeakMs,
       deviceModel: 'Google Pixel 8',
       osVersion: 'Android 15 (SDK 35)',
       appVersion: '0.1.0+1',
@@ -340,5 +342,49 @@ void main() {
 
     expect(draft.attachmentPaths,
         <String>['/tmp/snap-1-level.png', '/tmp/snap-1.wav']);
+  });
+
+  group('the marked worst moment', () {
+    test('says nothing at all when the user has not marked one', () {
+      final ComplaintDraft draft = template.render(
+        snap: _snap(),
+        profile: _profile,
+        settings: settings,
+      );
+
+      expect(draft.body, isNot(contains('as I experienced it')));
+    });
+
+    test('is written as the complainant\'s account, never as a measurement',
+        () {
+      final ComplaintDraft draft = template.render(
+        snap: _snap(markedPeakMs: 1500),
+        profile: _profile,
+        settings: settings,
+      );
+
+      // The mark is a claim about experience. A recipient who reads it as a
+      // second measurement, notices it disagrees with LAmax, and concludes the
+      // numbers are unreliable has been handed the letter's own undoing.
+      expect(draft.body, contains('as I experienced it'));
+      expect(draft.body, contains('not a separate measurement'));
+      expect(draft.body, contains('2 s into the recording'));
+      // The trace is one value every 250 ms, so 1500 ms is index 6.
+      expect(draft.body, contains('42.0 dB(A)'));
+    });
+
+    test('a mark past the end of the trace still reads as a time', () {
+      // Guard against an index that walks off the trace: the mark is stored in
+      // milliseconds and nothing stops an old record from disagreeing with a
+      // shorter trace.
+      final ComplaintDraft draft = template.render(
+        snap: _snap(markedPeakMs: 999000),
+        profile: _profile,
+        settings: settings,
+      );
+
+      expect(draft.body, contains('999 s into the recording'));
+      expect(draft.body, contains('not a separate measurement'));
+    });
   });
 }
