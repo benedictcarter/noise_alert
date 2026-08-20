@@ -449,3 +449,22 @@ polled for in a second call. Forty polls over two minutes found nothing. The cop
 `$dest.ParseName(name)` until it is non-null and `GetDetailsOf($file, 2)` returns a size (`.Size` is
 0 on MTP items). Same caution as the two-device-entry gotcha above -- Explorer's shell namespace is
 convenient but every one of its affordances is asynchronous or lying.
+
+## A diagnostic that is wrong more often than it is right is worse than none (2026-08-20)
+**Mechanism:** the snap screen warned in red when the delivered sample rate drifted more than 2%
+off the requested 48 kHz. The estimate is `samplesDelivered / wallClockSinceStreamStart`, and the
+clock was stamped when `startStream()` *returned* -- before the first sample arrives. Android's
+AudioRecord cold start is 50-300 ms, so at the first check three seconds in, a 200 ms startup gap
+reads as 6% of the audio missing: 44.8 kHz. The warning fires on a healthy microphone, every time,
+and quietly stops firing as the recording lengthens and the fixed offset washes out.
+**Incident:** Ben saw "Microphone is running at 45 kHz, not 48 kHz" and asked what the issue was.
+There was none. Worse, 45 vs 48 kHz is acoustically irrelevant here: the A-weighting is redesigned
+for whatever rate is actually measured, the error is identical in the peak and the background so it
+cancels in the rise the letter leads on, and the real cliff is below ~32 kHz where the 12.2 kHz pole
+pair collapses against Nyquist.
+**Rule:** before shipping a warning, work out its false-positive rate on healthy hardware and what
+the reader is supposed to *do* about it. This one had a false-positive rate near 100% and no action
+attached. Deleted rather than fixed: the audience is largely pensioners who have opened the app
+because a plane annoyed them, and a red line about kilohertz makes them close it. If a measurement
+is only accurate after a settling period, do not expose it to the UI at all -- expose it only where
+the code can wait.

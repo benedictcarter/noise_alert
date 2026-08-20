@@ -226,12 +226,6 @@ class RecorderService {
     return _buffer.totalWritten * 1e6 / elapsedUs;
   }
 
-  /// True when the stream is far enough off the requested rate that the
-  /// acoustics are affected rather than merely imprecise.
-  bool get sampleRateSuspect =>
-      (effectiveSampleRate - AudioConfig.sampleRate).abs() >
-      AudioConfig.sampleRate * 0.02;
-
   static const int _rateSettleMicros = 2000000;
 
   /// Starts recording an event at this instant.

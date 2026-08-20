@@ -66,6 +66,16 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
 - [ ] App icons, screenshots, store copy
 - [ ] Android 14+ foreground-service declaration if M6 ships
 
+## Make it safe for someone who is not technical
+Most users are pensioners. Every screen has to read as "press this, we will handle it", never as a
+list of things that might be wrong with their phone.
+- [ ] Sweep every string in the UI for jargon and for anything that reads as an accusation or a
+      warning. Nothing should suggest the user has done something wrong or that their handset is
+      inadequate.
+- [ ] Decide what the microphone-permission refusal screen says. It currently has no UI at all, and
+      it is the single most likely place someone gets stuck and gives up.
+- [ ] Review the settings screen the same way: it is the most technical surface in the app.
+
 ## Record-on-open follow-ups
 - [ ] An auto-started recording is discarded on leaving the Record tab or backgrounding the app.
       Check on the handset that this does not eat a recording the user did mean to keep (e.g. they

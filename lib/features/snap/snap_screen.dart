@@ -72,12 +72,6 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
   int? _elapsed;
   Timer? _clock;
 
-  /// Set only when the delivered sample rate differs enough from the requested
-  /// one to matter. Silent in the normal case; the point is to make a
-  /// misbehaving microphone visible rather than to decorate the screen.
-  String? _rateNote;
-  Timer? _rateWatch;
-
   @override
   void initState() {
     super.initState();
@@ -88,17 +82,6 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
     // running no matter which tab is on top.
     ref.listenManual<int>(homeTabProvider, (int? _, int tab) {
       if (tab != 0) _abandonIfAuto();
-    });
-    // One check a few seconds in, once enough stream has arrived to divide by.
-    _rateWatch = Timer.periodic(const Duration(seconds: 3), (Timer _) {
-      if (!mounted) return;
-      final RecorderService rec = ref.read(recorderProvider);
-      final String? note = !rec.isRunning || !rec.sampleRateSuspect
-          ? null
-          : 'Microphone is running at '
-              '${(rec.effectiveSampleRate / 1000).toStringAsFixed(1)} kHz, not '
-              '${AudioConfig.sampleRate ~/ 1000} kHz. Levels are approximate.';
-      if (note != _rateNote) setState(() => _rateNote = note);
     });
   }
 
@@ -138,7 +121,6 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _clock?.cancel();
-    _rateWatch?.cancel();
     _widgetTaps?.cancel();
     super.dispose();
   }
@@ -459,21 +441,6 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall,
               ),
-              // The rate the microphone is really delivering. Asking for
-              // 48 kHz does not guarantee getting it, and a stream running slow
-              // puts every level and every timestamp in the letter out by the
-              // ratio.
-              if (_rateNote != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    _rateNote!,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-                ),
               const SizedBox(height: 8),
             ],
           ),
