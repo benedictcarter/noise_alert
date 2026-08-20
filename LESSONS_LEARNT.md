@@ -285,3 +285,19 @@ detectable from the script, and the failure blames a quote that is perfectly bal
 `python <abs path>`. Costs one extra tool call and removes a whole class of unexplainable failure.
 Related: a Dart `'$id.wav'` inside a *non-raw* Python string becomes `'\$id.wav'` and then never
 matches the file — either use a raw string, or split the replacement so the `$` is not in it.
+
+## A stale MTP session makes `CopyHere` a silent no-op (2026-08-20)
+**Mechanism:** `Folder.CopyHere` over MTP is asynchronous and returns immediately with no status, no
+handle and no exception. If the WPD session inside the long-running `explorer.exe` has gone stale —
+the phone locked, or the USB mode dropped and came back — the call is simply discarded. The device
+still enumerates perfectly: `Shell.Application` finds it, the store reports 43 GB free, the
+`Download` folder lists its contents. Everything reads fine; only writes vanish.
+**Incident:** six minutes of polling for a 53 MB APK that was never being written. Unlocking the
+phone changed nothing. Replugging the cable fixed it and the same code copied in under 5 seconds.
+**Rule:** never trust `CopyHere` — always poll the destination for the file afterwards, and when it
+does not appear, **probe with a tiny file** before debugging anything else. A 5-byte text file that
+also fails to land proves the fault is the transport, not the size, the path or the flags; a probe
+that lands means the big copy is merely slow. Fix the transport by replugging the cable (which
+rebuilds the WPD session), not by restarting Explorer. Two related traps already established: only
+one of the two "G7 ThinQ" entries has children, and `.Size` on an MTP `FolderItem` returns 0 — read
+`GetDetailsOf($file, 2)` for the real size.
