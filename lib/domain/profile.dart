@@ -190,9 +190,27 @@ class RecipientSet {
             .cast<String>(),
       );
 
+  /// The Flightpath Watch group mailbox, copied on every complaint by default.
+  ///
+  /// CC rather than BCC: the recipient should be able to see that the group has
+  /// the complaint too, and the sender should be able to remove it.
+  static const String flightpathWatchCc = 'info@flightpathwatch.co.uk';
+
   static const RecipientSet defaultSet = RecipientSet(
     id: 'default',
     label: 'Default',
     to: <String>['benedict.carter@gmail.com'],
+    cc: <String>[flightpathWatchCc],
   );
+
+  /// Adds [flightpathWatchCc] to a set that predates it, and leaves any other
+  /// set alone.
+  ///
+  /// Defaults only apply to installs that have never saved their settings, and
+  /// this one arrived after the app shipped, so without a seeding pass the
+  /// people already using the app would silently never copy the group.
+  static RecipientSet seedGroupCc(RecipientSet set) =>
+      set.id != 'default' || set.cc.contains(flightpathWatchCc)
+          ? set
+          : set.copyWith(cc: <String>[...set.cc, flightpathWatchCc]);
 }

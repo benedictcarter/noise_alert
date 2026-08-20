@@ -1,5 +1,5 @@
 name: noise_alert
-description: Log aircraft noise events and generate complaint emails.
+description: Flightpath Watch Alert — log aircraft noise events and generate complaint emails.
 publish_to: "none"
 version: 0.1.0+1
 

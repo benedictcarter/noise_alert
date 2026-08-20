@@ -208,3 +208,28 @@ reword the text. The same trap applies to `'''` appearing inside a Python triple
 target language uses it too — Dart multi-line strings and Python ones collide, so use `chr(39) * 3`
 and concatenate.
 
+
+## Deleting a file over MTP hangs the copy behind an invisible dialog (2026-08-20)
+**Mechanism:** the LG G7 exposes no ADB interface, so builds go over MTP via the Windows shell COM
+API (`Shell.Application` → `NameSpace(17)` → the phone → `Download`). `Folder.InvokeVerb("delete")`
+does not delete anything by itself; it asks Explorer to run the delete verb, and Explorer puts up a
+confirmation dialog on the *interactive desktop*. A tool-driven session never sees that dialog and
+never dismisses it, so the COM call blocks forever and takes the subsequent `CopyHere` with it.
+**Incident:** replacing `noise_alert.apk` with a new build wedged the sideload task until it was
+killed with TaskStop. Nothing on screen indicated a prompt was waiting.
+**Rule:** never invoke a shell verb that can prompt from a non-interactive session. Copy each build
+under a fresh name (`noise_alert_b2.apk`, `_b3`, `_b4`) and let the old ones accumulate; a few stale
+APKs in `Download` cost less than a hung session. `CopyHere(src, 16)` — 16 is "yes to all" — is safe
+because it answers the overwrite prompt in-process, but it still cannot answer a *delete* prompt.
+
+## A Python patch script that slices at the last `}` silently truncates the file (2026-08-20)
+**Mechanism:** the idiom used all session to append tests — `i = s.rstrip().rfind(NL + '}')` then
+`s = s.rstrip()[:i] + NL + extra + '}' + NL` — assumes the closing brace of `main()` is the *last*
+thing in the file. It discards everything after that index. Any top-level declaration written below
+`main()` disappears, and it disappears from a file the script reports as successfully patched.
+**Incident:** `test/database_test.dart` keeps `const String _v1SnapsTable` after `main()`. Appending
+the recipient-CC tests deleted it, and the failure surfaced as `Undefined name '_v1SnapsTable'` at a
+line 250 lines away from the edit. Recovered with `git show HEAD:test/database_test.dart`.
+**Rule:** insert before the closing brace by *slicing and rejoining*, not by truncating —
+`s[:i] + extra + s[i:]` — or anchor on a unique string near the insertion point. And prefer keeping
+helper constants above `main()` so the file has no tail to lose.

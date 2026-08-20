@@ -3,6 +3,29 @@
 - 2026-08-19 — Repo initialised; stack and architecture decided; PLAN.md / TODO.md / CLAUDE.md /
   LESSONS_LEARNT.md written.
 
+
+## Post-roll fix, level chart, and Flightpath Watch branding (2026-08-20)
+- **Endless post-roll fixed.** `captureEventWindow` waited for a *sample count* (20 s x 48 kHz), so
+  any handset delivering below 48 kHz stretched the wait in proportion and a stalled stream never
+  ended at all. It now waits on a wall clock, measures the rate actually delivered
+  (`totalWritten / elapsed`) and carries that rate through the window length, the A-weighting
+  design, the analysis and the WAV header.
+- **STOP & SAVE shows a countdown**, and a red line appears on the snap screen when the delivered
+  sample rate is more than 2% off the requested one.
+- **dB-over-time chart.** One `LevelChartPainter` drives the live meter, the review screen and an
+  off-screen PNG (`ChartImageService`) attached to every complaint ahead of the audio clip. The
+  trace is stored in the metrics row, because the audio usually is not kept. Fixed 30-110 dB axis,
+  so a quiet event and a loud one cannot look alike, and the UNCALIBRATED caveat travels in the
+  caption.
+- **Renamed to Flightpath Watch Alert** — app label, in-app title, iOS display name and the letter's
+  "measured with" line. The Dart package and the repo stay `noise_alert`.
+- **New launcher icon**: the plane-and-swoosh mark redrawn from the FLIGHTPATH WATCH logo, exported
+  to every Android density plus an adaptive (and monochrome) icon and the full iOS set.
+- **Widget is now a 2x1 pill** with the plane over "FPW SNAP", instead of a bare 1x1 circle.
+- **Default Cc is `info@flightpathwatch.co.uk`**, with a one-time `recipientSeed` pass so installs
+  that predate the address pick it up exactly once and a user who deletes it does not get it back.
+- 72 tests, `flutter analyze` clean.
+
 ## M0 — Scaffold (2026-08-19)
 - Flutter 3.47 project for iOS + Android only; toolchain installed (Flutter SDK, Android SDK,
   licences accepted, two Android devices visible to `flutter devices`).
@@ -94,4 +117,3 @@ All four from Ben's first round of on-device use.
   letter and review screen say "not measured" rather than quoting an inflated rise.
 
 62 tests, `flutter analyze` clean.
-

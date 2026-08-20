@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  A 1x1 cell is roughly 40dp of usable space, so there is room for a label or
-  an icon, not both. The label wins: an unlabelled red circle on a home screen
-  is a guess, and this is a button the user has to find in a hurry.
+  Plane over word, not side by side: at two cells wide the label is only about
+  90 dp, and "FPW SNAP" set beside a 28 dp icon wraps or ellipsises on the
+  narrower launchers.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/snap_widget_root"
@@ -12,14 +12,22 @@
     android:gravity="center"
     android:background="@drawable/snap_widget_background"
     android:contentDescription="@string/snap_widget_description"
-    android:padding="4dp">
+    android:padding="6dp">
+
+    <ImageView
+        android:layout_width="26dp"
+        android:layout_height="26dp"
+        android:src="@drawable/ic_plane"
+        android:adjustViewBounds="true"
+        android:importantForAccessibility="no" />
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
         android:text="@string/snap_widget_label"
         android:textColor="@android:color/white"
-        android:textSize="13sp"
+        android:textSize="12sp"
         android:textStyle="bold"
         android:maxLines="1" />
 </LinearLayout>

@@ -248,7 +248,7 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
     final ThemeData theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Noise Alert')),
+      appBar: AppBar(title: const Text('Flightpath Watch Alert')),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),

@@ -12,6 +12,7 @@ class AppSettings {
     this.openSkyClientSecret = '',
     this.recipientSets = const <RecipientSet>[RecipientSet.defaultSet],
     this.activeRecipientSetId = 'default',
+    this.recipientSeed = currentRecipientSeed,
     this.templateSubject = defaultSubject,
     this.templateBody = defaultBody,
   });
@@ -46,6 +47,13 @@ class AppSettings {
   final List<RecipientSet> recipientSets;
   final String activeRecipientSetId;
 
+  /// Which round of built-in recipient defaults this settings record has been
+  /// through. Bumped whenever a new default address is added, so that existing
+  /// installs pick it up exactly once and never again.
+  final int recipientSeed;
+
+  static const int currentRecipientSeed = 1;
+
   final String templateSubject;
   final String templateBody;
 
@@ -66,6 +74,7 @@ class AppSettings {
     String? openSkyClientSecret,
     List<RecipientSet>? recipientSets,
     String? activeRecipientSetId,
+    int? recipientSeed,
     String? templateSubject,
     String? templateBody,
   }) =>
@@ -79,6 +88,7 @@ class AppSettings {
         openSkyClientSecret: openSkyClientSecret ?? this.openSkyClientSecret,
         recipientSets: recipientSets ?? this.recipientSets,
         activeRecipientSetId: activeRecipientSetId ?? this.activeRecipientSetId,
+        recipientSeed: recipientSeed ?? this.recipientSeed,
         templateSubject: templateSubject ?? this.templateSubject,
         templateBody: templateBody ?? this.templateBody,
       );
@@ -98,6 +108,7 @@ class AppSettings {
           other.openSkyClientSecret == openSkyClientSecret &&
           listEquals(other.recipientSets, recipientSets) &&
           other.activeRecipientSetId == activeRecipientSetId &&
+          other.recipientSeed == recipientSeed &&
           other.templateSubject == templateSubject &&
           other.templateBody == templateBody;
 
@@ -112,6 +123,7 @@ class AppSettings {
         openSkyClientSecret,
         Object.hashAll(recipientSets),
         activeRecipientSetId,
+        recipientSeed,
         templateSubject,
         templateBody,
       );
@@ -127,16 +139,21 @@ class AppSettings {
         'recipientSets':
             recipientSets.map((RecipientSet s) => s.toJson()).toList(),
         'activeRecipientSetId': activeRecipientSetId,
+        'recipientSeed': recipientSeed,
         'templateSubject': templateSubject,
         'templateBody': templateBody,
       };
 
   static AppSettings fromJson(Map<String, Object?> json) {
-    final List<RecipientSet> sets =
+    final int seed = (json['recipientSeed'] as num?)?.toInt() ?? 0;
+    List<RecipientSet> sets =
         ((json['recipientSets'] as List<Object?>?) ?? const <Object?>[])
             .cast<Map<String, Object?>>()
             .map(RecipientSet.fromJson)
             .toList();
+    if (seed < 1) {
+      sets = sets.map(RecipientSet.seedGroupCc).toList();
+    }
     return AppSettings(
       calibrationOffsetDb: (json['calibrationOffsetDb'] as num?)?.toDouble() ??
           CalibrationDefaults.fullScaleDbSpl,
@@ -150,6 +167,7 @@ class AppSettings {
           sets.isEmpty ? const <RecipientSet>[RecipientSet.defaultSet] : sets,
       activeRecipientSetId:
           json['activeRecipientSetId'] as String? ?? 'default',
+      recipientSeed: currentRecipientSeed,
       templateSubject: json['templateSubject'] as String? ?? defaultSubject,
       templateBody: json['templateBody'] as String? ?? defaultBody,
     );

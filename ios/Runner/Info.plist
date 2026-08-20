@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Noise Alert</string>
+	<string>Flightpath Watch Alert</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -67,7 +67,7 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Noise Alert measures the sound level of aircraft passing overhead. The microphone is used only while the app is open, and audio is saved only if you turn clips on.</string>
+	<string>Flightpath Watch Alert measures the sound level of aircraft passing overhead. The microphone is used only while the app is open, and audio is saved only if you turn clips on.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Your location is recorded with each measurement so the app can work out which aircraft was overhead, and so your complaint says where the noise was heard.</string>
 </dict>

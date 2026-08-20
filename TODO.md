@@ -3,8 +3,8 @@
 See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move to [DONE.md](DONE.md).
 
 ## Blocked on Ben
-- [ ] Confirm airport + recipient addresses for the default recipient set (flight-watch group, airport
-      noise team). Currently defaults to `benedict.carter@gmail.com` only.
+- [ ] Confirm the airport noise-team address for the default recipient set. `To:` is still
+      `benedict.carter@gmail.com` only; `Cc:` is now `info@flightpathwatch.co.uk`.
 - [ ] **UAT:** run the app on a handset, snap a real overflight, check the letter reads right.
 - [ ] Decide whether a real SPL meter can be borrowed for a one-off calibration (offset per handset).
       Until then every letter carries the "NOT been calibrated" paragraph and leads on excess over
@@ -18,7 +18,8 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
 ## Next up
 - [ ] First on-device smoke test on Android: permissions, live meter, snap → review → mail composer
       end to end. Release APK is **sideloaded to the LG G7 ThinQ** (`Download/noise_alert.apk`, over
-      MTP — the phone exposes no ADB interface at all, see LESSONS_LEARNT). Install and run from a
+      MTP — the phone exposes no ADB interface at all, see LESSONS_LEARNT; each build is copied
+      under a new name, `_b2`/`_b3`/`_b4`, because deleting over MTP hangs). Install and run from a
       file manager; there is no `flutter run` hot reload on this handset, so each change means a
       rebuild and re-copy.
 - [ ] CI: `flutter analyze` + `flutter test` on push (GitHub Actions).
@@ -27,6 +28,12 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
 - [ ] iOS quick-snap: the Android home-screen widget has no iOS counterpart. `QuickSnapChannel`
       degrades to "no pending snap" on any platform without the channel, so nothing breaks — but a
       Control Centre / Lock Screen widget is the iOS equivalent when iOS is unparked.
+
+## Branding
+- [ ] iOS launch screen and `LaunchImage` still carry the old placeholder artwork — regenerate when
+      iOS is unparked.
+- [ ] The launcher icon is a redraw of the FLIGHTPATH WATCH plane-and-swoosh, not the original
+      vector file. If Ben has the source artwork, swap it in via `scripts/` and re-export.
 
 ## M4 — Evidence quality
 - [ ] Calibration flow beyond the raw offset field (guided side-by-side reading against an SPL meter)

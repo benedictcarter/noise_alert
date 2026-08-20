@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="snap_widget_label">SNAP</string>
+    <string name="app_name">Flightpath Watch Alert</string>
+    <string name="snap_widget_label">FPW SNAP</string>
     <string name="snap_widget_description">Log an aircraft noise event straight from the home screen.</string>
 </resources>

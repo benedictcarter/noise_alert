@@ -360,10 +360,72 @@ void main() {
       expect(snap.staleFix, isFalse);
     });
   });
+
+  group('the Flightpath Watch group CC', () {
+    test('a fresh install copies the group by default', () {
+      const AppSettings fresh = AppSettings();
+
+      expect(
+        fresh.activeRecipientSet.cc,
+        contains(RecipientSet.flightpathWatchCc),
+      );
+    });
+
+    test('settings saved before the group address existed pick it up', () {
+      // No recipientSeed key at all: written by a build that predates the
+      // group mailbox. Such a record must gain the CC exactly once.
+      final Map<String, Object?> old = <String, Object?>{
+        'recipientSets': <Map<String, Object?>>[
+          <String, Object?>{
+            'id': 'default',
+            'label': 'Default',
+            'to': <String>['me@example.com'],
+            'cc': <String>[],
+          },
+        ],
+      };
+
+      final AppSettings seeded = AppSettings.fromJson(old);
+
+      expect(
+        seeded.activeRecipientSet.cc,
+        <String>[RecipientSet.flightpathWatchCc],
+      );
+      expect(seeded.recipientSeed, AppSettings.currentRecipientSeed);
+      expect(seeded.activeRecipientSet.to, <String>['me@example.com']);
+    });
+
+    test('a user who deleted the group CC does not get it back', () {
+      // The seeding pass is why this test exists: a default that reapplies
+      // itself on every load is not a default, it is a policy, and the
+      // recipient list is the user's.
+      const AppSettings settings = AppSettings(
+        recipientSets: <RecipientSet>[
+          RecipientSet(
+            id: 'default',
+            label: 'Default',
+            to: <String>['me@example.com'],
+          ),
+        ],
+      );
+
+      final AppSettings back = AppSettings.fromJson(settings.toJson());
+
+      expect(back.activeRecipientSet.cc, isEmpty);
+    });
+
+    test('a set the user made themselves is left alone', () {
+      const RecipientSet mine = RecipientSet(
+        id: 'heathrow',
+        label: 'Heathrow',
+        to: <String>['noise@example.com'],
+      );
+
+      expect(RecipientSet.seedGroupCc(mine), mine);
+    });
+  });
 }
 
-/// The v1 snaps table, reproduced so the migration is tested against what
-/// shipped rather than against a paraphrase of it.
 const String _v1SnapsTable = '''
   CREATE TABLE snaps (
     id TEXT PRIMARY KEY,

@@ -197,7 +197,7 @@ class ComplaintTemplate {
     final AcousticMetrics m = snap.metrics;
     final StringBuffer buffer = StringBuffer()
       ..write(
-        'Measured with the Noise Alert app on a ${snap.deviceModel} running '
+        'Measured with the Flightpath Watch Alert app on a ${snap.deviceModel} running '
         '${snap.osVersion}, sampling at ${(m.sampleRate / 1000).toStringAsFixed(0)} kHz '
         'with IEC 61672 A-weighting and fast (125 ms) time weighting.',
       );
