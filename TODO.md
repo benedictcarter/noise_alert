@@ -38,8 +38,6 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
       audio is discarded after analysis — only the measured loudest 10 s is written to disk. If the
       mark should move the clip, the event WAV has to be kept until the review screen is done with
       it.
-- [ ] Widget label is "RECORD", not "FPW RECORD": at 11sp bold the longer string runs close enough
-      to the two-cell width to risk clipping. Check on the handset and lengthen it if it fits.
 
 ## Branding
 - [ ] iOS launch screen and `LaunchImage` still carry the old placeholder artwork — regenerate when

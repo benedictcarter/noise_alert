@@ -133,7 +133,10 @@ All four from Ben's first round of on-device use.
   5-minute cap (`AudioConfig.maxEventSeconds`) exists purely as a memory backstop.
 - **A clip is always saved**, on the device only. The keep-or-not switch is gone from the snap
   screen and from settings; the only remaining question is whether to *attach* it.
-- **SNAP is now RECORD** — the button, the nav bar tab, the progress text and the home-screen widget.
+- **SNAP is now RECORD** — the button, the nav bar tab, the progress text and the home-screen
+  widget, which went back to a 1x1 red circle: the plane mark at 22 dp over "REC". The 2x1 pill
+  existed to hold a whole word, and one cell is enough once the word is three letters. Now
+  resizable in both directions, so the mark can be stretched out again on a roomier home screen.
 - **The user can drag the peak marker.** Tapping or dragging on the review chart marks the worst
   moment as *experienced* — closest approach, or whatever actually made the noise unbearable. It is
   stored as `Snap.markedPeakMs` (schema v3), drawn on the attached chart in a distinct colour, and

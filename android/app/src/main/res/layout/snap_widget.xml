@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Mark over word, not side by side: at two cells wide the row is only about
-  90 dp, and the mark is nearly 3:1, so setting the label beside it would
-  leave it a space too narrow to hold the word. The plane mark carries the
-  brand, so the label is just RECORD: "FPW RECORD" at 11sp bold runs close
-  enough to the cell width to risk being clipped on a dense launcher grid.
+  One cell is about 40 dp of usable space, which is not enough for the mark and
+  a whole word. The mark goes on top at 22 dp and the label shrinks to "REC":
+  the plane is what makes the button findable at a glance on a crowded home
+  screen, and three letters are enough to say what it does once it has been
+  found. The ImageView carries the weight so that a launcher with smaller cells
+  squeezes the mark rather than pushing the label out of the circle.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/snap_widget_root"
@@ -14,22 +15,24 @@
     android:gravity="center"
     android:background="@drawable/snap_widget_background"
     android:contentDescription="@string/snap_widget_description"
-    android:padding="5dp">
+    android:padding="4dp">
 
     <ImageView
-        android:layout_width="52dp"
-        android:layout_height="wrap_content"
+        android:layout_width="22dp"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:src="@drawable/ic_plane"
         android:adjustViewBounds="true"
+        android:scaleType="fitCenter"
         android:importantForAccessibility="no" />
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="3dp"
         android:text="@string/snap_widget_label"
         android:textColor="@android:color/white"
-        android:textSize="11sp"
+        android:textSize="10sp"
         android:textStyle="bold"
+        android:includeFontPadding="false"
         android:maxLines="1" />
 </LinearLayout>
