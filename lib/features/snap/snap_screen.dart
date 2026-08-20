@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app.dart';
 import '../../core/constants.dart';
 import '../../core/quick_snap.dart';
 import '../../data/audio/recorder_service.dart';
 import '../../data/location/location_service.dart';
+import '../../data/mail/mail_sender.dart';
 import '../../data/snap_service.dart';
 import '../../domain/settings.dart';
 import '../../domain/snap.dart';
@@ -15,16 +17,25 @@ import '../chart/live_level_chart.dart';
 import '../review/review_screen.dart';
 import 'level_meter.dart';
 
-/// The single button.
+/// The screen that is already recording when you get to it.
 ///
-/// RECORD starts an event and STOP ends it: nothing else decides how long a
-/// recording runs, because nothing else knows when the aircraft has gone.
+/// Opening the app *is* the press. Someone reaching for their phone under a
+/// flight path has already decided to complain, and the seconds spent finding
+/// a button are seconds of the aircraft they do not get back. So the recording
+/// starts on arrival and only STOP ends it: nothing else knows when the
+/// aircraft has gone.
 ///
-/// The microphone runs the whole time this screen is visible even so. Not for
-/// the event — that begins at the press — but for the background: the rise
-/// above background is the one figure in the letter an uncalibrated handset
-/// cannot distort, and it needs [AudioConfig.preRollSeconds] of street to
-/// measure against.
+/// The price is the background level. The rise above background is the one
+/// figure in the letter an uncalibrated handset cannot distort, and it needs
+/// [AudioConfig.preRollSeconds] of street recorded *before* the event to
+/// measure against — which an app that starts recording on launch does not
+/// have. The analyzer then quotes no rise at all, which understates the
+/// nuisance rather than overstating it, and that is the right direction for
+/// the error to fall. Catching the aircraft matters more than grading it.
+///
+/// A recording nobody asked for must also be easy to walk away from, so an
+/// auto-started one is discarded the moment the user leaves this tab or
+/// backgrounds the app. Only a recording the user pressed for survives that.
 class SnapScreen extends ConsumerStatefulWidget {
   const SnapScreen({super.key});
 
@@ -45,6 +56,17 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
   /// why it is recording without anybody having pressed anything.
   bool _fromWidget = false;
 
+  /// True when the running recording began by itself rather than by a press.
+  /// Only these are thrown away when the user's attention goes elsewhere.
+  bool _autoStarted = false;
+
+  /// Which of the two stop buttons was pressed.
+  ///
+  /// Read after the capture finishes, not before it starts: both buttons end
+  /// the same recording, and until one of them is pressed there is no way to
+  /// know whether this will end up a save or a send.
+  bool _sendOnStop = false;
+
   /// Seconds recorded so far, or null when not recording.
   ///
   /// Counts up, not down: the recording ends when the user says so, and a
@@ -64,6 +86,12 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _start());
+    // Leaving the tab abandons a recording the user never asked for. Watched
+    // rather than polled because an IndexedStack keeps this screen built and
+    // running no matter which tab is on top.
+    ref.listenManual<int>(homeTabProvider, (int? _, int tab) {
+      if (tab != 0) _abandonIfAuto();
+    });
     // One check a few seconds in, once enough stream has arrived to divide by.
     _rateWatch = Timer.periodic(const Duration(seconds: 3), (Timer _) {
       if (!mounted) return;
@@ -90,6 +118,22 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
 
     if (await quick.consumePending() && mounted) {
       await _snap(fromWidget: true);
+      return;
+    }
+
+    // Nobody pressed anything, so start anyway.
+    if (!mounted || _capturing) return;
+    if (ref.read(homeTabProvider) != 0) return;
+    // Not while the review screen is on top: the user is reading the last
+    // recording, not making the next one.
+    if (!(ModalRoute.of(context)?.isCurrent ?? true)) return;
+    await _snap(auto: true);
+  }
+
+  /// Drops a recording the user never asked for, if one is running.
+  void _abandonIfAuto() {
+    if (_capturing && _autoStarted) {
+      ref.read(snapServiceProvider).abandonCapture();
     }
   }
 
@@ -110,6 +154,7 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
     if (state == AppLifecycleState.resumed) {
       _start();
     } else if (state == AppLifecycleState.paused) {
+      _abandonIfAuto();
       if (!_capturing) {
         ref.read(snapServiceProvider).disarm();
       }
@@ -152,11 +197,13 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
     return 'Could not start the microphone: $text';
   }
 
-  Future<void> _snap({bool fromWidget = false}) async {
+  Future<void> _snap({bool fromWidget = false, bool auto = false}) async {
     if (_capturing) return;
     setState(() {
       _capturing = true;
       _fromWidget = fromWidget;
+      _autoStarted = auto;
+      _sendOnStop = false;
       _statusLine = 'Getting a location fix…';
     });
 
@@ -178,16 +225,50 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
     );
 
     try {
-      final Snap snap = await service.capture(
+      Snap snap = await service.capture(
         settings: ref.read(settingsProvider),
       );
       ref.read(snapsProvider.notifier).put(snap);
       if (!mounted) return;
+
+      if (_sendOnStop) {
+        setState(() => _statusLine = 'Drafting the complaint…');
+        final CaptureSendResult result = await service.sendCaptured(snap);
+        ref.read(snapsProvider.notifier).put(result.snap);
+        snap = result.snap;
+        if (!mounted) return;
+
+        final MailOutcome? outcome = result.outcome;
+        if (outcome != null && outcome.opened) {
+          // Done: the letter is in front of them in their own mail app, which
+          // is as far as this app is ever allowed to take it.
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Complaint handed to your mail app.'),
+            ),
+          );
+          return;
+        }
+        // Either the aircraft was too ambiguous to name without asking, or the
+        // draft could not be built. Both end on the review screen; only the
+        // second needs explaining.
+        if (outcome != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(outcome.detail ?? 'Could not open your mail app.'),
+            ),
+          );
+        }
+      }
+
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (BuildContext _) => ReviewScreen(snapId: snap.id),
         ),
       );
+    } on CaptureAbandoned {
+      // The user walked away from a recording they never started. Nothing was
+      // written and nothing needs saying.
     } on Object catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -201,10 +282,21 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
         setState(() {
           _capturing = false;
           _fromWidget = false;
+          _autoStarted = false;
+          _sendOnStop = false;
           _statusLine = null;
         });
       }
     }
+  }
+
+  void _stop({required bool send}) {
+    setState(() {
+      _sendOnStop = send;
+      // A recording the user has chosen to keep is no longer disposable.
+      _autoStarted = false;
+    });
+    ref.read(snapServiceProvider).finishCaptureEarly();
   }
 
   void _startClock() {
@@ -302,19 +394,36 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
-                        LevelMeter(
-                          reading: meter.value,
-                          running: ref.watch(snapServiceProvider).isArmed,
-                        ),
-                        const SizedBox(height: 16),
-                        // Before RECORD this is the street; from the press
-                        // it restarts and plots the event itself, so what the
-                        // user watches while recording is the trace the letter
-                        // will carry.
-                        LiveLevelChart(
-                          levelDb: meter.value?.levelDb,
-                          running: ref.watch(snapServiceProvider).isArmed,
-                          recording: _capturing,
+                        // Half-lit when nothing is being recorded. The meter
+                        // and the chart are live either way -- the microphone
+                        // is always listening while this screen is up -- but
+                        // only what is drawn during a recording ends up in a
+                        // complaint, and the difference has to be visible at a
+                        // glance from arm's length.
+                        AnimatedOpacity(
+                          opacity: _capturing ? 1 : 0.5,
+                          duration: const Duration(milliseconds: 250),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              LevelMeter(
+                                reading: meter.value,
+                                running:
+                                    ref.watch(snapServiceProvider).isArmed,
+                              ),
+                              const SizedBox(height: 16),
+                              // Before the press this is the street; from the
+                              // press it restarts and plots the event itself,
+                              // so what the user watches while recording is
+                              // the trace the letter will carry.
+                              LiveLevelChart(
+                                levelDb: meter.value?.levelDb,
+                                running:
+                                    ref.watch(snapServiceProvider).isArmed,
+                                recording: _capturing,
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -343,9 +452,9 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
                   ),
                 ),
               if (_capturing)
-                _StopButton(
-                  onPressed: () =>
-                      ref.read(snapServiceProvider).finishCaptureEarly(),
+                _StopButtons(
+                  onSave: () => _stop(send: false),
+                  onSend: () => _stop(send: true),
                   fromWidget: _fromWidget,
                   seconds: _elapsed,
                 )
@@ -354,12 +463,13 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
               const SizedBox(height: 12),
               Text(
                 _capturing
-                    ? 'Recording until you press STOP. The loudest '
-                        '${AudioConfig.clipSeconds.round()} s is saved as a '
-                        'clip; you choose afterwards whether to send it.'
-                    : 'Records from the moment you press. Leave the app open '
-                        'for ${AudioConfig.preRollSeconds.round()} s first and '
-                        'the letter can also quote the rise above background.',
+                    ? 'Recording until you stop. SAVE keeps it for review; '
+                        'SEND drafts the complaint and opens your mail app. '
+                        'The loudest ${AudioConfig.clipSeconds.round()} s is '
+                        'kept either way.'
+                    : 'Not recording. Press RECORD to log an aircraft — a '
+                        'complaint is still worth sending with no sound, no '
+                        'location and no flight named.',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall,
               ),
@@ -387,6 +497,17 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
   }
 }
 
+/// Go, not danger.
+///
+/// The button was the theme's error red, which is the colour every other app
+/// uses for "this will delete something". Pressing RECORD is the one thing
+/// this app wants the user to do without hesitating.
+const Color _recordGreen = Color(0xFF1E7B34);
+
+/// The send half of the stop control. Darker than the app's own blue so the
+/// two stop buttons cannot be confused with each other at a glance.
+const Color _sendBlue = Color(0xFF0D3B66);
+
 class _RecordButton extends StatelessWidget {
   const _RecordButton({required this.onPressed, required this.busy});
 
@@ -395,15 +516,14 @@ class _RecordButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colors = Theme.of(context).colorScheme;
     return SizedBox(
       width: double.infinity,
       height: 96,
       child: FilledButton(
         onPressed: onPressed,
         style: FilledButton.styleFrom(
-          backgroundColor: colors.error,
-          foregroundColor: colors.onError,
+          backgroundColor: _recordGreen,
+          foregroundColor: Colors.white,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         ),
@@ -451,18 +571,25 @@ class _Banner extends StatelessWidget {
 
 /// Shown in place of RECORD while a recording is running.
 ///
-/// The only thing that ends a recording. An earlier build stopped itself after
-/// a fixed 20 s, which is both the most irritating thing a one-button app can
-/// do and, more importantly, wrong: the person holding the phone is the only
-/// one who knows when the aircraft has gone.
-class _StopButton extends StatelessWidget {
-  const _StopButton({
-    required this.onPressed,
+/// Two buttons, because there are two things a user might want and only one of
+/// them is worth a detour through a review screen. STOP & SAVE keeps the
+/// recording for later; STOP & SEND drafts the complaint and hands it to the
+/// mail app, which makes the whole job three taps: open, stop-and-send, send.
+///
+/// Nothing else ends a recording. An earlier build stopped itself after a
+/// fixed 20 s, which is both the most irritating thing a one-button app can do
+/// and, more importantly, wrong: the person holding the phone is the only one
+/// who knows when the aircraft has gone.
+class _StopButtons extends StatelessWidget {
+  const _StopButtons({
+    required this.onSave,
+    required this.onSend,
     required this.fromWidget,
     this.seconds,
   });
 
-  final VoidCallback onPressed;
+  final VoidCallback onSave;
+  final VoidCallback onSend;
   final bool fromWidget;
 
   /// Seconds recorded so far.
@@ -471,25 +598,32 @@ class _StopButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme colors = Theme.of(context).colorScheme;
+    final String clock = seconds == null ? '' : '  ($seconds s)';
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         SizedBox(
-          width: double.infinity,
           height: 96,
-          child: FilledButton.tonal(
-            onPressed: onPressed,
-            style: FilledButton.styleFrom(
-              backgroundColor: colors.secondaryContainer,
-              foregroundColor: colors.onSecondaryContainer,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(24),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: _StopButton(
+                  onPressed: onSave,
+                  label: 'STOP\n& SAVE$clock',
+                  background: colors.secondaryContainer,
+                  foreground: colors.onSecondaryContainer,
+                ),
               ),
-            ),
-            child: Text(
-              seconds == null ? 'STOP & SAVE' : 'STOP & SAVE  ($seconds s)',
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
-            ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _StopButton(
+                  onPressed: onSend,
+                  label: 'STOP\n& SEND$clock',
+                  background: _sendBlue,
+                  foreground: Colors.white,
+                ),
+              ),
+            ],
           ),
         ),
         if (fromWidget)
@@ -504,6 +638,42 @@ class _StopButton extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _StopButton extends StatelessWidget {
+  const _StopButton({
+    required this.onPressed,
+    required this.label,
+    required this.background,
+    required this.foreground,
+  });
+
+  final VoidCallback onPressed;
+  final String label;
+  final Color background;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: double.infinity,
+      child: FilledButton(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: background,
+          foregroundColor: foreground,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
+        ),
+      ),
     );
   }
 }

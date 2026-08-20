@@ -72,6 +72,17 @@ class MatchConfig {
   /// to be the aircraft that dominated the recording.
   static const double minElevationDegrees = 10;
 
+  /// How close overhead the best candidate has to be before STOP & SEND will
+  /// name it without asking.
+  ///
+  /// One kilometre horizontally. Inside that the aircraft was effectively over
+  /// the house and there is nothing for the user to adjudicate; outside it the
+  /// geometry stops being obvious — a jet 3 km away on the ground track can
+  /// easily be the wrong one — so the review screen is shown instead and the
+  /// user picks. This is the whole of the difference between saving a click and
+  /// putting a stranger's callsign in a complaint for no reason.
+  static const double autoConfirmMaxHorizontalM = 1000;
+
   /// Poll interval for the rolling aircraft track cache while armed. The free
   /// community feeds ask for no more than one request per second.
   static const int trackPollIntervalMs = 3000;

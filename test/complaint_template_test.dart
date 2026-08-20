@@ -74,6 +74,7 @@ FlightMatch _match() => FlightMatch(
     );
 
 Snap _snap({
+  AcousticMetrics? metrics,
   bool confirmed = true,
   bool unidentified = false,
   bool withMatch = true,
@@ -93,13 +94,14 @@ Snap _snap({
       latitude: located ? 51.50012 : null,
       longitude: located ? -0.10034 : null,
       gpsAccuracyM: located ? 8 : null,
-      metrics: _metrics(
-        calibrated: calibrated,
-        clipped: clipped,
-        ambient: ambient,
-        preRoll: preRoll,
-        trace: trace,
-      ),
+      metrics: metrics ??
+          _metrics(
+            calibrated: calibrated,
+            clipped: clipped,
+            ambient: ambient,
+            preRoll: preRoll,
+            trace: trace,
+          ),
       status: SnapStatus.confirmed,
       match: withMatch ? _match() : null,
       selectedIcao24: confirmed && withMatch ? 'abc123' : null,
@@ -386,5 +388,79 @@ void main() {
       expect(draft.body, contains('999 s into the recording'));
       expect(draft.body, contains('not a separate measurement'));
     });
+  });
+
+  group('a recording the microphone never delivered', () {
+    // Ben's bar for the app: "if there is an email saying I live at this
+    // address and at this time a plane annoyed me, that is sufficient". A
+    // silent microphone loses the evidence, not the complaint.
+    const AcousticMetrics none = AcousticMetrics.unmeasured(
+      note: 'The microphone delivered no audio for this recording.',
+    );
+
+    test('the letter still names the address, the time and the aircraft', () {
+      final ComplaintDraft draft = template.render(
+        snap: _snap(metrics: none),
+        profile: _profile,
+        settings: settings,
+      );
+
+      expect(draft.body, contains('1 Quiet Lane'));
+      expect(draft.body, contains('21:14:30'));
+      expect(draft.body, contains('callsign BAW123'));
+      expect(draft.body, contains('clearly audible'));
+    });
+
+    test('no zero is ever printed as if it were a reading', () {
+      final ComplaintDraft draft = template.render(
+        snap: _snap(metrics: none),
+        profile: _profile,
+        settings: settings,
+      );
+
+      expect(draft.body, isNot(contains('0.0 dB')));
+      expect(draft.body, isNot(contains('Maximum (LAmax')));
+      expect(draft.body, contains('Sound level: not measured'));
+      expect(draft.body, contains('The microphone delivered no audio'));
+    });
+
+    test('the method note does not claim a sampling rate it never had', () {
+      // The old note read "sampling at 0 kHz with IEC 61672 A-weighting",
+      // which is worse than saying nothing: it describes a measurement
+      // procedure that did not happen.
+      final ComplaintDraft draft = template.render(
+        snap: _snap(metrics: none),
+        profile: _profile,
+        settings: settings,
+      );
+
+      expect(draft.body, isNot(contains('0 kHz')));
+      expect(draft.body, contains('No sound measurement is attached'));
+    });
+
+    test('individual level tokens degrade too, for an edited letter', () {
+      final ComplaintDraft draft = template.render(
+        snap: _snap(metrics: none),
+        profile: _profile,
+        settings: const AppSettings(
+          templateBody: 'Peak {laMax} dB(A) over {eventSeconds} s.',
+        ),
+      );
+
+      expect(draft.body, 'Peak not measured dB(A) over not measured s.');
+    });
+  });
+
+  test('a named flight is offered for checking, not asserted', () {
+    // The app now names the closest ADS-B match without asking, which only
+    // stays honest if the letter says that is what it is.
+    final ComplaintDraft draft = template.render(
+      snap: _snap(),
+      profile: _profile,
+      settings: settings,
+    );
+
+    expect(draft.body, contains('closest to my position'));
+    expect(draft.body, contains('not independently verified'));
   });
 }

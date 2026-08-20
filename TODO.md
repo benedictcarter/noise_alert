@@ -69,3 +69,15 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
 - [ ] Privacy policy, data-safety / privacy-manifest forms
 - [ ] App icons, screenshots, store copy
 - [ ] Android 14+ foreground-service declaration if M6 ships
+
+## Record-on-open follow-ups
+- [ ] The app records from the moment it opens, so there is no pre-roll and therefore no background
+      level on a normal capture — the letter loses the rise-above-background figure, which is the
+      one number an uncalibrated handset cannot distort. Decide whether that is the right trade
+      permanently, or whether the meter should keep a background from the *previous* session.
+- [ ] An auto-started recording is discarded on leaving the Record tab or backgrounding the app.
+      Check on the handset that this does not eat a recording the user did mean to keep (e.g. they
+      pull down the notification shade mid-flyover).
+- [ ] OpenSky credentials are still not configured on Ben's handset, so no past snap can ever be
+      looked up. Either walk through creating an account or accept that offline captures go out as
+      "not identified".

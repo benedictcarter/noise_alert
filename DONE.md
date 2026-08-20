@@ -146,3 +146,31 @@ All four from Ben's first round of on-device use.
   blocks, plus a `SampleSource` abstraction so the event stays `Int16List`. Without this a 5-minute
   recording needed ~345 MB of Float64 working arrays; it now needs ~29 MB in total.
 - 86 tests green (was 72).
+
+## Records on open, sends in one tap, and never loses a report (2026-08-20)
+- **The app opens recording.** Reaching for the phone under a flight path is the press; the seconds
+  spent finding a button are seconds of aircraft you do not get back. A recording nobody asked for
+  is discarded the moment the user leaves the Record tab or backgrounds the app, so opening the app
+  to change a setting does not leave a snap of the kitchen behind. The cost is the pre-roll, and
+  with it the background level: the letter then quotes no rise above background, which understates
+  the nuisance rather than overstating it.
+- **STOP & SEND**, in darker blue beside STOP & SAVE. It names the closest ADS-B match, drafts the
+  complaint and opens the mail app: open, stop-and-send, send. If the best candidate is further
+  than 1 km horizontally it degrades to STOP & SAVE and shows the review screen, because that is
+  the case where the matcher can genuinely pick the wrong aircraft.
+- **A silent microphone no longer loses the complaint.** `AcousticMetrics.unmeasured` carries the
+  reason instead of an exception, and every consumer asks `hasMeasurement` before printing a
+  decibel figure. The letter says "Sound level: not measured", gives the reason, and stands on the
+  address and the time.
+- **Green, not red.** The record button and the home-screen widget are green — red is the colour
+  every other app uses for "this deletes something".
+- **The meter and the chart are half-lit when not recording**, so what is being logged is obvious
+  from arm's length.
+- **A past snap goes straight to the historical source.** A live feed only reports aircraft in the
+  sky *now*, so for anything older than the track cache the live query could only ever return
+  "nothing found" — slowly, and without saying why. It now says exactly why: live feeds cannot see
+  into the past, and OpenSky history needs credentials.
+- **Stored letters upgrade themselves** when they are an untouched older default, so a handset that
+  saved its settings under b8 stops mailing a hard-coded table of zeroes. An edited letter is never
+  touched.
+- 98 tests green (was 86).

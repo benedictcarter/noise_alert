@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="oval">
-    <!-- The same red as the in-app RECORD button, so the two read as one thing.
+    <!-- The same green as the in-app RECORD button, so the two read as one thing.
          A circle again: at one cell the widget is square, and a pill drawn in a
          square either leaves dead bands above and below or clips its own ends.
          Round also matches what a record button looks like everywhere else. -->
-    <solid android:color="#B3261E" />
+    <solid android:color="#1E7B34" />
 </shape>

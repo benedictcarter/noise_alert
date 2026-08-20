@@ -22,10 +22,36 @@ class AcousticMetrics {
     required this.sampleRate,
     this.levelTrace = const <double>[],
     this.traceIntervalMs = 250,
+    this.note = '',
   });
+
+  /// A recording that produced no usable sound measurement.
+  ///
+  /// The microphone can be busy, muted by another app, or simply deliver
+  /// nothing at all, and none of that is a reason to lose the complaint. A
+  /// letter that says only "an aircraft was audible at this address at this
+  /// time" is still a complaint; the sound level is evidence that strengthens
+  /// it, not the thing that entitles the user to make it.
+  const AcousticMetrics.unmeasured({this.note = ''})
+      : laEqDb = 0,
+        laMaxDb = 0,
+        ambientLa90Db = null,
+        preRollSeconds = 0,
+        ambientSeconds = 0,
+        peakWindowLaEqDb = 0,
+        peakWindowStartMs = 0,
+        peakWindowDurationMs = 0,
+        eventDurationMs = 0,
+        clipped = false,
+        calibrated = false,
+        calibrationOffsetDb = 0,
+        sampleRate = 0,
+        levelTrace = const <double>[],
+        traceIntervalMs = 250;
 
   factory AcousticMetrics.fromJson(Map<String, Object?> json) =>
       AcousticMetrics(
+        note: json['note'] as String? ?? '',
         laEqDb: (json['laEqDb'] as num).toDouble(),
         laMaxDb: (json['laMaxDb'] as num).toDouble(),
         ambientLa90Db: (json['ambientLa90Db'] as num?)?.toDouble(),
@@ -113,7 +139,17 @@ class AcousticMetrics {
 
   final int traceIntervalMs;
 
+  /// Why there is no measurement, when there is none. Empty otherwise.
+  final String note;
+
   bool get hasTrace => levelTrace.length >= 2;
+
+  /// False when the microphone gave us nothing usable.
+  ///
+  /// Everything that prints a decibel figure has to ask this first. A zero here
+  /// is the absence of a measurement, and printing it as "0.0 dB(A)" would be
+  /// a claim about the world rather than a gap in the evidence.
+  bool get hasMeasurement => sampleRate > 0 && eventDurationMs > 0;
 
   /// How far the event rose above the local background. Valid even when
   /// uncalibrated, because the offset cancels — which is why it is the figure
@@ -145,5 +181,6 @@ class AcousticMetrics {
             double.parse(v.toStringAsFixed(1)),
         ],
         'traceIntervalMs': traceIntervalMs,
+        if (note.isNotEmpty) 'note': note,
       };
 }

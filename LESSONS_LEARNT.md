@@ -301,3 +301,47 @@ that lands means the big copy is merely slow. Fix the transport by replugging th
 rebuilds the WPD session), not by restarting Explorer. Two related traps already established: only
 one of the two "G7 ThinQ" entries has children, and `.Size` on an MTP `FolderItem` returns 0 — read
 `GetDetailsOf($file, 2)` for the real size.
+
+## A "no data" message that does not say *why* reads as "nothing was there" (2026-08-20)
+**Mechanism:** the flight lookup asked live ADS-B feeds first and only fell back to history. A live
+feed answers exactly one question -- what is in the sky *right now* -- so for a snap taken twenty
+minutes ago it returns a list of aircraft the matcher correctly rejects, and the user is shown
+"couldn't find anything". That sentence is true about the query and false about the world, and the
+difference matters: one means "no aircraft was overhead", the other means "this app never looked".
+**Incident:** Ben recorded at 14:49 with no wifi and retried at 14:57 with wifi. His conclusion was
+that the app must be looking up the flight at "now" rather than at the time of the recording. It
+was not -- `snap.recordedAt` was threaded through correctly the whole way -- but the message gave
+him no way to tell those two possibilities apart, and the real cause (OpenSky credentials never
+configured, so the only source that can see into the past was unavailable) was never mentioned.
+**Rule:** branch on the question you can actually answer, and name the missing capability in the
+message. Past snaps now skip the live query entirely and go straight to the retrospective source,
+whose failure text says live feeds cannot see into the past and history needs an account. A
+diagnostic the user can act on beats a diagnostic that is merely accurate.
+
+## A default stored in the database is a default frozen on install day (2026-08-20)
+**Mechanism:** `AppSettings.templateBody` defaults to `defaultBody` but is *written to storage* the
+first time settings are saved. From then on the stored copy wins, forever. Every later change to
+the default letter -- a new token, a rewritten section -- reaches new installs only. The handset
+that has been used goes on mailing the old letter, which is precisely the handset whose output you
+stop checking.
+**Incident:** making the sound-level section degrade for an unmeasured recording replaced a
+hard-coded table of `{laMax}`/`{laEq}`/`{ambient}` lines with a single `{measurementBlock}` token.
+On a fresh install a silent microphone now produces "Sound level: not measured"; on Ben's handset
+it would have produced "Maximum (LAmax, fast): not measured dB(A)" three times over, because his
+stored letter still had the table in it.
+**Rule:** when a user-editable default changes, keep the exact previous defaults in a list and
+upgrade a stored value that matches one of them byte for byte. Matching the exact text is what
+makes it safe -- an edited letter matches nothing and is left alone, which is the point, because a
+default that silently reapplies itself is not a default. The alternative (a version stamp) needs to
+have been added before you needed it.
+
+## Everything downstream of a sensor needs a "there was no reading" state (2026-08-20)
+**Mechanism:** a failed measurement was an exception, so the capture threw and the snap was lost.
+Turning it into `AcousticMetrics.unmeasured` fixed the capture and immediately created a subtler
+bug: the fields are all zero, and every consumer printed them. The complaint then read
+"Maximum (LAmax, fast): 0.0 dB(A) ... sampling at 0 kHz with IEC 61672 A-weighting" -- a formal
+description of a measurement procedure that did not happen, which is far more damaging to a
+complaint than an admitted gap.
+**Rule:** a sentinel value is only half the fix. Add the predicate (`hasMeasurement`) *at the same
+time*, and route every formatter through one helper that consults it, so the zero cannot leak into
+output by being forgotten in one branch. Zero is a number; absence is not.

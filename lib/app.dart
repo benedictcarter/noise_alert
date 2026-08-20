@@ -29,6 +29,15 @@ class NoiseAlertApp extends StatelessWidget {
   }
 }
 
+/// Which tab is showing.
+///
+/// Lifted out of [_HomeShellState] because the record screen needs it. The
+/// screen starts recording the moment the app opens, and an [IndexedStack]
+/// keeps it alive and none the wiser when the user walks off to Settings --
+/// so without this it would carry on recording a conversation nobody asked it
+/// to record, and hand back a snap on the way out.
+final StateProvider<int> homeTabProvider = StateProvider<int>((Ref ref) => 0);
+
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
 
@@ -37,8 +46,6 @@ class HomeShell extends ConsumerStatefulWidget {
 }
 
 class _HomeShellState extends ConsumerState<HomeShell> {
-  int _index = 0;
-
   static const List<Widget> _pages = <Widget>[
     SnapScreen(),
     HistoryScreen(),
@@ -47,11 +54,13 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    final int index = ref.watch(homeTabProvider);
     return Scaffold(
-      body: IndexedStack(index: _index, children: _pages),
+      body: IndexedStack(index: index, children: _pages),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (int i) => setState(() => _index = i),
+        selectedIndex: index,
+        onDestinationSelected: (int i) =>
+            ref.read(homeTabProvider.notifier).state = i,
         destinations: const <NavigationDestination>[
           NavigationDestination(
             icon: Icon(Icons.mic_none),

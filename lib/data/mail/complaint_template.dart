@@ -30,11 +30,15 @@ class ComplaintDraft {
 
 /// Fills the form letter in.
 ///
-/// Two rules are enforced here rather than left to the template, because
-/// getting either wrong discredits every complaint the user has ever sent:
+/// Three rules are enforced here rather than left to the template, because
+/// getting any of them wrong discredits every complaint the user has ever
+/// sent:
 ///
-///  * a flight is only ever named if the user confirmed it;
-///  * an uncalibrated sound level is always labelled as such.
+///  * a named flight is described as the closest ADS-B match and as not
+///    independently verified, because the app now names one without asking;
+///  * an uncalibrated sound level is always labelled as such;
+///  * a level that was never measured is never printed as a number. A missing
+///    reading is stored as zero, and "0.0 dB(A)" is a claim, not a gap.
 class ComplaintTemplate {
   const ComplaintTemplate();
 
@@ -117,12 +121,15 @@ class ComplaintTemplate {
       'elevationDeg': candidate == null
           ? 'not determined'
           : candidate.elevationDegrees.round().toString(),
-      'laMax': m.laMaxDb.toStringAsFixed(1),
-      'laEq': m.laEqDb.toStringAsFixed(1),
-      'peakWindowLaEq': m.peakWindowLaEqDb.toStringAsFixed(1),
+      'laMax': _db(m, m.laMaxDb),
+      'laEq': _db(m, m.laEqDb),
+      'peakWindowLaEq': _db(m, m.peakWindowLaEqDb),
       'ambient': m.ambientLa90Db?.toStringAsFixed(1) ?? 'not measured',
       'excess': m.excessOverAmbientDb?.toStringAsFixed(1) ?? 'not measured',
-      'eventSeconds': (m.eventDurationMs / 1000).round().toString(),
+      'eventSeconds': m.hasMeasurement
+          ? (m.eventDurationMs / 1000).round().toString()
+          : 'not measured',
+      'measurementBlock': _measurementBlock(snap),
       'device': snap.deviceModel,
       'osVersion': snap.osVersion,
       'appVersion': snap.appVersion,
@@ -132,6 +139,50 @@ class ComplaintTemplate {
       'markedPeakNote': _markedPeakNote(snap),
       'notes': snap.notes,
     };
+  }
+
+  /// One reading, or an honest blank.
+  ///
+  /// A missing measurement is stored as zero, and "0.0 dB(A)" in a complaint is
+  /// not a gap in the evidence, it is a claim about the world -- and a false
+  /// one. Everything that prints a level goes through here.
+  String _db(AcousticMetrics m, double value) =>
+      m.hasMeasurement ? value.toStringAsFixed(1) : 'not measured';
+
+  /// The sound-level section, or what stands in for it.
+  ///
+  /// The complaint does not depend on this. A letter saying an aircraft was
+  /// audible and disruptive at a given address at a given time is a complaint
+  /// in its own right; the numbers are evidence that strengthens it. So when
+  /// the microphone gave us nothing the letter says so in one plain sentence
+  /// and carries on, rather than printing a table of zeroes or leaving a hole
+  /// where the recipient expects data.
+  String _measurementBlock(Snap snap) {
+    final AcousticMetrics m = snap.metrics;
+    if (!m.hasMeasurement) {
+      final String why = m.note.isEmpty
+          ? 'No sound level was recorded for this event.'
+          : m.note;
+      return 'Sound level: not measured. $why This complaint is my record that '
+          'the aircraft was clearly audible and disruptive at the address and '
+          'time above.';
+    }
+
+    final StringBuffer buffer = StringBuffer('Measured sound level')
+      ..writeln()
+      ..writeln('  Maximum (LAmax, fast): ${_db(m, m.laMaxDb)} dB(A)')
+      ..writeln('  Equivalent level over the event '
+          '(LAeq, ${(m.eventDurationMs / 1000).round()} s): '
+          '${_db(m, m.laEqDb)} dB(A)');
+    // Always stated, even when absent: a recipient comparing complaints needs
+    // to see that the background is missing rather than have the line vanish.
+    buffer.writeln('  Background before the event (LA90): '
+        '${m.ambientLa90Db?.toStringAsFixed(1) ?? 'not measured'} dB(A)');
+    final double? excess = m.excessOverAmbientDb;
+    if (excess != null) {
+      buffer.writeln('  Rise above background: ${excess.toStringAsFixed(1)} dB');
+    }
+    return buffer.toString().trimRight();
   }
 
   /// Describes the attached chart, or says nothing at all if there is none.
@@ -217,15 +268,24 @@ class ComplaintTemplate {
         '${_longFormat.format(candidate.closestApproachTime.toLocal())}',
       )
       ..write(
-        'Identified from public ADS-B position reports (${candidate.aircraft.source}), '
-        'allowing for the ${(candidate.slantRangeM / MatchConfig.speedOfSoundMs).toStringAsFixed(1)} s '
-        'the sound took to travel that distance.',
+        'Identified from public ADS-B position reports '
+        '(${candidate.aircraft.source}) as the aircraft closest to my position '
+        'at that time, allowing for the '
+        '${(candidate.slantRangeM / MatchConfig.speedOfSoundMs).toStringAsFixed(1)} s '
+        'the sound took to travel that distance. I have not independently '
+        'verified the identification, and would ask you to check it against '
+        'your own records before acting on it.',
       );
     return buffer.toString();
   }
 
   String _measurementNote(Snap snap) {
     final AcousticMetrics m = snap.metrics;
+    if (!m.hasMeasurement) {
+      return 'Logged with the Flightpath Watch Alert app on a '
+          '${snap.deviceModel} running ${snap.osVersion}. No sound measurement '
+          'is attached to this event, so nothing here should be read as one.';
+    }
     final StringBuffer buffer = StringBuffer()
       ..write(
         'Measured with the Flightpath Watch Alert app on a ${snap.deviceModel} running '
@@ -320,6 +380,7 @@ Available tokens:
   {aircraftDescription} {aircraftBlock}
   {heightFt} {slantRangeM} {elevationDeg}
   {laMax} {laEq} {peakWindowLaEq} {ambient} {excess} {eventSeconds}
+  {measurementBlock}
   {device} {osVersion} {appVersion} {measurementNote} {clipNote}
   {chartNote} {markedPeakNote} {notes}
 ''';

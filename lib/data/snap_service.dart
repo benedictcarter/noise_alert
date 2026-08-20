@@ -42,6 +42,33 @@ class CaptureProgress {
 /// else is measured relative to that instant, because the press is the only
 /// moment we know the user actually heard the aircraft. GPS and network waits
 /// happen afterwards and must not shift the recording window.
+/// Thrown when a recording nobody asked for is discarded.
+///
+/// Not an error: the caller catches it and says nothing, because from the
+/// user's point of view nothing happened.
+class CaptureAbandoned implements Exception {
+  const CaptureAbandoned();
+
+  @override
+  String toString() => 'The recording was discarded before it was saved.';
+}
+
+/// What came of a STOP & SEND.
+///
+/// Either the letter is open in the user's mail app, or the aircraft was
+/// ambiguous enough that the button quietly became STOP & SAVE and the review
+/// screen has to be shown.
+class CaptureSendResult {
+  const CaptureSendResult({required this.snap, this.outcome});
+
+  final Snap snap;
+
+  /// Null when the send was deliberately not attempted.
+  final MailOutcome? outcome;
+
+  bool get needsReview => outcome == null;
+}
+
 class SnapService {
   SnapService({
     required this.database,
@@ -126,6 +153,21 @@ class SnapService {
   /// Safe at any point: outside a capture it does nothing.
   void finishCaptureEarly() => recorder.stopEventCapture();
 
+  /// Ends the recording and throws it away.
+  ///
+  /// Only ever used for a recording the user did not ask for. The app opens
+  /// recording, which is right for the case it is built around -- something is
+  /// overhead now -- but wrong the moment the user walks off to Settings: a
+  /// snap they never pressed for, and a clip of their kitchen, should not be
+  /// waiting for them when they come back. Nothing is written to disk before
+  /// the check, so abandoning really does leave no trace.
+  void abandonCapture() {
+    _abandoned = true;
+    recorder.stopEventCapture();
+  }
+
+  bool _abandoned = false;
+
   /// Seconds recorded so far, for the running clock on the button.
   double get eventSeconds => recorder.eventSeconds;
 
@@ -145,6 +187,7 @@ class SnapService {
     String notes = '',
   }) async {
     final DateTime pressedAt = DateTime.now();
+    _abandoned = false;
     // Synchronous, and first: the recording has to begin at the press, so
     // nothing may be awaited between timestamping it and opening the event.
     recorder.startEventCapture();
@@ -158,6 +201,11 @@ class SnapService {
 
     _emit(CaptureStage.recording, 'Recording — press STOP when it has passed.');
     final EventWindow window = await recorder.awaitEventEnd();
+    if (_abandoned) {
+      _abandoned = false;
+      _emit(CaptureStage.idle);
+      throw const CaptureAbandoned();
+    }
     final Int16List samples = window.samples;
     // What the microphone actually delivered, which is not always what was
     // asked for. Every duration and every filter below is derived from this
@@ -167,34 +215,16 @@ class SnapService {
     _emit(CaptureStage.locating);
     final SnapLocation? fix = await pendingFix;
 
-    if (window.isEmpty) {
-      throw StateError(
-        'The microphone delivered nothing between RECORD and STOP.',
-      );
-    }
-
     _emit(CaptureStage.analysing);
     // The background can only be as long as the microphone had been listening.
     // A recording started from the widget, or seconds after opening the app,
     // has less than the full 30 s — the analyzer returns a null background
     // rather than measuring one out of audio that does not exist.
-    final Float64List ambient = window.ambient;
-    final int ambientWanted =
-        (AudioConfig.ambientWindowSeconds * sampleRate).round();
-    final AcousticMetrics metrics = analyzer.analyzeSource(
-      samples: Pcm16Samples(samples),
+    final AcousticMetrics metrics = _measure(
+      samples: samples,
+      window: window,
       sampleRate: sampleRate,
-      calibrationOffsetDb: settings.calibrationOffsetDb,
-      calibrated: settings.calibrated,
-      // The most recent slice of the pre-roll, not the oldest: the street a few
-      // seconds before the aircraft is the fairest thing to compare it against.
-      ambient: FloatSamples(
-        ambient.length > ambientWanted
-            ? Float64List.sublistView(ambient, ambient.length - ambientWanted)
-            : ambient,
-      ),
-      peakWindowSeconds: AudioConfig.clipSeconds.toDouble(),
-      preRollSeconds: 0,
+      settings: settings,
     );
 
     final DeviceDescription device = await deviceInfo.describe();
@@ -204,12 +234,14 @@ class SnapService {
     // the review screen with the clip in front of them; whether it exists is
     // not a question worth asking at capture time, when the audio is the one
     // thing that cannot be recovered afterwards.
-    final String? clipPath = await _writeClip(
-      id: id,
-      samples: samples,
-      metrics: metrics,
-      sampleRate: sampleRate,
-    );
+    final String? clipPath = metrics.hasMeasurement
+        ? await _writeClip(
+            id: id,
+            samples: samples,
+            metrics: metrics,
+            sampleRate: sampleRate,
+          )
+        : null;
 
     Snap snap = Snap(
       id: id,
@@ -235,7 +267,8 @@ class SnapService {
         CaptureStage.done,
         'Saved without a location fix — ${_locationStatus.isReady ? 'the '
             'receiver did not report a position in time' : _locationStatus
-            .message} No flight lookup is possible without one.',
+            .message} The complaint can still be sent from your home address; '
+        'it just cannot name a flight.',
       );
       return snap;
     }
@@ -246,10 +279,135 @@ class SnapService {
     return snap;
   }
 
+  /// The acoustics, or an honest blank where they should have been.
+  ///
+  /// Everything in here is best-effort by design. The microphone can be held by
+  /// another app, muted by the OS, or simply deliver nothing; the analyzer can
+  /// be handed a window too short to measure. None of that is a reason to throw
+  /// away a complaint the user has already decided to make, so every failure
+  /// path ends in [AcousticMetrics.unmeasured] with the reason attached rather
+  /// than in an exception.
+  AcousticMetrics _measure({
+    required Int16List samples,
+    required EventWindow window,
+    required double sampleRate,
+    required AppSettings settings,
+  }) {
+    if (window.isEmpty || sampleRate <= 0) {
+      return const AcousticMetrics.unmeasured(
+        note: 'The microphone delivered no audio for this recording.',
+      );
+    }
+
+    // The background can only be as long as the microphone had been listening.
+    // A recording started from the widget, or the instant the app opened, has
+    // less than the full 30 s — the analyzer returns a null background rather
+    // than measuring one out of audio that does not exist.
+    final Float64List ambient = window.ambient;
+    final int ambientWanted =
+        (AudioConfig.ambientWindowSeconds * sampleRate).round();
+
+    try {
+      return analyzer.analyzeSource(
+        samples: Pcm16Samples(samples),
+        sampleRate: sampleRate,
+        calibrationOffsetDb: settings.calibrationOffsetDb,
+        calibrated: settings.calibrated,
+        // The most recent slice of the pre-roll, not the oldest: the street a
+        // few seconds before the aircraft is the fairest comparison.
+        ambient: FloatSamples(
+          ambient.length > ambientWanted
+              ? Float64List.sublistView(ambient, ambient.length - ambientWanted)
+              : ambient,
+        ),
+        peakWindowSeconds: AudioConfig.clipSeconds.toDouble(),
+        preRollSeconds: 0,
+      );
+    } on Object catch (e) {
+      return AcousticMetrics.unmeasured(
+        note: 'The recording could not be analysed ($e).',
+      );
+    }
+  }
+
+  /// Names the best candidate outright when it was plainly overhead.
+  ///
+  /// Ben's call, and it overrides the older rule that no flight is ever named
+  /// without a tap: within [MatchConfig.autoConfirmMaxHorizontalM] of the
+  /// observer there is nothing to adjudicate, and the click costs more than it
+  /// buys. Beyond that the choice goes back to the user, because a candidate
+  /// out on the ground track is exactly the case where the matcher can pick the
+  /// wrong aircraft. The letter says either way that the identification is the
+  /// closest ADS-B match and has not been independently verified.
+  static Snap autoConfirm(Snap snap) {
+    final FlightCandidate? best = snap.match?.best;
+    if (best == null) return snap;
+    if (best.horizontalRangeM > MatchConfig.autoConfirmMaxHorizontalM) {
+      return snap;
+    }
+    return snap.copyWith(
+      selectedIcao24: best.aircraft.icao24,
+      status: SnapStatus.confirmed,
+    );
+  }
+
+  /// STOP & SEND: capture, decide the aircraft question, open the letter.
+  ///
+  /// The point of the button is that one press ends the recording and the next
+  /// thing the user sees is their own mail app with a complaint in it. That is
+  /// only honest when there is nothing left to ask them:
+  ///
+  ///  * an aircraft within [MatchConfig.autoConfirmMaxHorizontalM] is named;
+  ///  * no candidates at all means there is nothing to choose between, so the
+  ///    complaint goes out saying the aircraft was not identified — a letter
+  ///    that says "an aircraft was audible at this address at this time" is
+  ///    still a complaint, and is the whole point of the app;
+  ///  * anything in between is a real question, so the button degrades to
+  ///    STOP & SAVE and the caller shows the review screen.
+  Future<CaptureSendResult> captureAndSend({
+    required AppSettings settings,
+    String notes = '',
+  }) async =>
+      sendCaptured(await capture(settings: settings, notes: notes));
+
+  /// The second half of STOP & SEND, for a snap that has already been captured.
+  ///
+  /// Separate from [captureAndSend] because the UI cannot know which button
+  /// will be pressed until the recording is already running: both buttons end
+  /// the same capture, and only afterwards does it become a save or a send.
+  Future<CaptureSendResult> sendCaptured(Snap captured) async {
+    final Snap decided = autoConfirm(captured);
+
+    if (decided.confirmedCandidate == null) {
+      if (captured.match?.hasCandidates ?? false) {
+        // Candidates, but none of them obviously overhead. This is the one
+        // case worth a tap.
+        return CaptureSendResult(snap: decided);
+      }
+      // Nothing was found, so there is nothing to confirm.
+      final Snap unidentified = decided.copyWith(
+        unidentifiedAircraft: true,
+        status: SnapStatus.confirmed,
+      );
+      await database.upsertSnap(unidentified);
+      return CaptureSendResult(
+        snap: unidentified,
+        outcome: await compose(unidentified),
+      );
+    }
+
+    await database.upsertSnap(decided);
+    return CaptureSendResult(snap: decided, outcome: await compose(decided));
+  }
+
   /// Runs (or re-runs) the flight lookup for a snap and stores the result.
   ///
-  /// Live sources first; if they turn up nothing and the snap is still inside
-  /// OpenSky's one-hour retrospective window, back-fill from there.
+  /// Which source is asked depends entirely on how old the snap is. A live feed
+  /// only ever reports aircraft that are in the sky *now*, so for anything
+  /// older than the track cache holds, querying one cannot succeed -- the
+  /// matcher correctly rejects every aircraft it returns, and the user is told
+  /// "nothing found" when the truth is "nothing was asked". Past events go
+  /// straight to the retrospective source instead.
   Future<Snap> resolveMatch(Snap snap, {bool preferHistorical = false}) async {
     if (!snap.hasLocation) {
       // Searching from a guessed position is worse than not searching: the
@@ -273,21 +431,22 @@ class SnapService {
       altitudeM: snap.gpsAltitudeM ?? 0,
     );
 
+    // Older than the rolling cache retains, so neither the cache nor a fresh
+    // live query can hold anything from the moment in question.
+    final Duration age = DateTime.now().difference(snap.recordedAt);
+    final bool past = age > lookup.historyRetention;
+
     FlightMatch match;
-    if (preferHistorical) {
+    if (preferHistorical || past) {
       match =
           await lookup.backfill(observer: observer, heardAt: snap.recordedAt);
     } else {
       match =
           await lookup.resolve(observer: observer, heardAt: snap.recordedAt);
-      if (match.candidates.isEmpty) {
-        final Duration age = DateTime.now().difference(snap.recordedAt);
-        if (age > const Duration(seconds: 30) &&
-            age < const Duration(minutes: 55)) {
-          final FlightMatch historical = await lookup.backfill(
-              observer: observer, heardAt: snap.recordedAt);
-          if (historical.candidates.isNotEmpty) match = historical;
-        }
+      if (match.candidates.isEmpty && age > const Duration(seconds: 30)) {
+        final FlightMatch historical = await lookup.backfill(
+            observer: observer, heardAt: snap.recordedAt);
+        if (historical.candidates.isNotEmpty) match = historical;
       }
     }
 
