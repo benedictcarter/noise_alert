@@ -177,6 +177,8 @@ Measured sound level
 
 {measurementNote}
 
+{chartNote}
+
 {clipNote}
 
 This aircraft was clearly audible inside my home and disrupted my use of it.

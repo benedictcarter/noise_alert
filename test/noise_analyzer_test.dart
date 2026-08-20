@@ -238,4 +238,79 @@ void main() {
     expect(back.preRollSeconds, 0);
     expect(back.hasAmbient, isFalse);
   });
+
+  test('the level trace follows the shape of the event', () {
+    // 6 s quiet, 4 s loud, 6 s quiet: the trace is what the chart in the
+    // letter is drawn from, so it has to show the rise where the rise was.
+    final Float64List samples = _concat(<Float64List>[
+      _tone(seconds: 6, amplitude: 0.002),
+      _tone(seconds: 4, amplitude: 0.2),
+      _tone(seconds: 6, amplitude: 0.002),
+    ]);
+
+    final AcousticMetrics m = analyzer.analyze(
+      samples: samples,
+      sampleRate: _fs,
+      calibrationOffsetDb: _offset,
+      calibrated: false,
+      peakWindowSeconds: 1,
+    );
+
+    expect(m.hasTrace, isTrue);
+    // 16 s at 250 ms a point.
+    expect(m.levelTrace, hasLength(64));
+
+    final int loudest = m.levelTrace.indexOf(
+      m.levelTrace.reduce((double a, double b) => a > b ? a : b),
+    );
+    final double loudestAtSeconds = loudest * m.traceIntervalMs / 1000;
+    expect(loudestAtSeconds, greaterThanOrEqualTo(6));
+    expect(loudestAtSeconds, lessThan(10));
+
+    // Quiet at both ends, loud in the middle, at roughly the right levels.
+    expect(m.levelTrace.first, closeTo(_expectedDb(0.002), 1.5));
+    expect(m.levelTrace.last, closeTo(_expectedDb(0.002), 1.5));
+    expect(m.levelTrace[loudest], closeTo(_expectedDb(0.2), 1.0));
+  });
+
+  test('the trace survives the JSON round trip at one decimal place', () {
+    final AcousticMetrics m = analyzer.analyze(
+      samples: _tone(seconds: 4, amplitude: 0.1),
+      sampleRate: _fs,
+      calibrationOffsetDb: _offset,
+      calibrated: false,
+      peakWindowSeconds: 1,
+    );
+    final AcousticMetrics back = AcousticMetrics.fromJson(m.toJson());
+
+    expect(back.levelTrace, hasLength(m.levelTrace.length));
+    expect(back.traceIntervalMs, m.traceIntervalMs);
+    for (int i = 0; i < m.levelTrace.length; i++) {
+      // Rounded on the way out, so equal to within half of the last place.
+      expect(back.levelTrace[i], closeTo(m.levelTrace[i], 0.05));
+    }
+  });
+
+  test('a record written before the chart existed simply has no trace', () {
+    // v1 rows carry no levelTrace key at all. An empty trace must read as
+    // "no chart to draw", never as a flat line at zero decibels.
+    final Map<String, Object?> legacy = <String, Object?>{
+      'laEqDb': 68.2,
+      'laMaxDb': 78.4,
+      'ambientLa90Db': 38.1,
+      'peakWindowLaEqDb': 71.9,
+      'peakWindowStartMs': 0,
+      'peakWindowDurationMs': 10000,
+      'eventDurationMs': 50000,
+      'clipped': 0,
+      'calibrated': 0,
+      'calibrationOffsetDb': _offset,
+      'sampleRate': _fs,
+    };
+
+    final AcousticMetrics m = AcousticMetrics.fromJson(legacy);
+
+    expect(m.levelTrace, isEmpty);
+    expect(m.hasTrace, isFalse);
+  });
 }

@@ -24,12 +24,15 @@ AcousticMetrics _metrics({
   double laMax = 78.4,
   double? ambient = 38.1,
   double preRoll = 30,
+  bool trace = true,
 }) =>
     AcousticMetrics(
       laEqDb: 68.2,
       laMaxDb: laMax,
       ambientLa90Db: ambient,
       preRollSeconds: preRoll,
+      levelTrace:
+          trace ? const <double>[40, 45, 62, 78, 71, 55, 42] : const <double>[],
       peakWindowLaEqDb: 71.9,
       peakWindowStartMs: 24000,
       peakWindowDurationMs: 10000,
@@ -81,6 +84,7 @@ Snap _snap({
   bool located = true,
   double? ambient = 38.1,
   double preRoll = 30,
+  bool trace = true,
 }) =>
     Snap(
       id: 'snap-1',
@@ -93,6 +97,7 @@ Snap _snap({
         clipped: clipped,
         ambient: ambient,
         preRoll: preRoll,
+        trace: trace,
       ),
       status: SnapStatus.confirmed,
       match: withMatch ? _match() : null,
@@ -291,5 +296,49 @@ void main() {
     expect(draft.body, isNot(contains('Rise above background: 40.3 dB')));
     // The uncalibrated warning must survive: it is the other honesty clause.
     expect(draft.body, contains('has NOT been calibrated'));
+  });
+
+  test('the chart is described in the letter and attached to it', () {
+    // The plot goes on every complaint: it is the part a noise team reads
+    // first, and it contains nothing the body does not already state.
+    final ComplaintDraft draft = template.render(
+      snap: _snap(),
+      profile: _profile,
+      settings: settings,
+      chartPath: '/tmp/snap-1-level.png',
+    );
+
+    expect(draft.attachmentPaths, contains('/tmp/snap-1-level.png'));
+    expect(draft.body, contains('Attached: a chart'));
+    // The calibration caveat must travel with the picture, not only with the
+    // numbers - a chart reads as far more authoritative than a line of text.
+    expect(draft.body, contains('UNCALIBRATED'));
+  });
+
+  test('no trace means no chart sentence at all', () {
+    // Silence, not an apology: explaining an absent attachment draws attention
+    // to a gap the recipient would never otherwise have noticed.
+    final ComplaintDraft draft = template.render(
+      snap: _snap(trace: false),
+      profile: _profile,
+      settings: settings,
+    );
+
+    expect(draft.body, isNot(contains('Attached: a chart')));
+    expect(draft.attachmentPaths, isEmpty);
+  });
+
+  test('the chart is attached ahead of the audio clip', () {
+    // Order matters to mail clients that preview only the first attachment,
+    // and the chart is the one worth previewing.
+    final ComplaintDraft draft = template.render(
+      snap: _snap(clipPath: '/tmp/snap-1.wav', attachClip: true),
+      profile: _profile,
+      settings: settings,
+      chartPath: '/tmp/snap-1-level.png',
+    );
+
+    expect(draft.attachmentPaths,
+        <String>['/tmp/snap-1-level.png', '/tmp/snap-1.wav']);
   });
 }

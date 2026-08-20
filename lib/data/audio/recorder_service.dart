@@ -33,7 +33,7 @@ class RecorderService {
 
   final AudioRecorder _recorder;
   final PcmRingBuffer _buffer;
-  final AWeighting _weighting;
+  AWeighting _weighting;
 
   StreamSubscription<Uint8List>? _subscription;
   final StreamController<MeterReading> _meter =
@@ -96,7 +96,9 @@ class RecorderService {
 
     _buffer.clear();
     _runningMeanSquare = 0;
-    _weighting.reset();
+    _meterRate = AudioConfig.sampleRate.toDouble();
+    _weightingRetuned = false;
+    _weighting = AWeighting(_meterRate);
     _streamStart = DateTime.now();
 
     _subscription = stream.listen(
@@ -115,6 +117,27 @@ class RecorderService {
     }
   }
 
+  /// The A-weighting filter is designed for one specific sample rate, so it has
+  /// to be rebuilt once we know what the hardware really gave us. Done once and
+  /// not per chunk: rebuilding resets the filter state, which would notch the
+  /// meter every time.
+  double _meterRate = AudioConfig.sampleRate.toDouble();
+  bool _weightingRetuned = false;
+
+  void _retuneWeightingIfNeeded() {
+    if (_weightingRetuned) return;
+    final DateTime? start = _streamStart;
+    if (start == null) return;
+    if (DateTime.now().difference(start).inMicroseconds < _rateSettleMicros) {
+      return;
+    }
+    _weightingRetuned = true;
+    final double rate = effectiveSampleRate;
+    if ((rate - _meterRate).abs() < 1) return;
+    _meterRate = rate;
+    _weighting = AWeighting(rate);
+  }
+
   Future<void> dispose() async {
     await stop();
     await _meter.close();
@@ -123,9 +146,10 @@ class RecorderService {
 
   void _onChunk(Uint8List bytes) {
     _buffer.addPcm16Bytes(bytes);
+    _retuneWeightingIfNeeded();
 
     const double tau = 0.125;
-    final double alpha = 1 - math.exp(-1 / (AudioConfig.sampleRate * tau));
+    final double alpha = 1 - math.exp(-1 / (_meterRate * tau));
     final int count = bytes.lengthInBytes ~/ 2;
     final ByteData view = ByteData.sublistView(bytes, 0, count * 2);
 
@@ -154,31 +178,51 @@ class RecorderService {
     }
   }
 
+  /// Samples per second the microphone is *actually* delivering.
+  ///
+  /// [AudioConfig.sampleRate] is what we asked for, not necessarily what we
+  /// got. Android is free to hand back a different rate — commonly 44.1 kHz,
+  /// and as little as 16 kHz for `unprocessed` on hardware that does not truly
+  /// support it — and the plugin reports success either way. Measuring it is
+  /// the only way to know, and everything downstream (window lengths, the
+  /// A-weighting design, the WAV header on the clip) has to use the real figure
+  /// or it describes audio that does not exist.
+  ///
+  /// Falls back to the configured rate until there is enough of the stream to
+  /// divide by; a fraction of a second of delivery jitter would otherwise read
+  /// as a wildly wrong rate.
+  double get effectiveSampleRate {
+    final DateTime? start = _streamStart;
+    if (start == null) return AudioConfig.sampleRate.toDouble();
+    final int elapsedUs = DateTime.now().difference(start).inMicroseconds;
+    if (elapsedUs < _rateSettleMicros || _buffer.totalWritten <= 0) {
+      return AudioConfig.sampleRate.toDouble();
+    }
+    return _buffer.totalWritten * 1e6 / elapsedUs;
+  }
+
+  /// True when the stream is far enough off the requested rate that the
+  /// acoustics are affected rather than merely imprecise.
+  bool get sampleRateSuspect =>
+      (effectiveSampleRate - AudioConfig.sampleRate).abs() >
+      AudioConfig.sampleRate * 0.02;
+
+  static const int _rateSettleMicros = 2000000;
+
   /// Sample position in the ring buffer corresponding to wall-clock [time].
   ///
-  /// Derived from the sample count rather than the clock, so it stays aligned
-  /// with the audio even if chunk delivery is bursty.
+  /// Clamped to what has actually been written: audio always lags real time by
+  /// the driver buffer, so the clock alone would point past the end of the
+  /// recording and quietly ask for samples that have not arrived.
   int samplePositionAt(DateTime time) {
     final DateTime? start = _streamStart;
     if (start == null) return 0;
     final int fromClock =
-        (time.difference(start).inMicroseconds * AudioConfig.sampleRate / 1e6)
+        (time.difference(start).inMicroseconds * effectiveSampleRate / 1e6)
             .round();
     return math.min(fromClock, _buffer.totalWritten);
   }
 
-  /// Extracts the analysis window around [pressTime], waiting for the post-roll
-  /// to actually be recorded first.
-  ///
-  /// Returns only audio that was genuinely captured. The ring buffer pads
-  /// un-recorded history with zeroes, which is right for the buffer and wrong
-  /// for the analysis: digital silence is not quiet, it is *absent*, and
-  /// averaging 25 s of it into a 50 s LAeq drags the figure down by several dB
-  /// while making the ambient L90 look like the bottom of the dynamic range.
-  /// That matters whenever the button is pressed less than
-  /// [AudioConfig.preRollSeconds] after the microphone opened — which is every
-  /// snap triggered from the home-screen widget, and any snap taken promptly
-  /// after opening the app.
   /// Ends the post-roll wait now, keeping whatever has been recorded.
   ///
   /// The aircraft is usually gone well before the full post-roll elapses, and
@@ -196,23 +240,45 @@ class RecorderService {
   /// press that arrived a moment earlier.
   void prepareCapture() => _cutShort = false;
 
+  /// Extracts the analysis window around [pressTime], after waiting out the
+  /// post-roll.
+  ///
+  /// Returns only audio that was genuinely captured. The ring buffer pads
+  /// un-recorded history with zeroes, which is right for the buffer and wrong
+  /// for the analysis: digital silence is not quiet, it is *absent*, and
+  /// averaging 25 s of it into a 50 s LAeq drags the figure down by several dB
+  /// while making the ambient L90 look like the bottom of the dynamic range.
+  /// That matters whenever the button is pressed less than
+  /// [AudioConfig.preRollSeconds] after the microphone opened — which is every
+  /// snap triggered from the home-screen widget, and any snap taken promptly
+  /// after opening the app.
+  ///
+  /// The returned [EventWindow] carries the sample rate that was really
+  /// delivered, so the caller never has to assume [AudioConfig.sampleRate].
   Future<EventWindow> captureEventWindow(DateTime pressTime) async {
-    final int postRollSamples =
-        (AudioConfig.postRollSeconds * AudioConfig.sampleRate).round();
-    final int pressPosition = samplePositionAt(pressTime);
-    final int targetEnd = pressPosition + postRollSamples;
+    // Wall clock, not a sample count. The post-roll is defined as a stretch of
+    // *time* after the press, and waiting for a number of samples instead makes
+    // the wait as wrong as the sample rate is: at a real 16 kHz, a 20 s
+    // post-roll expressed as 960 000 samples takes a minute, and if the stream
+    // stalls outright it never ends at all. A deadline cannot overrun, whatever
+    // the microphone decides to do.
+    final DateTime deadline = pressTime.add(
+      Duration(milliseconds: (AudioConfig.postRollSeconds * 1000).round()),
+    );
 
-    while (_buffer.totalWritten < targetEnd && isRunning && !_cutShort) {
+    final int pressPosition = samplePositionAt(pressTime);
+
+    while (DateTime.now().isBefore(deadline) && isRunning && !_cutShort) {
       await Future<void>.delayed(const Duration(milliseconds: 100));
     }
 
-    final int preRollSamples =
-        (AudioConfig.preRollSeconds * AudioConfig.sampleRate).round();
-    final int end = math.min(targetEnd, _buffer.totalWritten);
+    final double rate = effectiveSampleRate;
+    final int preRollSamples = (AudioConfig.preRollSeconds * rate).round();
+    final int end = _buffer.totalWritten;
     final int postActual = math.max(0, end - pressPosition);
 
     // What the buffer can actually hand back ending at `end`: everything
-    // recorded so far, capped by the ring's capacity.
+    // recorded so far, capped by the capacity of the ring.
     final int available = math.min(end, _buffer.availableSamples);
     final int take = math.min(preRollSamples + postActual, available);
     if (take <= 0) return EventWindow.empty();
@@ -220,7 +286,7 @@ class RecorderService {
     return EventWindow(
       samples: _buffer.readEndingAt(end, take),
       preRollSamples: math.max(0, take - postActual),
-      sampleRate: AudioConfig.sampleRate.toDouble(),
+      sampleRate: rate,
     );
   }
 }

@@ -7,6 +7,7 @@ import '../../domain/flight_match.dart';
 import '../../domain/profile.dart';
 import '../../domain/settings.dart';
 import '../../domain/snap.dart';
+import '../../features/chart/level_chart.dart';
 
 /// A rendered complaint, ready to hand to the mail composer.
 class ComplaintDraft {
@@ -45,6 +46,7 @@ class ComplaintTemplate {
     required Snap snap,
     required ComplainantProfile profile,
     required AppSettings settings,
+    String? chartPath,
   }) {
     final Map<String, String> tokens = buildTokens(
       snap: snap,
@@ -65,6 +67,11 @@ class ComplaintTemplate {
       cc: settings.activeRecipientSet.cc,
       bcc: bcc,
       attachmentPaths: <String>[
+        // The chart goes on every letter. Unlike the audio it carries nothing
+        // the body does not already state - it is the same numbers, drawn -
+        // so there is no privacy trade-off to put to the user, and a picture of
+        // the event is the part a noise team actually reads.
+        if (chartPath != null) chartPath,
         if (snap.attachClip && snap.clipPath != null) snap.clipPath!,
       ],
     );
@@ -121,8 +128,23 @@ class ComplaintTemplate {
       'appVersion': snap.appVersion,
       'measurementNote': _measurementNote(snap),
       'clipNote': _clipNote(snap),
+      'chartNote': _chartNote(snap),
       'notes': snap.notes,
     };
+  }
+
+  /// Describes the attached chart, or says nothing at all if there is none.
+  ///
+  /// An empty string rather than an apology: a letter that explains what is
+  /// missing draws attention to a gap the recipient would not otherwise notice.
+  String _chartNote(Snap snap) {
+    if (!snap.metrics.hasTrace) return '';
+    final AcousticMetrics m = snap.metrics;
+    final String window = (m.eventDurationMs / 1000).round().toString();
+    return 'Attached: a chart of the A-weighted sound level over the $window s '
+        'either side of the event, marked with the moment I logged it'
+        '${m.hasAmbient ? ' and with the background level before it' : ''}. '
+        '${LevelChartLabels.caption(calibrated: m.calibrated)}';
   }
 
   String _flightLabel(AircraftSample? aircraft) {
@@ -267,6 +289,7 @@ Available tokens:
   {aircraftDescription} {aircraftBlock}
   {heightFt} {slantRangeM} {elevationDeg}
   {laMax} {laEq} {peakWindowLaEq} {ambient} {excess} {eventSeconds}
-  {device} {osVersion} {appVersion} {measurementNote} {clipNote} {notes}
+  {device} {osVersion} {appVersion} {measurementNote} {clipNote}
+  {chartNote} {notes}
 ''';
 }

@@ -19,6 +19,8 @@ class AcousticMetrics {
     required this.calibrated,
     required this.calibrationOffsetDb,
     required this.sampleRate,
+    this.levelTrace = const <double>[],
+    this.traceIntervalMs = 250,
   });
 
   factory AcousticMetrics.fromJson(Map<String, Object?> json) =>
@@ -37,6 +39,14 @@ class AcousticMetrics {
         calibrated: (json['calibrated'] as int) == 1,
         calibrationOffsetDb: (json['calibrationOffsetDb'] as num).toDouble(),
         sampleRate: (json['sampleRate'] as num).toDouble(),
+        // Absent in records written before the chart existed. An empty trace
+        // means "no chart", not "a flat line at zero".
+        levelTrace: <double>[
+          for (final Object? v in (json['levelTrace'] as List<Object?>?) ??
+              const <Object?>[])
+            (v as num).toDouble(),
+        ],
+        traceIntervalMs: (json['traceIntervalMs'] as num?)?.toInt() ?? 250,
       );
 
   /// Equivalent continuous level over the whole analysed event window.
@@ -78,6 +88,20 @@ class AcousticMetrics {
   final double calibrationOffsetDb;
   final double sampleRate;
 
+  /// Short-term A-weighted level, one value every [traceIntervalMs], covering
+  /// the whole analysed window from the start of the pre-roll.
+  ///
+  /// This is what the chart in the letter is drawn from. It is stored rather
+  /// than recomputed because the audio itself is usually discarded: the clip is
+  /// optional and only ten seconds long, so by the time a complaint is resent
+  /// or reviewed the samples are gone. Roughly 200 numbers for a 50 s event —
+  /// cheaper than keeping the audio and enough to show the shape of a flyover.
+  final List<double> levelTrace;
+
+  final int traceIntervalMs;
+
+  bool get hasTrace => levelTrace.length >= 2;
+
   /// How far the event rose above the local background. Valid even when
   /// uncalibrated, because the offset cancels — which is why it is the figure
   /// the complaint leads on. Null when no background could be measured.
@@ -99,5 +123,13 @@ class AcousticMetrics {
         'calibrated': calibrated ? 1 : 0,
         'calibrationOffsetDb': calibrationOffsetDb,
         'sampleRate': sampleRate,
+        // One decimal place: the chart is a few hundred pixels wide and the
+        // measurement is not calibrated to better than a decibel anyway, so
+        // full float precision would triple the row size for nothing.
+        'levelTrace': <double>[
+          for (final double v in levelTrace)
+            double.parse(v.toStringAsFixed(1)),
+        ],
+        'traceIntervalMs': traceIntervalMs,
       };
 }

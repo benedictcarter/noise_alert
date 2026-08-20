@@ -10,6 +10,7 @@ import '../../domain/acoustic_metrics.dart';
 import '../../domain/flight_match.dart';
 import '../../domain/snap.dart';
 import '../../providers.dart';
+import '../chart/live_level_chart.dart';
 import 'clip_player.dart';
 
 /// Review one snap, confirm the aircraft, and hand the complaint to the mail
@@ -333,6 +334,22 @@ class _MeasurementCard extends StatelessWidget {
                 Text('dB(A) max', style: theme.textTheme.titleMedium),
               ],
             ),
+            if (metrics.hasTrace) ...<Widget>[
+              const SizedBox(height: 12),
+              // The same drawing that goes in the letter, so nothing about the
+              // complaint is a surprise to the person sending it.
+              EventLevelChart(
+                levels: metrics.levelTrace,
+                intervalMs: metrics.traceIntervalMs,
+                pressAtSeconds: metrics.preRollSeconds,
+                ambientDb: metrics.ambientLa90Db,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Attached to the complaint as a picture.',
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
             const SizedBox(height: 8),
             _row(
               theme,

@@ -27,6 +27,11 @@ class NoiseAnalyzer {
   /// the event itself.
   static const double minAmbientSeconds = 3;
 
+  /// Cadence of the level-over-time trace. 250 ms gives 200 points for a 50 s
+  /// event: enough to show the rise and fall of a flyover, few enough to store
+  /// in the row and draw without decimation.
+  static const int defaultTraceIntervalMs = 250;
+
   /// [samples] must be normalised to -1.0..1.0 and unweighted.
   ///
   /// [ambientSampleCount] is how many samples at the *start* of the buffer are
@@ -41,6 +46,7 @@ class NoiseAnalyzer {
     required double calibrationOffsetDb,
     required bool calibrated,
     int ambientSampleCount = 0,
+    int traceIntervalMs = defaultTraceIntervalMs,
     double peakWindowSeconds = 10,
     double? preRollSeconds,
   }) {
@@ -130,6 +136,19 @@ class NoiseAnalyzer {
     }
     final double peakWindowLaEq = levelOf(bestStart, bestStart + windowSamples);
 
+    // --- level over time, for the chart in the letter -------------------
+    // Independent of the ambient blocks above: that loop covers only the
+    // pre-roll and uses the short-term window length, whereas the chart needs
+    // the whole event at a cadence that produces a sane number of points.
+    final int traceBlock =
+        math.max(1, (sampleRate * traceIntervalMs / 1000).round());
+    final List<double> trace = <double>[];
+    for (int start = 0;
+        start + traceBlock <= weighted.length;
+        start += traceBlock) {
+      trace.add(levelOf(start, start + traceBlock));
+    }
+
     return AcousticMetrics(
       laEqDb: laEq,
       laMaxDb: laMax,
@@ -143,6 +162,8 @@ class NoiseAnalyzer {
       clipped: clipped,
       calibrated: calibrated,
       calibrationOffsetDb: calibrationOffsetDb,
+      levelTrace: trace,
+      traceIntervalMs: traceIntervalMs,
       sampleRate: sampleRate,
     );
   }

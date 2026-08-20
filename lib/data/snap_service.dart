@@ -16,6 +16,7 @@ import '../domain/snap.dart';
 import 'audio/noise_analyzer.dart';
 import 'audio/recorder_service.dart';
 import 'audio/wav_writer.dart';
+import 'chart/chart_image_service.dart';
 import 'flights/flight_lookup_service.dart';
 import 'flights/flight_matcher.dart';
 import 'location/location_service.dart';
@@ -54,6 +55,7 @@ class SnapService {
         const WavWriter(clipSampleRate: AudioConfig.clipSampleRate),
     this.mailSender = const MailSender(),
     this.template = const ComplaintTemplate(),
+    this.chartImages = const ChartImageService(),
   });
 
   final AppDatabase database;
@@ -65,6 +67,7 @@ class SnapService {
   final WavWriter wavWriter;
   final MailSender mailSender;
   final ComplaintTemplate template;
+  final ChartImageService chartImages;
 
   final StreamController<CaptureProgress> _progress =
       StreamController<CaptureProgress>.broadcast();
@@ -155,6 +158,10 @@ class SnapService {
     );
     final EventWindow window = await recorder.captureEventWindow(pressedAt);
     final Float64List samples = window.samples;
+    // What the microphone actually delivered, which is not always what was
+    // asked for. Every duration and every filter below is derived from this
+    // rather than from AudioConfig.sampleRate.
+    final double sampleRate = window.sampleRate;
 
     _emit(CaptureStage.locating);
     final SnapLocation? fix = await pendingFix;
@@ -165,12 +172,12 @@ class SnapService {
     // than the full 30 s — the analyzer returns a null background rather than
     // measuring one out of audio that does not exist.
     final int ambientSamples = math.min(
-      (AudioConfig.ambientWindowSeconds * AudioConfig.sampleRate).round(),
+      (AudioConfig.ambientWindowSeconds * sampleRate).round(),
       window.preRollSamples,
     );
     final AcousticMetrics metrics = analyzer.analyze(
       samples: samples,
-      sampleRate: AudioConfig.sampleRate.toDouble(),
+      sampleRate: sampleRate,
       calibrationOffsetDb: settings.calibrationOffsetDb,
       calibrated: settings.calibrated,
       ambientSampleCount: ambientSamples,
@@ -183,7 +190,12 @@ class SnapService {
 
     String? clipPath;
     if (settings.keepClip) {
-      clipPath = await _writeClip(id: id, samples: samples, metrics: metrics);
+      clipPath = await _writeClip(
+        id: id,
+        samples: samples,
+        metrics: metrics,
+        sampleRate: sampleRate,
+      );
     }
 
     Snap snap = Snap(
@@ -333,10 +345,14 @@ class SnapService {
     }
 
     final AppSettings settings = await database.loadSettings();
+    // Rendered fresh at send time rather than kept from the capture: it is
+    // cheap to draw, and a chart regenerated from the stored trace can never
+    // disagree with the numbers in the body of the letter.
     final ComplaintDraft draft = template.render(
       snap: snap,
       profile: profile,
       settings: settings,
+      chartPath: await chartImages.renderForEmail(snap),
     );
 
     final MailOutcome outcome = await mailSender.send(draft);
@@ -353,6 +369,7 @@ class SnapService {
         snap: snap,
         profile: await database.loadProfile(),
         settings: await database.loadSettings(),
+        chartPath: await chartImages.renderForEmail(snap),
       );
 
   Future<void> deleteSnap(Snap snap) async {
@@ -400,15 +417,14 @@ class SnapService {
     required String id,
     required Float64List samples,
     required AcousticMetrics metrics,
+    required double sampleRate,
   }) async {
     try {
-      final int start =
-          ((metrics.peakWindowStartMs / 1000) * AudioConfig.sampleRate)
-              .round()
-              .clamp(0, samples.length - 1);
+      final int start = ((metrics.peakWindowStartMs / 1000) * sampleRate)
+          .round()
+          .clamp(0, samples.length - 1);
       final int length =
-          ((metrics.peakWindowDurationMs / 1000) * AudioConfig.sampleRate)
-              .round();
+          ((metrics.peakWindowDurationMs / 1000) * sampleRate).round();
       final int end = (start + length).clamp(0, samples.length);
 
       // Support directory, *not* the documents directory. On Android
@@ -424,7 +440,7 @@ class SnapService {
       final File file = await wavWriter.write(
         path: p.join(dir.path, '$id.wav'),
         samples: Float64List.sublistView(samples, start, end),
-        sourceSampleRate: AudioConfig.sampleRate.toDouble(),
+        sourceSampleRate: sampleRate,
       );
       return file.path;
     } on Object {

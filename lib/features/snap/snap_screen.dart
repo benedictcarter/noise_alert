@@ -11,6 +11,7 @@ import '../../data/snap_service.dart';
 import '../../domain/settings.dart';
 import '../../domain/snap.dart';
 import '../../providers.dart';
+import '../chart/live_level_chart.dart';
 import '../review/review_screen.dart';
 import 'level_meter.dart';
 
@@ -40,11 +41,36 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
   /// why it is recording without anybody having pressed anything.
   bool _fromWidget = false;
 
+  /// Seconds left of the post-roll, or null outside it.
+  ///
+  /// Driven by this screen own timer rather than by the capture, so a stalled
+  /// recorder still shows a countdown that visibly reaches zero. A spinner with
+  /// no end in sight is exactly how the last build felt broken.
+  int? _postRollLeft;
+  Timer? _countdown;
+
+  /// Set only when the delivered sample rate differs enough from the requested
+  /// one to matter. Silent in the normal case; the point is to make a
+  /// misbehaving microphone visible rather than to decorate the screen.
+  String? _rateNote;
+  Timer? _rateWatch;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _start());
+    // One check a few seconds in, once enough stream has arrived to divide by.
+    _rateWatch = Timer.periodic(const Duration(seconds: 3), (Timer _) {
+      if (!mounted) return;
+      final RecorderService rec = ref.read(recorderProvider);
+      final String? note = !rec.isRunning || !rec.sampleRateSuspect
+          ? null
+          : 'Microphone is running at '
+              '${(rec.effectiveSampleRate / 1000).toStringAsFixed(1)} kHz, not '
+              '${AudioConfig.sampleRate ~/ 1000} kHz. Levels are approximate.';
+      if (note != _rateNote) setState(() => _rateNote = note);
+    });
   }
 
   /// Arms the microphone, then honours a widget tap if one brought us here.
@@ -66,6 +92,8 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _countdown?.cancel();
+    _rateWatch?.cancel();
     _widgetTaps?.cancel();
     super.dispose();
   }
@@ -135,6 +163,11 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
       (AsyncValue<CaptureProgress>? _, AsyncValue<CaptureProgress> next) {
         final CaptureProgress? p = next.value;
         if (p != null && mounted) {
+          if (p.stage == CaptureStage.recording) {
+            _startCountdown();
+          } else {
+            _stopCountdown();
+          }
           setState(() => _statusLine = p.message ?? _labelFor(p.stage));
         }
       },
@@ -159,6 +192,7 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
       }
     } finally {
       sub.close();
+      _stopCountdown();
       if (mounted) {
         setState(() {
           _capturing = false;
@@ -166,6 +200,28 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
           _statusLine = null;
         });
       }
+    }
+  }
+
+  void _startCountdown() {
+    if (_countdown != null) return;
+    int left = AudioConfig.postRollSeconds.round();
+    setState(() => _postRollLeft = left);
+    _countdown = Timer.periodic(const Duration(seconds: 1), (Timer t) {
+      left -= 1;
+      if (!mounted) return;
+      // Floors at zero rather than stopping: if the capture is still running
+      // after the countdown expires, the user should see that it is overdue
+      // instead of watching a number tick into the negatives.
+      setState(() => _postRollLeft = left < 0 ? 0 : left);
+    });
+  }
+
+  void _stopCountdown() {
+    _countdown?.cancel();
+    _countdown = null;
+    if (mounted && _postRollLeft != null) {
+      setState(() => _postRollLeft = null);
     }
   }
 
@@ -241,9 +297,23 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
                 ),
               Expanded(
                 child: Center(
-                  child: LevelMeter(
-                    reading: meter.value,
-                    running: ref.watch(snapServiceProvider).isArmed,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        LevelMeter(
+                          reading: meter.value,
+                          running: ref.watch(snapServiceProvider).isArmed,
+                        ),
+                        const SizedBox(height: 16),
+                        // The last ring-buffer's worth of level, which is
+                        // exactly the span a press would capture.
+                        LiveLevelChart(
+                          levelDb: meter.value?.levelDb,
+                          running: ref.watch(snapServiceProvider).isArmed,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -273,6 +343,7 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
                   onPressed: () =>
                       ref.read(snapServiceProvider).finishCaptureEarly(),
                   fromWidget: _fromWidget,
+                  secondsLeft: _postRollLeft,
                 )
               else
                 _SnapButton(onPressed: _snap, busy: false),
@@ -298,6 +369,21 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall,
               ),
+              // The rate the microphone is really delivering. Asking for 48 kHz
+              // does not guarantee getting it, and a stream running slow is
+              // both a wrong measurement and, until the post-roll wait was put
+              // on a wall clock, a capture that never ended.
+              if (_rateNote != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    _rateNote!,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                ),
               const SizedBox(height: 8),
             ],
           ),
@@ -379,10 +465,14 @@ class _StopAndSaveButton extends StatelessWidget {
   const _StopAndSaveButton({
     required this.onPressed,
     required this.fromWidget,
+    this.secondsLeft,
   });
 
   final VoidCallback onPressed;
   final bool fromWidget;
+
+  /// Seconds of post-roll remaining, when one is running.
+  final int? secondsLeft;
 
   @override
   Widget build(BuildContext context) {
@@ -402,9 +492,11 @@ class _StopAndSaveButton extends StatelessWidget {
                 borderRadius: BorderRadius.circular(24),
               ),
             ),
-            child: const Text(
-              'STOP & SAVE',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+            child: Text(
+              secondsLeft == null
+                  ? 'STOP & SAVE'
+                  : 'STOP & SAVE  ($secondsLeft s)',
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
             ),
           ),
         ),
