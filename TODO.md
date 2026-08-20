@@ -17,15 +17,13 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
 
 ## Next up
 - [ ] First on-device smoke test on Android: permissions, live meter, snap → review → mail composer
-      end to end. **No device or AVD available yet** — `flutter devices` shows only Windows and Edge,
-      neither of which can run this app (`record`, `geolocator`, `sqflite` are mobile-only here).
-      Needs either Ben's phone over USB with developer mode on, or an AVD built from a *Google APIs*
-      system image (a bare AOSP image has no mail app, so the composer handoff cannot be tested).
+      end to end. Release APK is **sideloaded to the LG G7 ThinQ** (`Download/noise_alert.apk`, over
+      MTP — the phone exposes no ADB interface at all, see LESSONS_LEARNT). Install and run from a
+      file manager; there is no `flutter run` hot reload on this handset, so each change means a
+      rebuild and re-copy.
 - [ ] CI: `flutter analyze` + `flutter test` on push (GitHub Actions).
 - [ ] Permission denial / "denied forever" UI states — the services return failures cleanly but the
       screens do not yet offer "open settings".
-- [ ] `permission_handler` and `share_plus` are declared in `pubspec.yaml` but unused — either wire
-      them up (M4 export) or drop them before release.
 
 ## M4 — Evidence quality
 - [ ] Calibration flow beyond the raw offset field (guided side-by-side reading against an SPL meter)

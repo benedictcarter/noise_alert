@@ -59,3 +59,13 @@
 Added value equality to `ComplainantProfile`, `RecipientSet` and `AppSettings` along the way —
 `StateNotifier` only notifies listeners when `state != newState`, so without it every keystroke in
 the settings form rebuilt every consumer.
+
+## First Android build (2026-08-19)
+- Release APK builds on Windows: 52.7 MB, debug-signed via Flutter's template `release` config, so
+  no keystore is needed until store submission.
+- Dropped `permission_handler` and `share_plus` — declared but never imported, and the former broke
+  the build by demanding an SDK platform hash (`android-37`) that no longer exists.
+- `kotlin.incremental=false` in `android/gradle.properties`; Kotlin's incremental caches fail to
+  unmap on Windows and killed two builds on different modules.
+- APK sideloaded to the test handset over MTP — the LG G7 ThinQ exposes no ADB interface, so
+  `flutter run` and hot reload are unavailable on it.
