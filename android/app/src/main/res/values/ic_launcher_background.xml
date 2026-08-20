@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- White, as the logo is drawn: the mark is black and green, and both go
+         muddy on the tinted grounds some launchers apply by default. -->
+    <color name="ic_launcher_background">#FFFFFF</color>
+</resources>

@@ -1,0 +1,41 @@
+name: noise_alert
+description: Flightpath Watch Alert — log aircraft noise events and generate complaint emails.
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod:
+  # audio capture (raw PCM stream) and playback of the saved clip
+  record:
+  just_audio:
+  # location and device metadata. `record` and `geolocator` each request their
+  # own runtime permission, so permission_handler is not needed; it also pins a
+  # compileSdk that no longer exists as a plain platform (see LESSONS_LEARNT).
+  geolocator:
+  device_info_plus:
+  package_info_plus:
+  # storage
+  sqflite:
+  path_provider:
+  path:
+  # networking
+  http:
+  # mail
+  flutter_email_sender:
+  url_launcher:
+  # formatting
+  intl:
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints:
+  sqflite_common_ffi: ^2.4.2+1
+
+flutter:
+  uses-material-design: true
