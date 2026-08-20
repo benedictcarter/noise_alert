@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Plane over word, not side by side: at two cells wide the label is only about
-  90 dp, and "FPW SNAP" set beside a 28 dp icon wraps or ellipsises on the
-  narrower launchers.
+  Mark over word, not side by side: at two cells wide the row is only about
+  90 dp, and the mark is nearly 3:1, so setting "FPW SNAP" beside it would
+  leave the label a space too narrow to hold the word.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/snap_widget_root"
@@ -12,11 +12,11 @@
     android:gravity="center"
     android:background="@drawable/snap_widget_background"
     android:contentDescription="@string/snap_widget_description"
-    android:padding="6dp">
+    android:padding="5dp">
 
     <ImageView
-        android:layout_width="26dp"
-        android:layout_height="26dp"
+        android:layout_width="52dp"
+        android:layout_height="wrap_content"
         android:src="@drawable/ic_plane"
         android:adjustViewBounds="true"
         android:importantForAccessibility="no" />
@@ -24,10 +24,10 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
+        android:layout_marginTop="3dp"
         android:text="@string/snap_widget_label"
         android:textColor="@android:color/white"
-        android:textSize="12sp"
+        android:textSize="11sp"
         android:textStyle="bold"
         android:maxLines="1" />
 </LinearLayout>

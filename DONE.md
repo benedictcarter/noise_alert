@@ -19,9 +19,13 @@
   caption.
 - **Renamed to Flightpath Watch Alert** — app label, in-app title, iOS display name and the letter's
   "measured with" line. The Dart package and the repo stay `noise_alert`.
-- **New launcher icon**: the plane-and-swoosh mark redrawn from the FLIGHTPATH WATCH logo, exported
-  to every Android density plus an adaptive (and monochrome) icon and the full iOS set.
-- **Widget is now a 2x1 pill** with the plane over "FPW SNAP", instead of a bare 1x1 circle.
+- **New launcher icon**: the real plane-and-swoosh, lifted out of the FLIGHTPATH WATCH logo by
+  `scripts/make_icons.py` and exported to every Android density plus an adaptive (and monochrome)
+  icon and the full iOS set. The source is a 191x72 screenshot, so the mark is 94 px wide; the
+  script recovers it by resampling ink *coverage* as a soft alpha rather than thresholding first,
+  which is what keeps the sub-pixel edge information a threshold would throw away. Tilted 26 deg in
+  the square tiles, because a 3:1 mark laid flat in a square is a stripe.
+- **Widget is now a 2x1 pill** with the mark over "FPW SNAP", instead of a bare 1x1 circle.
 - **Default Cc is `info@flightpathwatch.co.uk`**, with a one-time `recipientSeed` pass so installs
   that predate the address pick it up exactly once and a user who deletes it does not get it back.
 - 72 tests, `flutter analyze` clean.

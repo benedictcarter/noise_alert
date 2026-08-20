@@ -32,8 +32,9 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
 ## Branding
 - [ ] iOS launch screen and `LaunchImage` still carry the old placeholder artwork — regenerate when
       iOS is unparked.
-- [ ] The launcher icon is a redraw of the FLIGHTPATH WATCH plane-and-swoosh, not the original
-      vector file. If Ben has the source artwork, swap it in via `scripts/` and re-export.
+- [ ] The icons are traced from a 191x72 screenshot of the logo
+      (`assets/icon/flightpath_watch_logo.jpg`), which is all the resolution there is. If the
+      original vector ever turns up, drop it in and re-run `scripts/make_icons.py`.
 
 ## M4 — Evidence quality
 - [ ] Calibration flow beyond the raw offset field (guided side-by-side reading against an SPL meter)

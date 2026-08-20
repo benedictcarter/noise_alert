@@ -1,154 +1,192 @@
-"""Draw the Flightpath Watch mark and export every Android icon asset.
+"""Lift the FLIGHTPATH WATCH mark out of the logo and export every icon asset.
 
-The mark is the plane-and-swoosh from the FLIGHTPATH WATCH logo. The wordmark
-itself is left out on purpose: at 48 dp a launcher icon has room for a shape or
-for words, not both, and the shape is the half that survives the shrink.
+Nothing here is redrawn. The source is a 191x72 screenshot of the logo, so the
+plane-and-swoosh is barely 94 px wide; the job is to recover it cleanly enough
+to survive being blown up to 432 px.
+
+The trick is to work on ink *coverage* as a soft alpha rather than on a hard
+black/white threshold. A threshold throws away the antialiasing, and the
+antialiasing is exactly where the sub-pixel position of the true edge is
+recorded -- discard it first and every upscale is a staircase. Instead the soft
+alpha is resampled, blurred by about half a source pixel to melt the stairs,
+and then pushed back to a hard edge with a smoothstep about the half-coverage
+contour, which is where the edge of an antialiased shape actually lies.
+
+Run from the repo root:  python scripts/make_icons.py
 """
-import math
 import os
 
-from PIL import Image, ImageDraw
+import numpy as np
+from PIL import Image, ImageFilter
 
-ROOT = 's:/code/noise_alert/android/app/src/main/res'
-SS = 4  # supersample factor; Pillow has no anti-aliased polygon fill
+HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.dirname(HERE)
+SOURCE = os.path.join(REPO, 'assets', 'icon', 'flightpath_watch_logo.jpg')
+ANDROID_RES = os.path.join(REPO, 'android', 'app', 'src', 'main', 'res')
+IOS_ICONS = os.path.join(REPO, 'ios', 'Runner', 'Assets.xcassets',
+                         'AppIcon.appiconset')
 
-GREEN = (102, 187, 51, 255)
-BLACK = (17, 17, 17, 255)
-WHITE = (255, 255, 255, 255)
+INK = (17, 17, 17)
+WHITE = (255, 255, 255)
 
-# Top view of an airliner, nose at +x, span on y, normalised to +/-1.
-# Only the upper half is listed; the lower half is its mirror. The wing root is
-# set well aft so a nose is still visible at 48 px, where a mid-set wing eats it.
-_HALF = [
-    (1.00, 0.000),
-    (0.93, 0.050),
-    (0.82, 0.078),
-    (0.20, 0.092),   # wing leading edge leaves the fuselage
-    (-0.05, 0.900),  # wingtip, leading corner
-    (-0.18, 0.900),  # wingtip, trailing corner
-    (-0.25, 0.160),  # wing trailing edge rejoins the fuselage
-    (-0.62, 0.098),
-    (-0.72, 0.340),  # tailplane
-    (-0.84, 0.340),
-    (-0.86, 0.092),
-    (-0.96, 0.068),
-    (-1.00, 0.000),
-]
-
-
-def plane_polygon(cx, cy, size, degrees):
-    """The silhouette as absolute points, scaled and rotated about its centre."""
-    pts = _HALF + [(x, -y) for x, y in reversed(_HALF[1:-1])]
-    rad = math.radians(degrees)
-    cos, sin = math.cos(rad), math.sin(rad)
-    out = []
-    for x, y in pts:
-        # y is negated first: image space grows downward, the shape is written
-        # in maths space, and a plane mirrored about its axis is a different
-        # plane -- the wings would sweep forwards.
-        px, py = x * size, -y * size
-        out.append((cx + px * cos - py * sin, cy + px * sin + py * cos))
-    return out
-
-
-def _bezier(p0, p1, p2, t):
-    u = 1 - t
-    return (u * u * p0[0] + 2 * u * t * p1[0] + t * t * p2[0],
-            u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1])
-
-
-def swoosh_polygon(p0, p1, p2, w0, w1, steps=180):
-    """A tapering ribbon along a quadratic curve: a contrail, thick at the plane.
-
-    Thickness is offset along the curve normal rather than vertically, so the
-    ribbon keeps its weight through the bend instead of pinching at the top.
-    """
-    upper, lower = [], []
-    for i in range(steps + 1):
-        t = i / steps
-        x, y = _bezier(p0, p1, p2, t)
-        # Derivative of the quadratic, normalised, rotated a quarter turn.
-        u = 1 - t
-        dx = 2 * u * (p1[0] - p0[0]) + 2 * t * (p2[0] - p1[0])
-        dy = 2 * u * (p1[1] - p0[1]) + 2 * t * (p2[1] - p1[1])
-        length = math.hypot(dx, dy) or 1.0
-        nx, ny = -dy / length, dx / length
-        # Grow on a curve, so the thin end reads as a point rather than a
-        # chopped-off ribbon.
-        w = (w0 + (w1 - w0) * (t ** 0.8)) / 2
-        upper.append((x + nx * w, y + ny * w))
-        lower.append((x - nx * w, y - ny * w))
-    return upper + list(reversed(lower))
-
-
-def draw_mark(size, scale, plane_colour=BLACK, swoosh_colour=GREEN,
-              background=None):
-    """The mark on a square canvas. `scale` is the fraction of the side it fills."""
-    n = size * SS
-    img = Image.new('RGBA', (n, n), background or (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-
-    # Everything below is written against a unit square centred on the canvas,
-    # so one set of coordinates serves every export size.
-    def pt(x, y):
-        return (n / 2 + (x - 0.5) * n * scale, n / 2 + (y - 0.5) * n * scale)
-
-    if swoosh_colour is not None:
-        d.polygon(
-            swoosh_polygon(
-                pt(0.04, 0.92), pt(0.44, 0.90), pt(0.86, 0.44),
-                w0=0.012 * n * scale, w1=0.105 * n * scale,
-            ),
-            fill=swoosh_colour,
-        )
-
-    d.polygon(
-        plane_polygon(*pt(0.52, 0.42), size=0.44 * n * scale, degrees=-30),
-        fill=plane_colour,
-    )
-    return img.resize((size, size), Image.LANCZOS)
-
-
-def save(img, rel):
-    path = os.path.join(ROOT, rel)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    img.save(path)
-    print('wrote', rel, img.size)
-
+# Degrees anticlockwise. The mark is nearly 3:1, so laid flat in a square it
+# shrinks to a stripe with empty bands above and below; tipped up it fills the
+# tile and reads as a climb, which is what the swoosh is drawing anyway.
+ICON_TILT = 26
 
 DENSITIES = {'mdpi': 1, 'hdpi': 1.5, 'xhdpi': 2, 'xxhdpi': 3, 'xxxhdpi': 4}
 
 
+def _ink_coverage():
+    """The whole logo as ink coverage in 0..1, with JPEG noise clipped off."""
+    grey = np.asarray(Image.open(SOURCE).convert('L'), dtype=np.float64) / 255.0
+    coverage = 1.0 - grey
+    # JPEG ringing leaves a few percent of ink on plain white and a few percent
+    # of white in solid black. Clip both ends, then restretch so the surviving
+    # range still spans nothing to full.
+    return np.clip((coverage - 0.12) / (0.88 - 0.12), 0.0, 1.0)
+
+
+def _components(mask):
+    """Label 8-connected True regions. Iterative flood fill; the image is tiny."""
+    height, width = mask.shape
+    labels = np.zeros((height, width), dtype=np.int32)
+    count = 0
+    for sy in range(height):
+        for sx in range(width):
+            if not mask[sy, sx] or labels[sy, sx]:
+                continue
+            count += 1
+            stack = [(sy, sx)]
+            labels[sy, sx] = count
+            while stack:
+                y, x = stack.pop()
+                for dy in (-1, 0, 1):
+                    for dx in (-1, 0, 1):
+                        ny, nx = y + dy, x + dx
+                        if (0 <= ny < height and 0 <= nx < width
+                                and mask[ny, nx] and not labels[ny, nx]):
+                            labels[ny, nx] = count
+                            stack.append((ny, nx))
+    return labels, count
+
+
+def mark_alpha(scale=16, blur=0.50, low=0.45, high=0.55):
+    """The plane-and-swoosh alone, as an L-mode alpha `scale` times source size."""
+    coverage = _ink_coverage()
+    labels, count = _components(coverage > 0.35)
+
+    # The mark is the largest connected region by a wide margin: the wordmark is
+    # set in separate letters, and no single glyph approaches a plane welded to
+    # a swoosh.
+    biggest = max(range(1, count + 1), key=lambda i: (labels == i).sum())
+    keep = labels == biggest
+
+    # Grow the selection by a pixel so the component keeps its own soft edge,
+    # but no further -- the W of WATCH sits close enough that a plain bounding
+    # box crop catches a slice of it.
+    grown = np.asarray(
+        Image.fromarray((keep * 255).astype(np.uint8))
+        .filter(ImageFilter.MaxFilter(3)),
+        dtype=np.float64,
+    ) / 255.0
+    coverage = coverage * grown
+
+    rows, cols = np.nonzero(coverage > 0.05)
+    coverage = coverage[rows.min():rows.max() + 1, cols.min():cols.max() + 1]
+    coverage = np.pad(coverage, 2)
+
+    small = Image.fromarray((coverage * 255).astype(np.uint8), mode='L')
+    big = small.resize((small.width * scale, small.height * scale),
+                       Image.LANCZOS)
+    big = big.filter(ImageFilter.GaussianBlur(scale * blur))
+
+    v = np.asarray(big, dtype=np.float64) / 255.0
+    t = np.clip((v - low) / (high - low), 0.0, 1.0)
+    return Image.fromarray((t * t * (3 - 2 * t) * 255).astype(np.uint8),
+                           mode='L')
+
+
+def _fit(alpha, box, tilt=0):
+    """The alpha rotated and scaled to sit inside a `box` square, centred."""
+    if tilt:
+        alpha = alpha.rotate(tilt, resample=Image.BICUBIC, expand=True,
+                             fillcolor=0)
+        alpha = alpha.crop(alpha.getbbox())
+    factor = box / max(alpha.width, alpha.height)
+    return alpha.resize((max(1, round(alpha.width * factor)),
+                         max(1, round(alpha.height * factor))), Image.LANCZOS)
+
+
+def tile(alpha, side, fill, colour=INK, background=None, tilt=ICON_TILT):
+    """One square icon: the mark at `fill` of the side, over `background`."""
+    shaped = _fit(alpha, side * fill, tilt)
+    out = Image.new('RGBA', (side, side),
+                    background + (255,) if background else (0, 0, 0, 0))
+    out.paste(Image.new('RGBA', shaped.size, colour + (255,)),
+              ((side - shaped.width) // 2, (side - shaped.height) // 2), shaped)
+    return out
+
+
+def save(img, path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    img.save(path)
+    print('wrote', os.path.relpath(path, REPO), img.size)
+
+
 def main():
-    # ------------------------------------------------------------ launcher --
-    # Legacy icon: the mark on white, full bleed, because pre-26 launchers mask
-    # the corners themselves.
-    legacy = draw_mark(1024, scale=0.86, background=WHITE)
-    # Adaptive foreground: a third of the layer can be cropped by the mask, so
-    # the mark is drawn small enough to survive a circle.
-    foreground = draw_mark(1024, scale=0.56)
+    alpha = mark_alpha()
+
+    # Legacy launcher icon: full bleed on white, because pre-26 launchers apply
+    # their own mask to the corners.
+    legacy = tile(alpha, 1024, fill=0.90, background=WHITE).convert('RGB')
+    # Adaptive foreground: the outer third of the layer can be cropped away by
+    # whatever mask the launcher chooses, so the mark is drawn small enough to
+    # survive a circle.
+    foreground = tile(alpha, 1024, fill=0.60)
 
     for name, factor in DENSITIES.items():
-        px = int(48 * factor)
+        px = round(48 * factor)
         icon = legacy.resize((px, px), Image.LANCZOS)
-        save(icon, 'mipmap-%s/ic_launcher.png' % name)
-        save(icon, 'mipmap-%s/ic_launcher_round.png' % name)
-        fg = int(108 * factor)
-        save(foreground.resize((fg, fg), Image.LANCZOS),
-             'mipmap-%s/ic_launcher_foreground.png' % name)
+        save(icon, os.path.join(ANDROID_RES, 'mipmap-%s' % name,
+                                'ic_launcher.png'))
+        save(icon, os.path.join(ANDROID_RES, 'mipmap-%s' % name,
+                                'ic_launcher_round.png'))
+        save(foreground.resize((round(108 * factor),) * 2, Image.LANCZOS),
+             os.path.join(ANDROID_RES, 'mipmap-%s' % name,
+                          'ic_launcher_foreground.png'))
 
-    # Store listing / iOS master, kept in the repo so the next resize starts
-    # from artwork rather than from an already-downscaled PNG.
+    # Store listing and a master to re-cut from, so the next resize starts from
+    # this pipeline rather than from an already-downscaled PNG.
     save(legacy.resize((512, 512), Image.LANCZOS),
-         '../../../../../assets/icon/ic_launcher-512.png')
+         os.path.join(REPO, 'assets', 'icon', 'ic_launcher-512.png'))
 
-    # -------------------------------------------------------------- widget --
-    # White, and no swoosh: green on the widget's red is unreadable, and at
-    # 28 dp the arc collapses into a smudge anyway.
-    plane = draw_mark(256, scale=0.98, plane_colour=WHITE, swoosh_colour=None)
+    # iOS masks the corners itself and rejects any alpha channel.
+    for name, px in {
+        '20x20@1x': 20, '20x20@2x': 40, '20x20@3x': 60,
+        '29x29@1x': 29, '29x29@2x': 58, '29x29@3x': 87,
+        '40x40@1x': 40, '40x40@2x': 80, '40x40@3x': 120,
+        '60x60@2x': 120, '60x60@3x': 180,
+        '76x76@1x': 76, '76x76@2x': 152,
+        '83.5x83.5@2x': 167, '1024x1024@1x': 1024,
+    }.items():
+        save(legacy.resize((px, px), Image.LANCZOS),
+             os.path.join(IOS_ICONS, 'Icon-App-%s.png' % name))
+
+    # Widget: the mark left flat and drawn in white on the red pill. Flat
+    # because the widget is wider than it is tall, which is the shape the mark
+    # already is -- the tilt only exists to fill a square.
+    widget_dp_w = 52
+    height_dp = widget_dp_w * alpha.height / alpha.width
     for name, factor in DENSITIES.items():
-        px = int(28 * factor)
-        save(plane.resize((px, px), Image.LANCZOS), 'drawable-%s/ic_plane.png' % name)
+        w = round(widget_dp_w * factor)
+        h = max(1, round(height_dp * factor))
+        shaped = alpha.resize((w, h), Image.LANCZOS)
+        out = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+        out.paste(Image.new('RGBA', (w, h), (255, 255, 255, 255)), (0, 0),
+                  shaped)
+        save(out, os.path.join(ANDROID_RES, 'drawable-%s' % name,
+                               'ic_plane.png'))
 
 
 if __name__ == '__main__':
