@@ -63,6 +63,12 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
 - [ ] UAT the map on the handset: live traffic on the record screen, the track on review, and the
       PNG as it arrives in a real inbox. Watch the first cold start especially — the tile style has
       to come down before anything is drawn.
+- [ ] UAT the one-screen record layout: map on top taking the space the controls leave, the dB
+      readout sitting on the trace below it, and nothing scrolling. Check the tall cases — location
+      banner up, status line up and the three-button stop row all at once — and check the readout
+      is still legible where the trace crosses it.
+- [ ] UAT that the sound clip now arrives attached by default: send one without touching the review
+      screen's toggle and confirm the WAV is on the mail.
 - [ ] Decide whether to bundle a Protomaps London extract as the offline fallback. Only worth it if
       the "Map unavailable offline" panel turns out to be common in use.
 

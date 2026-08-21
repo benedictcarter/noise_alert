@@ -12,6 +12,7 @@ import '../../data/snap_service.dart';
 import '../../domain/aircraft.dart';
 import '../../domain/snap.dart';
 import '../../providers.dart';
+import '../chart/level_chart.dart';
 import '../chart/live_level_chart.dart';
 import '../map/flight_map.dart';
 import '../map/map_layers.dart';
@@ -52,8 +53,7 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
   bool _micDenied = false;
   bool _capturing = false;
   String? _statusLine;
-  LocationStatus _location =
-      const LocationStatus(LocationAvailability.denied);
+  LocationStatus _location = const LocationStatus(LocationAvailability.denied);
   StreamSubscription<void>? _widgetTaps;
 
   /// True when the running recording began by itself rather than by a press.
@@ -453,57 +453,38 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
                     ),
                   ),
                 ),
+              const SizedBox(height: 12),
+              // Top, and given every pixel the controls below do not need --
+              // which is also what keeps this screen off a scrollbar: the map
+              // absorbs whatever the banners and the status line take, so
+              // everything else can stay a fixed height and still fit.
+              //
+              // Full brightness whether or not a recording is running, unlike
+              // the trace below it. The map is what tells the user there is
+              // something up there worth pressing RECORD for, and that has to
+              // be legible *before* the press.
               Expanded(
-                child: Center(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        // Half-lit when nothing is being recorded. The meter
-                        // and the chart are live either way -- the microphone
-                        // is always listening while this screen is up -- but
-                        // only what is drawn during a recording ends up in a
-                        // complaint, and the difference has to be visible at a
-                        // glance from arm's length.
-                        AnimatedOpacity(
-                          opacity: _capturing ? 1 : 0.5,
-                          duration: const Duration(milliseconds: 250),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              LevelMeter(
-                                reading: meter.value,
-                                running:
-                                    ref.watch(snapServiceProvider).isArmed,
-                              ),
-                              const SizedBox(height: 16),
-                              // Before the press this is the street; from the
-                              // press it restarts and plots the event itself,
-                              // so what the user watches while recording is
-                              // the trace the letter will carry.
-                              LiveLevelChart(
-                                levelDb: meter.value?.levelDb,
-                                running:
-                                    ref.watch(snapServiceProvider).isArmed,
-                                recording: _capturing,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        // Full brightness whether or not a recording is
-                        // running, unlike the meter and the chart above: this
-                        // is what tells the user there is something up there
-                        // worth pressing RECORD for.
-                        _LiveMap(
-                          latitude: _location.lastFix?.latitude,
-                          longitude: _location.lastFix?.longitude,
-                        ),
-                      ],
-                    ),
-                  ),
+                child: _LiveMap(
+                  latitude: _location.lastFix?.latitude,
+                  longitude: _location.lastFix?.longitude,
                 ),
               ),
+              const SizedBox(height: 12),
+              // Half-lit when nothing is being recorded. The trace is live
+              // either way -- the microphone is always listening while this
+              // screen is up -- but only what is drawn during a recording ends
+              // up in a complaint, and the difference has to be visible at a
+              // glance from arm's length.
+              AnimatedOpacity(
+                opacity: _capturing ? 1 : 0.5,
+                duration: const Duration(milliseconds: 250),
+                child: _LiveTrace(
+                  reading: meter.value,
+                  running: ref.watch(snapServiceProvider).isArmed,
+                  recording: _capturing,
+                ),
+              ),
+              const SizedBox(height: 12),
               if (_statusLine != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
@@ -549,6 +530,11 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
                             'no location and no flight named.',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall,
+                // Bounded because nothing on this screen scrolls any more. At
+                // a large system text size the sentence would otherwise grow
+                // downwards into the button it is describing.
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 8),
             ],
@@ -559,15 +545,62 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
   }
 }
 
+/// The live trace with the current reading laid over it.
+///
+/// One block where there were two. The number used to sit above the chart in
+/// its own 200-point-tall column, which read well and cost more vertical space
+/// than the map it was competing with; stacked, they take the height of the
+/// chart alone and the screen holds map, trace, buttons and help text at once
+/// with nothing to scroll.
+///
+/// The readout is offset by the painter's own [LevelChartPainter.axisGutter]
+/// rather than a hand-picked number, so it lands just inside the plot instead
+/// of on the decibel labels -- and stays there if the gutter is ever retuned.
+class _LiveTrace extends StatelessWidget {
+  const _LiveTrace({
+    required this.reading,
+    required this.running,
+    required this.recording,
+  });
+
+  final MeterReading? reading;
+  final bool running;
+  final bool recording;
+
+  /// Tall enough to read the shape of a flyover, short enough to leave the map
+  /// the larger half of the screen.
+  static const double _height = 148;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+        children: <Widget>[
+          // Before the press this is the street; from the press it restarts
+          // and plots the event itself, so what the user watches while
+          // recording is the trace the letter will carry.
+          LiveLevelChart(
+            levelDb: reading?.levelDb,
+            running: running,
+            recording: recording,
+            height: _height,
+          ),
+          Positioned(
+            left: LevelChartPainter.axisGutter + 6,
+            top: 6,
+            child: LevelMeter(reading: reading, running: running),
+          ),
+        ],
+      );
+}
+
 /// The sky overhead, while it is still overhead.
 ///
 /// Drawn from the tracks the matcher's polling has already collected, not from
 /// queries of its own. Putting this on screen therefore costs a donated feed
 /// nothing: it is a view of a cache that was being filled anyway.
 ///
-/// Not interactive. It sits in a scrolling column, and a map that accepts drags
-/// eats the scroll gesture -- the user would find the page stuck whenever their
-/// thumb landed on it.
+/// Not interactive, and sized by its parent. Panning it would be a second way
+/// to get lost on a screen whose job is one button, and the frame it chooses --
+/// the house plus whatever is flying near it -- is the frame worth looking at.
 class _LiveMap extends ConsumerWidget {
   const _LiveMap({required this.latitude, required this.longitude});
 
@@ -581,7 +614,6 @@ class _LiveMap extends ConsumerWidget {
     return FlightMapPanel(
       latitude: latitude,
       longitude: longitude,
-      height: 190,
       interactive: false,
       aircraft: <MapAircraft>[
         for (final AircraftTrack t in tracks) MapAircraft.ofTrack(t),

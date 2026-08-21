@@ -151,4 +151,27 @@ void main() {
       expect(settings.templateBody, AppSettings.defaultBody);
     });
   });
+
+  group('attaching the sound', () {
+    test('a fresh install attaches it', () {
+      expect(const AppSettings().attachClipByDefault, isTrue);
+    });
+
+    test('settings written before the setting existed attach it', () {
+      final AppSettings settings = AppSettings.fromJson(<String, Object?>{});
+
+      expect(settings.attachClipByDefault, isTrue);
+    });
+
+    test('a stored refusal is never overridden', () {
+      // The one direction this default must not travel. Nothing here can tell
+      // a deliberate "no" from an untouched old default, so a stored false
+      // stays false and the user turns it on themselves if they want it.
+      final AppSettings settings = AppSettings.fromJson(<String, Object?>{
+        'attachClipByDefault': false,
+      });
+
+      expect(settings.attachClipByDefault, isFalse);
+    });
+  });
 }

@@ -2,7 +2,7 @@ import 'profile.dart';
 
 class AppSettings {
   const AppSettings({
-    this.attachClipByDefault = false,
+    this.attachClipByDefault = true,
     this.openSkyClientId = '',
     this.openSkyClientSecret = '',
     this.recipientSets = const <RecipientSet>[RecipientSet.defaultSet],
@@ -13,13 +13,25 @@ class AppSettings {
   });
 
   /// Whether the saved clip is attached to the complaint unless the user says
-  /// otherwise.
+  /// otherwise. On, because the recording is the evidence.
   ///
   /// A clip is always saved — it is the one part of a recording that cannot be
-  /// recovered later, and it never leaves the phone on its own. Sending it is a
-  /// separate decision, made on the review screen with the clip in front of
-  /// you, because a microphone in a residential street picks up the neighbours
-  /// as readily as the aeroplane.
+  /// recovered later, and it never leaves the phone on its own. Attaching it is
+  /// still the user's decision, but it is now the decision they have to
+  /// *unmake* rather than remember to make: a letter that says an aircraft was
+  /// 30 dB over the background reads very differently with the thirty seconds
+  /// of it playable underneath, and a complaint sent without the sound cannot
+  /// have the sound added afterwards.
+  ///
+  /// The counter-argument — a microphone in a residential street picks up the
+  /// neighbours as readily as the aeroplane — is answered on the review screen,
+  /// where the clip is playable and one tap off, not by leaving it off for
+  /// everyone by default.
+  ///
+  /// Deliberately not migrated onto installs that already stored `false`:
+  /// nothing here can tell a saved refusal from an untouched default, and
+  /// switching someone's audio on without asking is the one mistake this app
+  /// must not make.
   final bool attachClipByDefault;
 
   /// BCC the complainant's own address, so their sent record survives even if
@@ -119,7 +131,7 @@ class AppSettings {
       sets = sets.map(RecipientSet.seedGroupCc).toList();
     }
     return AppSettings(
-      attachClipByDefault: json['attachClipByDefault'] as bool? ?? false,
+      attachClipByDefault: json['attachClipByDefault'] as bool? ?? true,
       openSkyClientId: json['openSkyClientId'] as String? ?? '',
       openSkyClientSecret: json['openSkyClientSecret'] as String? ?? '',
       recipientSets:
@@ -144,7 +156,7 @@ class AppSettings {
   /// is the point. The letter is the user's, and a default that silently
   /// reapplies itself is not a default.
   static const List<String> _legacyDefaultBodies = <String>[
-'''
+    '''
 Dear Sir or Madam,
 
 I am writing to complain about aircraft noise affecting my home.
@@ -174,7 +186,7 @@ Yours faithfully,
 {address}
 {email}{phoneLine}
 ''',
-'''
+    '''
 Dear Sir or Madam,
 
 I am writing to complain about aircraft noise affecting my home.
@@ -203,7 +215,7 @@ Yours faithfully,
 {address}
 {email}{phoneLine}
 ''',
-'''
+    '''
 Dear Sir or Madam,
 
 I am writing to complain about aircraft noise affecting my home.
@@ -236,7 +248,7 @@ Yours faithfully,
 {address}
 {email}{phoneLine}
 ''',
-'''
+    '''
 Dear Sir or Madam,
 
 I am writing to complain about aircraft noise affecting my home.
@@ -267,7 +279,7 @@ Yours faithfully,
 {address}
 {email}{phoneLine}
 ''',
-'''
+    '''
 Dear Sir or Madam,
 
 I am writing to complain about aircraft noise affecting my home.

@@ -28,8 +28,9 @@ class RecordingsScreen extends ConsumerWidget {
           const Explainer(
             'Every time you record, the loudest '
             '${AudioConfig.clipSeconds} seconds are kept on this phone. '
-            'Nothing is uploaded. Nothing is sent with your complaint unless '
-            'you choose to attach it, and you can listen to it first.',
+            'Nothing is uploaded. The clip goes with your complaint unless you '
+            'say otherwise — you can listen to it first, and take it off any '
+            'single complaint on its review screen.',
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
@@ -38,7 +39,8 @@ class RecordingsScreen extends ConsumerWidget {
                 .edit((AppSettings s) => s.copyWith(attachClipByDefault: v)),
             title: const Text('Attach the sound to my complaints'),
             subtitle: const Text(
-              'You can still change your mind on each one.',
+              'On, because the sound is the evidence. You can still change '
+              'your mind on each one.',
             ),
           ),
           const SectionHeader('Looking up older flights'),

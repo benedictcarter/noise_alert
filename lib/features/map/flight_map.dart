@@ -355,7 +355,7 @@ class FlightMapPanel extends StatelessWidget {
     required this.latitude,
     required this.longitude,
     this.aircraft = const <MapAircraft>[],
-    this.height = 220,
+    this.height,
     this.interactive = true,
     this.emptyMessage = 'No location fix, so there is no map to draw.',
     this.onControllerReady,
@@ -364,7 +364,14 @@ class FlightMapPanel extends StatelessWidget {
   final double? latitude;
   final double? longitude;
   final List<MapAircraft> aircraft;
-  final double height;
+
+  /// A fixed height, or null to take whatever the parent has left.
+  ///
+  /// Null is how the record screen gets a map that grows and shrinks with the
+  /// banners and the status line above it, which is what lets that screen hold
+  /// everything at once without a scrollbar. Requires a parent that bounds it:
+  /// [Expanded], or a [SizedBox].
+  final double? height;
   final bool interactive;
   final String emptyMessage;
   final void Function(MapLibreMapController?)? onControllerReady;
@@ -375,40 +382,42 @@ class FlightMapPanel extends StatelessWidget {
     final double? lat = latitude;
     final double? lon = longitude;
 
+    final Widget body = ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: lat == null || lon == null
+          ? Container(
+              color: theme.colorScheme.surfaceContainerHighest,
+              alignment: Alignment.center,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  const Icon(Icons.location_off_outlined, size: 28),
+                  const SizedBox(height: 8),
+                  Text(
+                    emptyMessage,
+                    style: theme.textTheme.bodySmall,
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            )
+          : FlightMapView(
+              latitude: lat,
+              longitude: lon,
+              aircraft: aircraft,
+              interactive: interactive,
+              onControllerReady: onControllerReady,
+            ),
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: SizedBox(
-            height: height,
-            child: lat == null || lon == null
-                ? Container(
-                    color: theme.colorScheme.surfaceContainerHighest,
-                    alignment: Alignment.center,
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        const Icon(Icons.location_off_outlined, size: 28),
-                        const SizedBox(height: 8),
-                        Text(
-                          emptyMessage,
-                          style: theme.textTheme.bodySmall,
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  )
-                : FlightMapView(
-                    latitude: lat,
-                    longitude: lon,
-                    aircraft: aircraft,
-                    interactive: interactive,
-                    onControllerReady: onControllerReady,
-                  ),
-          ),
-        ),
+        if (height == null)
+          Expanded(child: body)
+        else
+          SizedBox(height: height, child: body),
         if (lat != null && lon != null)
           Padding(
             padding: const EdgeInsets.only(top: 4),
