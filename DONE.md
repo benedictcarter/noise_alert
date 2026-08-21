@@ -4,6 +4,59 @@
   LESSONS_LEARNT.md written.
 
 
+## The launch screen, and the app is called Flightpath Watch Report (2026-08-21)
+Opening the app flashed a plain white window while the process started and the database opened.
+Nothing was broken — `main()` awaits `AppDatabase.open()` before `runApp` — but a blank white screen
+is indistinguishable from an app that has failed to start, which is exactly the wrong first second
+for this audience.
+
+- **The launch window now carries the wordmark.** `drawable-*/splash_wordmark.png` is the plane from
+  the launcher icon over FLIGHTPATH / WATCH / REPORT, composed once at 4x by
+  `scripts/make_splash.py` and downsampled per density so the letterforms match across handsets.
+  The native splash cannot render text, so it has to be baked into a bitmap.
+- **White in dark mode too.** Both `launch_background.xml` variants pin `@android:color/white`
+  rather than `?android:colorBackground`. The artwork is black ink on a transparent ground, so a
+  dark-mode handset would otherwise have shown black on black.
+- **Android 12+ gets `values-v31`.** From API 31 the OS draws its own splash and ignores
+  `windowBackground` entirely, so that path sets `windowSplashScreenBackground` white and the
+  launcher icon as the animated icon. The wordmark cannot go there — the animated icon is masked to
+  a circle.
+- **Renamed to Flightpath Watch Report** in `strings.xml`, `MaterialApp.title`, the welcome screen,
+  the letter's provenance line and `pubspec.yaml`. The Dart package, the repo and the Android
+  application id stay `noise_alert`; renaming those buys nothing and breaks the installed build.
+- **The stop buttons say what they lead to.** DISCARD / REVIEW & SEND / JUST SEND, two lines each on
+  the last two, because both of them end in a sent complaint and the single words REVIEW and SEND
+  read as alternatives rather than as two routes to the same place.
+
+## Make it simple enough for someone who is not technical (2026-08-20)
+The audience is largely pensioners, opening the app because a jet has just gone over. Every screen
+had to stop reading as a list of things that might be wrong with their phone.
+
+- **A welcome screen.** `WelcomeScreen` replaces the whole app — not a dialog over it — until there
+  is a name and a postcode. It is rendered instead of `HomeShell` precisely so `SnapScreen` is never
+  built, and therefore never asks for the microphone, before the user has read what the app is for.
+- **Name and postcode are the only mandatory fields.** House number, street, town and phone are
+  optional. `ComplainantProfile.isComplete` is the one definition of enough.
+- **The email address field is gone entirely.** It fed exactly two things: a `bccSelf` switch and an
+  `{email}` sign-off token. Both were redundant — the letter is sent from the user's own account, so
+  the reply address is already on it. Anyone wanting a copy puts themselves in Bcc. The `{email}`
+  token survives resolving to an empty string, because `_substitute` leaves an *unknown* token
+  standing as literal text and a user who had edited their letter would otherwise post "{email}".
+- **Postcode lookup.** `PostcodeService` hits postcodes.io — free, no key, no quota, ONS open data —
+  and fills in the town. Only on a button press, and a failure says "it does not matter, type it
+  yourself" rather than blocking anything.
+- **Settings split into three screens.** A menu, not a form: My details / The complaint email /
+  Recordings and flights. The first row shows the user's details in place, in red if they are still
+  missing. `MyDetailsForm` is shared with the welcome screen so there is one form, not two.
+- **The microphone refusal has a UI at last.** A refused permission is no longer an error banner; the
+  record button itself becomes an amber TURN ON THE MIC, which explains why the microphone is needed,
+  asks again, and — if the phone has stopped showing its own dialog, which Android does after two
+  refusals — offers the app's settings page. Retryable for ever: nothing dead-ends.
+- **String sweep.** "snap" is now "recording" throughout; LAeq/LA90/LAmax carry plain-English labels
+  with the term in brackets; the review screen leads on the rise ("23 dB louder than the quiet
+  street") rather than an absolute figure; and the "microphone hit its limit" and "no background"
+  notes were rewritten so neither reads as the user's fault.
+
 ## Post-roll fix, level chart, and Flightpath Watch branding (2026-08-20)
 - **Endless post-roll fixed.** `captureEventWindow` waited for a *sample count* (20 s x 48 kHz), so
   any handset delivering below 48 kHz stretched the wait in proportion and a stalled stream never
@@ -17,7 +70,7 @@
   trace is stored in the metrics row, because the audio usually is not kept. Fixed 30-110 dB axis,
   so a quiet event and a loud one cannot look alike, and the UNCALIBRATED caveat travels in the
   caption.
-- **Renamed to Flightpath Watch Alert** — app label, in-app title, iOS display name and the letter's
+- **Renamed to Flightpath Watch Report** — app label, in-app title, iOS display name and the letter's
   "measured with" line. The Dart package and the repo stay `noise_alert`.
 - **New launcher icon**: the real plane-and-swoosh, lifted out of the FLIGHTPATH WATCH logo by
   `scripts/make_icons.py` and exported to every Android density plus an adaptive (and monochrome)
@@ -121,3 +174,96 @@ All four from Ben's first round of on-device use.
   letter and review screen say "not measured" rather than quoting an inflated rise.
 
 62 tests, `flutter analyze` clean.
+
+## Record until STOP, always-saved clips, and a draggable worst moment (2026-08-20)
+- **The recording starts at the press.** RECORD opens the event; nothing before the press is in the
+  graph, the LAeq or the clip. The 30 s ring buffer still runs, but now for one purpose only: a
+  snapshot of the street taken at the instant of the press, carried to the analyzer as a *separate*
+  buffer (`EventWindow.ambient`) so the rise above background — the one figure an uncalibrated
+  handset cannot distort — survives.
+- **Nothing stops the recording but STOP.** The fixed 20 s post-roll is gone; the person holding the
+  phone is the only one who knows when the aircraft has gone. The button counts *up*, and a
+  5-minute cap (`AudioConfig.maxEventSeconds`) exists purely as a memory backstop.
+- **A clip is always saved**, on the device only. The keep-or-not switch is gone from the snap
+  screen and from settings; the only remaining question is whether to *attach* it.
+- **SNAP is now RECORD** — the button, the nav bar tab, the progress text and the home-screen
+  widget, which went back to a 1x1 red circle: the plane mark at 22 dp over "REC". The 2x1 pill
+  existed to hold a whole word, and one cell is enough once the word is three letters. Now
+  resizable in both directions, so the mark can be stretched out again on a roomier home screen.
+- **The user can drag the peak marker.** Tapping or dragging on the review chart marks the worst
+  moment as *experienced* — closest approach, or whatever actually made the noise unbearable. It is
+  stored as `Snap.markedPeakMs` (schema v3), drawn on the attached chart in a distinct colour, and
+  written into the letter as `{markedPeakNote}` in the first person and explicitly *not* as a
+  measurement.
+- **The analyzer was rewritten to stream.** One pass, 25 ms block energies and a prefix sum over
+  blocks, plus a `SampleSource` abstraction so the event stays `Int16List`. Without this a 5-minute
+  recording needed ~345 MB of Float64 working arrays; it now needs ~29 MB in total.
+- 86 tests green (was 72).
+
+## Records on open, sends in one tap, and never loses a report (2026-08-20)
+- **The app opens recording.** Reaching for the phone under a flight path is the press; the seconds
+  spent finding a button are seconds of aircraft you do not get back. A recording nobody asked for
+  is discarded the moment the user leaves the Record tab or backgrounds the app, so opening the app
+  to change a setting does not leave a snap of the kitchen behind. The cost is the pre-roll, and
+  with it the background level: the letter then quotes no rise above background, which understates
+  the nuisance rather than overstating it.
+- **STOP & SEND**, in darker blue beside STOP & SAVE. It names the closest ADS-B match, drafts the
+  complaint and opens the mail app: open, stop-and-send, send. If the best candidate is further
+  than 1 km horizontally it degrades to STOP & SAVE and shows the review screen, because that is
+  the case where the matcher can genuinely pick the wrong aircraft.
+- **A silent microphone no longer loses the complaint.** `AcousticMetrics.unmeasured` carries the
+  reason instead of an exception, and every consumer asks `hasMeasurement` before printing a
+  decibel figure. The letter says "Sound level: not measured", gives the reason, and stands on the
+  address and the time.
+- **Green, not red.** The record button and the home-screen widget are green — red is the colour
+  every other app uses for "this deletes something".
+- **The meter and the chart are half-lit when not recording**, so what is being logged is obvious
+  from arm's length.
+- **A past snap goes straight to the historical source.** A live feed only reports aircraft in the
+  sky *now*, so for anything older than the track cache the live query could only ever return
+  "nothing found" — slowly, and without saying why. It now says exactly why: live feeds cannot see
+  into the past, and OpenSky history needs credentials.
+- **Stored letters upgrade themselves** when they are an untouched older default, so a handset that
+  saved its settings under b8 stops mailing a hard-coded table of zeroes. An edited letter is never
+  touched.
+- 98 tests green (was 86).
+
+## The widget records again, and the letter can be scanned (2026-08-20)
+- **Tapping the home-screen widget recorded nothing.** It started a capture that ended in the same
+  millisecond, so the user was thrown to the review screen with "bad state" before they had let go
+  of the phone. Two faults compounded: `awaitEventEnd()` looped on `isRunning`, so a stream that was
+  not up when the event opened ended the capture at once; and `arm()`/`disarm()` overlapped, leaving
+  the service convinced it was armed with the microphone off. Both are fixed, and a capture now
+  starts the recorder itself if it finds it stopped.
+- **AT A GLANCE.** The letter opens with when it happened, how loud it was and which aircraft it
+  was, so a recipient -- or Ben, before he sends it -- can see in three lines whether the figures
+  are plausible. Plain text, because the composer is handed `isHTML: false` and the mailto:
+  fallback could not carry markup anyway; an upper-case heading and labelled lines survive every
+  mail client, which bold characters and HTML do not. The calibration caveat sits on the same line
+  as the decibel figure, since the block is meant to be read on its own.
+- 103 tests green (was 98).
+
+
+## Calibration removed; the letter leads on peak vs background (2026-08-20)
+- **The whole calibration concept is gone.** No settings section, no offset field, no "I have
+  calibrated this handset" switch, no `calibrated` / `calibrationOffsetDb` on `AcousticMetrics` or
+  `AppSettings`, no uncalibrated banner on the main screen, no caveat on the review screen, no
+  UNCALIBRATED wording on the chart caption, no apologetic paragraph in the letter. The full-scale
+  reference is fixed at 120 dB SPL in `LevelReference` and never varies. Rows written by earlier
+  builds still carry the two dropped JSON keys; `AcousticMetrics.fromJson` reads past them so no
+  logged event becomes unopenable.
+- **The background is now the LA90 of the recording itself**, not a mean and not the true minimum.
+  A mean is dragged up by the aircraft; the true minimum is one 125 ms block, so a single dropout
+  would put the floor twenty decibels low and inflate every rise. The tenth percentile is the
+  standard definition of "background noise level" and is what the minimum is trying to be.
+- **Record-on-open no longer costs the background figure.** The pre-roll buffer is now only a
+  fallback for a recording stopped inside `NoiseAnalyzer.minAmbientSeconds` (3 s); anything longer
+  supplies its own quiet street. This closes the first "Record-on-open follow-ups" item.
+- **The letter was rewritten around the rise.** AT A GLANCE now reads
+  `Loudest: 40.3 dB above the background -- 78.4 dB(A) at its peak, against 38.1 dB(A) when it was
+  quiet`; the measurement block leads with the rise, then LAmax, then the background labelled
+  "quietest 10% of the recording (LA90)", then LAeq labelled as the average over the whole
+  recording. The method note states handset, OS, sample rate and weighting, then that the peak and
+  the background were read by one microphone in one recording, so the gap is like-for-like.
+- CLAUDE.md's "never present uncalibrated dB" non-negotiable replaced with the rise-over-background
+  rule; PLAN.md's calibration screen and M4 calibration item removed.

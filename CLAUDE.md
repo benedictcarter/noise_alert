@@ -8,8 +8,27 @@ Flutter (iOS + Android) app for logging aircraft noise events and generating com
 
 ## Non-negotiables
 - **No personal data leaves the device.** No backend, no analytics, no crash reporter that ships
-  location. Complaints are sent by the user from their own mail account.
-- **Never state a flight the user has not confirmed.** Matching is probabilistic; the review screen
-  always shows confidence and alternates.
-- **Never present uncalibrated dB as an absolute measurement.** Label it in the UI and in the email.
-- Audio clips are optional, default off, and previewable before sending.
+  location. Complaints are sent by the user from their own mail account. Two outbound calls exist
+  and both are deliberate: coordinates to adsb.lol to find the aircraft, and — only when the user
+  presses the button — a postcode to postcodes.io to fill in their town. No name, no email address
+  and no identifier goes with either.
+- **The only mandatory fields are a name and a postcode.** House number, street, town and phone
+  number are all optional, and no email address is asked for at all — the letter goes from the
+  user's own mail account, so the reply address travels with it. `ComplainantProfile.isComplete`
+  is the single definition of "enough to complain with".
+- **Name the closest match, and say that is what it is.** SEND names the top ADS-B
+  candidate outright when it was within `MatchConfig.autoConfirmMaxHorizontalM` (1 km) horizontally;
+  beyond that it degrades to REVIEW and the review screen shows confidence and alternates.
+  Every letter states that the identification is the closest match and has not been independently
+  verified.
+- **A complaint is never blocked by missing evidence.** No microphone, no fix and no flight is
+  still a valid report: "I live at this address and at this time a plane annoyed me" is sufficient.
+  Sound, location and a named aircraft each make it stronger; none of them is a precondition.
+- **Lead on the rise, not on an absolute figure.** The headline is the peak against the
+  background, and the background is the quietest tenth of the recording (LA90), never a mean — a
+  mean is dragged up by the aircraft it is supposed to be compared against. Both readings come off
+  the same microphone in the same recording, so the gap is a like-for-like comparison whatever that
+  handset is individually out by. There is **no calibration concept in the app at all**: no setting,
+  no offset field, no "uncalibrated" caveat anywhere in the UI or the letter.
+- **An audio clip is always saved** (the loudest 10 s, on the device only). The only question
+  put to the user is whether to *attach* it, and it is previewable before sending.

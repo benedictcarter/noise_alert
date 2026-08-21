@@ -39,7 +39,7 @@ lib/
     snap/        the big button + live dB meter
     history/     list of snaps, status (matched / sent / unmatched)
     review/      confirm-flight screen before sending
-    settings/    profile, recipients, calibration, clip on/off
+    settings/    profile, recipients, clip on/off
   listener/      PHASE 2: foreground service + YAMNet classifier
 ```
 State: **Riverpod 2.x** (`StateNotifierProvider`, `ConsumerWidget`). Models: **hand-written**
@@ -55,7 +55,7 @@ constraint to satisfy.
 
 ## The three hard problems
 
-### 1. Decibels on an uncalibrated phone mic
+### 1. Decibels on a phone mic
 - Capture **raw PCM** (**48 kHz** mono) rather than a package's smoothed level, so we control the
   maths. 48 kHz is mandatory, not a preference: the A-weighting curve has a pole pair at 12.2 kHz,
   and at the usual 16 kHz voice rate that section collapses against Nyquist and the response stops
@@ -65,11 +65,21 @@ constraint to satisfy.
   "peak dB" gets a complaint dismissed.
 - Disable AGC / voice processing on the audio session, otherwise the OS quietly compresses the very
   thing we are measuring.
-- **Calibration screen**: per-device offset. Two routes — (a) enter a reading taken side-by-side with
-  a real SPL meter, (b) ship a table of known offsets for common handsets. Store offset + device
-  model; stamp every snap with `calibrated: true/false`.
-- Every email states the method and whether it was calibrated. Overclaiming accuracy is the fastest
-  way to get the whole complaint stream ignored.
+- **No calibration.** Dropped deliberately (2026-08-20). The full-scale reference is fixed at
+  120 dB SPL (`LevelReference.fullScaleDbSpl`) for every handset, and there is no setting, no offset
+  field and no "uncalibrated" wording anywhere. Requiring someone to borrow a reference sound level
+  meter before they may complain about a jet is a way of ensuring nobody complains.
+- **The letter leads on the rise above background**, because that is the figure the fixed reference
+  cannot distort: the offset is in the peak and in the background alike, so it cancels in the
+  subtraction. A handset several decibels out still reports the right *rise*.
+- **The background is the LA90 of the recording itself** — the level exceeded 90% of the time — not
+  a mean and not the true minimum. A mean is dragged upwards by the aircraft, which is the very
+  thing being measured against; the true minimum is one 125 ms block, so a single dropout or gap in
+  the traffic would put the floor twenty decibels below anything real and make every event look
+  preposterous. A recording that runs from before the aircraft until after it has gone contains its
+  own quiet street, which is why recording from launch costs nothing.
+- Every email states the method: handset, OS, sample rate, weighting, and that the peak and the
+  background were read by one microphone in one recording.
 
 ### 2. Matching a sound to a flight
 Primary path is a **live query at the moment of the snap**, which is far more reliable than
@@ -108,7 +118,7 @@ historical lookup and dodges the paid-API problem entirely.
 - **M2 — Flight match.** ADS-B clients + scoring + review screen with alternates and confidence.
 - **M3 — Complaint email.** Profile (name/address/postcode/email), recipient sets per airport,
   form-letter template with tokens, attachment, mail-composer handoff, mark-as-sent.
-- **M4 — Evidence quality.** Calibration flow, LAeq/LAmax presentation, CSV export, BCC-to-group.
+- **M4 — Evidence quality.** LAeq/LAmax presentation, CSV export, BCC-to-group.
 - **M5 — Beta hardening.** Offline queue + OpenSky 1-hour back-fill, permission edge cases, battery,
   error states, TestFlight/APK distribution to the beta group.
 - **M6 — Autonomous listening.** YAMNet, foreground service, thresholds, review queue.
@@ -129,7 +139,9 @@ historical lookup and dodges the paid-API problem entirely.
    sources are swappable; OpenSky is the keyed fallback that already works.
 4. **Ambient speech in clips.** Recording bystanders is the one genuine privacy risk here. Clip
    defaults to off, user previews before sending, clip deletable from history.
-5. **Uncalibrated dB presented as fact** would discredit the whole dataset. Always label it.
+5. **An absolute dB figure invites an argument about the handset.** Mitigated by leading on the
+   rise above background rather than the absolute level, and by stating the method plainly — not by
+   apologising for the measurement, which invites the recipient to dismiss the complaint entirely.
 
 ## Sources
 - https://github.com/adsblol/api

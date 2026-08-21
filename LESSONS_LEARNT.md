@@ -233,3 +233,273 @@ line 250 lines away from the edit. Recovered with `git show HEAD:test/database_t
 **Rule:** insert before the closing brace by *slicing and rejoining*, not by truncating —
 `s[:i] + extra + s[i:]` — or anchor on a unique string near the insertion point. And prefer keeping
 helper constants above `main()` so the file has no tail to lose.
+
+## An unbounded recording turns per-sample analysis into an OOM (2026-08-20)
+**Mechanism:** the analyzer was written when a capture was a fixed 50 s. It allocated the
+A-weighted signal, the squared signal and a per-sample prefix sum — three `Float64List`s the length
+of the recording, 24 bytes per sample — which is fine at 50 s (~58 MB) and fatal the moment the
+user decides when to stop. Five minutes at 48 kHz is 14.4 M samples: ~345 MB of working arrays on a
+phone, on top of the recording itself.
+**Incident:** removing the 20 s auto-stop turned a bounded allocation into an unbounded one. Nothing
+failed in test — the test tones are seconds long — the fault only exists on a real flyover someone
+watches all the way out.
+**Rule:** when a length becomes user-controlled, re-audit every allocation that is proportional to
+it. The fix here is worth copying: sum A-weighted energy into fixed **25 ms blocks** in a single
+pass and prefix-sum over *blocks* rather than samples. 25 ms was chosen because it divides the
+125 ms statistical window, the 250 ms trace cadence and the 50 ms peak hop exactly, so no metric
+changes its meaning; working memory drops to ~8 bytes per sample, and to 2 bytes when the source is
+Int16 behind a `SampleSource` interface.
+
+## A growing buffer spikes memory exactly when you cannot afford it (2026-08-20)
+**Mechanism:** the two obvious ways to accumulate an unknown-length recording both peak at more than
+they hold. A doubling `Int16List` copies old into new at every resize — 1.5x the final size at the
+worst moment — and a list of chunks concatenated at the end peaks at 2x, because the chunks are
+still alive while the joined array is being filled. Both spikes land *during* the recording or at
+the instant it ends, which is the worst possible time on a phone that is also holding a camera-grade
+audio stream and a map.
+**Rule:** if there is a hard cap, allocate the cap up front. `Int16List(maxEventSeconds * rate *
+1.1)` is claimed once at the press, when there is nothing else in flight, and handed out at the end
+as an `Int16List.sublistView` — no copy, no spike, and the allocation either succeeds immediately or
+fails before the user has been promised a recording. The 1.1 is headroom for a handset delivering
+above the requested sample rate.
+
+## One field meaning two things silently rewrites old records (2026-08-20)
+**Mechanism:** `AcousticMetrics.preRollSeconds` meant both "how far into the trace the button press
+sits" and "how many seconds of background we had to measure against". While the pre-roll was always
+part of the capture those were the same number. The moment the recording started at the press they
+diverged: the press is now at 0, but there were still 30 s of background. Reusing the field for
+either meaning would have been wrong for the other, and — worse — would have silently re-drawn every
+*stored* chart, moving the press marker on records the user had already read and sent.
+**Rule:** when a field's two meanings come apart, split the field and give the *old* name the meaning
+that stored data already carries. `preRollSeconds` kept the trace-offset meaning (now 0 for new
+records), the new `ambientSeconds` carries the background length, and `fromJson` falls back to
+`preRollSeconds` when `ambientSeconds` is absent, so a v1 record still marks its press in the right
+place.
+
+## Long heredocs to Bash fail where short ones work (2026-08-20)
+**Mechanism:** `python - <<'PYEOF'` with a ~200-line body repeatedly died with
+`unexpected EOF while looking for matching "'"`, while the same idiom at 30 lines worked all session.
+Whatever the size threshold is — quoting, buffering, or the tool's own escaping — it is not
+detectable from the script, and the failure blames a quote that is perfectly balanced.
+**Rule:** write anything over ~100 lines to a `.py` file with the Write tool and run
+`python <abs path>`. Costs one extra tool call and removes a whole class of unexplainable failure.
+Related: a Dart `'$id.wav'` inside a *non-raw* Python string becomes `'\$id.wav'` and then never
+matches the file — either use a raw string, or split the replacement so the `$` is not in it.
+
+## A stale MTP session makes `CopyHere` a silent no-op (2026-08-20)
+**Mechanism:** `Folder.CopyHere` over MTP is asynchronous and returns immediately with no status, no
+handle and no exception. If the WPD session inside the long-running `explorer.exe` has gone stale —
+the phone locked, or the USB mode dropped and came back — the call is simply discarded. The device
+still enumerates perfectly: `Shell.Application` finds it, the store reports 43 GB free, the
+`Download` folder lists its contents. Everything reads fine; only writes vanish.
+**Incident:** six minutes of polling for a 53 MB APK that was never being written. Unlocking the
+phone changed nothing. Replugging the cable fixed it and the same code copied in under 5 seconds.
+**Rule:** never trust `CopyHere` — always poll the destination for the file afterwards, and when it
+does not appear, **probe with a tiny file** before debugging anything else. A 5-byte text file that
+also fails to land proves the fault is the transport, not the size, the path or the flags; a probe
+that lands means the big copy is merely slow. Fix the transport by replugging the cable (which
+rebuilds the WPD session), not by restarting Explorer. Two related traps already established: only
+one of the two "G7 ThinQ" entries has children, and `.Size` on an MTP `FolderItem` returns 0 — read
+`GetDetailsOf($file, 2)` for the real size.
+
+## A "no data" message that does not say *why* reads as "nothing was there" (2026-08-20)
+**Mechanism:** the flight lookup asked live ADS-B feeds first and only fell back to history. A live
+feed answers exactly one question -- what is in the sky *right now* -- so for a snap taken twenty
+minutes ago it returns a list of aircraft the matcher correctly rejects, and the user is shown
+"couldn't find anything". That sentence is true about the query and false about the world, and the
+difference matters: one means "no aircraft was overhead", the other means "this app never looked".
+**Incident:** Ben recorded at 14:49 with no wifi and retried at 14:57 with wifi. His conclusion was
+that the app must be looking up the flight at "now" rather than at the time of the recording. It
+was not -- `snap.recordedAt` was threaded through correctly the whole way -- but the message gave
+him no way to tell those two possibilities apart, and the real cause (OpenSky credentials never
+configured, so the only source that can see into the past was unavailable) was never mentioned.
+**Rule:** branch on the question you can actually answer, and name the missing capability in the
+message. Past snaps now skip the live query entirely and go straight to the retrospective source,
+whose failure text says live feeds cannot see into the past and history needs an account. A
+diagnostic the user can act on beats a diagnostic that is merely accurate.
+
+## A default stored in the database is a default frozen on install day (2026-08-20)
+**Mechanism:** `AppSettings.templateBody` defaults to `defaultBody` but is *written to storage* the
+first time settings are saved. From then on the stored copy wins, forever. Every later change to
+the default letter -- a new token, a rewritten section -- reaches new installs only. The handset
+that has been used goes on mailing the old letter, which is precisely the handset whose output you
+stop checking.
+**Incident:** making the sound-level section degrade for an unmeasured recording replaced a
+hard-coded table of `{laMax}`/`{laEq}`/`{ambient}` lines with a single `{measurementBlock}` token.
+On a fresh install a silent microphone now produces "Sound level: not measured"; on Ben's handset
+it would have produced "Maximum (LAmax, fast): not measured dB(A)" three times over, because his
+stored letter still had the table in it.
+**Rule:** when a user-editable default changes, keep the exact previous defaults in a list and
+upgrade a stored value that matches one of them byte for byte. Matching the exact text is what
+makes it safe -- an edited letter matches nothing and is left alone, which is the point, because a
+default that silently reapplies itself is not a default. The alternative (a version stamp) needs to
+have been added before you needed it.
+
+## Everything downstream of a sensor needs a "there was no reading" state (2026-08-20)
+**Mechanism:** a failed measurement was an exception, so the capture threw and the snap was lost.
+Turning it into `AcousticMetrics.unmeasured` fixed the capture and immediately created a subtler
+bug: the fields are all zero, and every consumer printed them. The complaint then read
+"Maximum (LAmax, fast): 0.0 dB(A) ... sampling at 0 kHz with IEC 61672 A-weighting" -- a formal
+description of a measurement procedure that did not happen, which is far more damaging to a
+complaint than an admitted gap.
+**Rule:** a sentinel value is only half the fix. Add the predicate (`hasMeasurement`) *at the same
+time*, and route every formatter through one helper that consults it, so the zero cannot leak into
+output by being forgotten in one branch. Zero is a number; absence is not.
+
+## A synchronous flag cleared before an awaited teardown is a lie for the duration of the await (2026-08-20)
+**Mechanism:** `disarm()` set `_armed = false` and *then* awaited `recorder.stop()`. Between those
+two statements the service reports "not armed" while the microphone stream is still very much alive.
+An `arm()` arriving in that window therefore does the wrong thing twice over: it passes the
+`if (_armed) return;` guard, and its `recorder.start()` hits `if (isRunning) return;` and does
+nothing, because the old subscription has not been cancelled yet. The pending `stop()` then cancels
+it. End state: `_armed == true`, microphone off, and nothing anywhere throws.
+**Incident:** tapping the home-screen widget "frequently/always" produced an empty recording. That
+path is exactly the race -- the app is backgrounded (paused -> `disarm`), the widget is tapped, the
+app resumes and calls `arm()` while the previous `stop()` is still unwinding. It was invisible in
+tests because tests never interleave the two.
+**Rule:** a boolean that mirrors the state of an async resource must not change before the resource
+does. Either flip it *after* the await, or -- better, and what was done here -- keep the in-flight
+transition in a field and have both `arm()` and `disarm()` await it before they look at the flag.
+Serialising is worth more than ordering: it also makes arm-arm and disarm-disarm safe, which
+ordering alone does not.
+
+## A polling loop must distinguish "it stopped" from "it never started" (2026-08-20)
+**Mechanism:** `awaitEventEnd()` was `while (isRunning && !_stopRequested && !_eventFull)`. Reading
+it as "keep waiting while the stream is alive" is right for the case it was written for -- a stream
+that dies mid-recording has given you everything it is going to. But the same condition is false on
+entry when the stream was never up, and the loop exits immediately, returning an empty window as if
+the user had pressed STOP. One condition, two meanings, and the wrong one is silent.
+**Incident:** the widget bug above. The empty window was reported to the user as "bad state: the
+microphone recorded nothing" one millisecond after they pressed record.
+**Rule:** when a loop guard doubles as an entry condition, latch the two apart explicitly (here a
+`sawStream` flag: break only once the stream has been seen alive and then gone). And decide what the
+never-started case should *do* -- here it waits for the user's STOP and hands back an empty window,
+because "no sound" must degrade to a complaint without a measurement, never to no complaint.
+
+## Plain text has no bold, and that is usually the right answer anyway (2026-08-20)
+**Mechanism:** the complaint is composed with `isHTML: false`, and the fallback path builds a
+`mailto:` URI, which is plain text by specification. Making three figures bold therefore means
+switching the body to HTML, keeping a second template in sync with the user-editable plain one,
+HTML-escaping the address and free-text notes, and *still* sending plain text down the fallback.
+The Unicode mathematical-bold alternative avoids all that but makes the numbers unsearchable,
+unreadable to a screen reader, and liable to arrive as boxes at a council mail gateway -- on a
+formal complaint, looking broken costs more than looking flat.
+**Rule:** when the ask is "make these stand out", check whether the real requirement is emphasis or
+*findability*. Ben's was findability -- "the human can scan the email to see if this is bonkers" --
+and an upper-case heading with three labelled lines at the top of the letter serves that better than
+bold buried in the body, at no compatibility cost. Also: do not pad columns to align them. Mail
+clients render plain text proportionally, so aligned columns arrive ragged.
+
+## "Use the minimum, not the average" means L90, not the minimum (2026-08-20)
+**Mechanism:** the complaint leads on peak-minus-background, so the background is subtracted from
+the headline figure and any error in it lands in the number a council reads first. An *average*
+background is wrong for the obvious reason -- the aircraft is in it, and a mean over a recording
+half-filled by a flyover sits a few dB below the flyover, so a 40 dB event reports as a 3 dB one.
+But the *true minimum* is wrong too, and less obviously: it is one 125 ms block out of hundreds, so
+a buffer underrun, a moment another app grabbed the microphone, or a lull between cars sets the
+floor twenty to a hundred decibels below anything real, and the letter then claims a rise that is
+self-evidently nonsense. A single bad block cannot be averaged away; it *is* the statistic.
+**Incident:** Ben asked for "min = plausible background". Implemented literally as `min()`, the
+first digital-silence block in a recording would have produced a rise of ~100 dB. The tenth
+percentile (LA90, the level exceeded 90% of the time -- the standard acoustic definition of
+"background noise level") is what the instruction actually means: it is robust to a handful of bad
+blocks and still finds the quiet street rather than the mean.
+**Rule:** when a statistic feeds a number someone will argue with, prefer a percentile to an
+extremum. Extrema have no averaging behind them, so every glitch in the pipeline is a candidate
+answer. Corollary discovered here: taking the background from the *whole recording* rather than a
+pre-roll captured before the button press also fixed record-on-open, which had left every normal
+capture with no background at all -- a recording that runs from before the aircraft until after it
+has gone contains its own quiet street.
+
+## Hedging a measurement is not the same as being honest about it (2026-08-20)
+**Mechanism:** the letter used to carry "this handset has NOT been calibrated ... treat the absolute
+values as indicative rather than as a formal measurement", plus an UNCALIBRATED caption on the
+chart, plus a banner on the main screen, plus a calibration settings page. Each was individually
+defensible. Together they told the recipient, before any figure, that the sender did not trust their
+own evidence -- which is an invitation to bin the complaint rather than read it.
+**Incident:** Ben: "just remove all the uncalibrated crap". The replacement states the method once
+and factually (handset, OS, sample rate, weighting) and then says what makes the comparison valid:
+the peak and the background came off the same microphone in the same recording, so the gap between
+them is like-for-like. Nothing is claimed that is not true, and nothing is conceded that was not
+asked about.
+**Rule:** honesty is stating what was done and what it means. Repeatedly apologising for the
+limitations of the method is a different thing, and it costs credibility rather than earning it.
+Say it once, in the place a reader checking the method would look.
+
+## One MTP device can appear twice under `NameSpace(17)` (2026-08-20)
+**Mechanism:** sideloading over MTP walks `Shell.Application`'s "This PC" namespace to find the
+phone. An Android handset frequently enumerates as *two* entries with the same display name -- one
+real, one an empty shell (a stale or secondary MTP function). `@($pc.Items() | Where-Object { $_.Name
+-eq 'G7 ThinQ' })[0]` picks whichever came first, and if that is the empty one, `.GetFolder` is null
+and the script dies on "You cannot call a method on a null-valued expression".
+**Incident:** cost twenty minutes chasing a phantom "phone not connected" while the phone was
+plainly mounted in Explorer.
+**Rule:** never index `[0]` into an MTP device match. Iterate every entry with the name and keep the
+one whose `GetFolder.Items()` actually yields a child folder ("Internal shared storage"). The same
+caution applies to `.Size` on MTP items, which returns 0 -- use `GetDetailsOf($file, 2)`.
+
+## `Folder.CopyHere` is asynchronous and dies with the process (2026-08-20)
+**Mechanism:** `Shell.Application`'s `CopyHere` queues a shell copy and returns immediately. The
+transfer is driven by the calling process's shell COM apartment, so when a short-lived PowerShell
+invocation exits a millisecond later, the copy is torn down before a byte moves -- silently, with no
+error and no partial file. Over MTP the file simply never appears.
+**Incident:** a 53 MB APK "copied" to the handset's Download folder in one PowerShell call, then
+polled for in a second call. Forty polls over two minutes found nothing. The copy had never started.
+**Rule:** issue `CopyHere` and wait for the destination file to appear **in the same process**. Poll
+`$dest.ParseName(name)` until it is non-null and `GetDetailsOf($file, 2)` returns a size (`.Size` is
+0 on MTP items). Same caution as the two-device-entry gotcha above -- Explorer's shell namespace is
+convenient but every one of its affordances is asynchronous or lying.
+
+## A diagnostic that is wrong more often than it is right is worse than none (2026-08-20)
+**Mechanism:** the snap screen warned in red when the delivered sample rate drifted more than 2%
+off the requested 48 kHz. The estimate is `samplesDelivered / wallClockSinceStreamStart`, and the
+clock was stamped when `startStream()` *returned* -- before the first sample arrives. Android's
+AudioRecord cold start is 50-300 ms, so at the first check three seconds in, a 200 ms startup gap
+reads as 6% of the audio missing: 44.8 kHz. The warning fires on a healthy microphone, every time,
+and quietly stops firing as the recording lengthens and the fixed offset washes out.
+**Incident:** Ben saw "Microphone is running at 45 kHz, not 48 kHz" and asked what the issue was.
+There was none. Worse, 45 vs 48 kHz is acoustically irrelevant here: the A-weighting is redesigned
+for whatever rate is actually measured, the error is identical in the peak and the background so it
+cancels in the rise the letter leads on, and the real cliff is below ~32 kHz where the 12.2 kHz pole
+pair collapses against Nyquist.
+**Rule:** before shipping a warning, work out its false-positive rate on healthy hardware and what
+the reader is supposed to *do* about it. This one had a false-positive rate near 100% and no action
+attached. Deleted rather than fixed: the audience is largely pensioners who have opened the app
+because a plane annoyed them, and a red line about kilohertz makes them close it. If a measurement
+is only accurate after a settling period, do not expose it to the UI at all -- expose it only where
+the code can wait.
+
+## An unknown template token prints itself, so deleting a field can print `{email}`
+
+`ComplaintTemplate._substitute` resolves with `tokens[match.group(1)] ?? match.group(0)!` — an
+unrecognised token is deliberately left standing as literal text, so a typo in a custom letter is
+visible rather than silently swallowed. That is the right behaviour, and there is a test for it.
+
+It also means **removing a field from the profile is not the same as removing its token**. Dropping
+`email` from `ComplainantProfile` and deleting `'email'` from the token map would have been quietly
+correct for every user on the stock letter, and would have posted a literal `{email}` in the sign-off
+of every user who had ever edited theirs — the stored body is a string in the database, and nothing
+migrates it.
+
+The fix is to keep the token and resolve it to `''`. The rule generalises: **a token may be retired
+from `tokenHelp`, but it can never be removed from the map** while any stored letter could still
+contain it.
+
+## `Geolocator.openAppSettings()` opens the app's whole settings page, microphone included
+
+The microphone recovery flow needed a way to reach the OS permission screen, and `record` does not
+offer one. Rather than add `permission_handler` for a single call, `LocationService.openAppSettings()`
+wraps geolocator's — it opens the app entry, not a location-specific page, so it serves any
+permission. Worth knowing before adding a second permissions plugin to this project.
+
+## Android stops showing the permission dialog after two refusals, and never tells you
+
+`record`'s `hasPermission()` both checks and prompts, which is convenient right up to the point
+where the OS has decided the user means it. From the third call onwards the dialog does not appear
+and the call simply returns false — indistinguishable, from Dart, from a user who tapped Deny again.
+
+There is no API that reports "the system will no longer ask". So the recovery flow in
+`_askForMic()` cannot branch on it: it explains, asks, and *if it is still refused afterwards*
+offers the settings page. That costs one redundant dialog on the very first refusal and rescues
+every refusal after it. Trying to be cleverer than this means guessing.
+

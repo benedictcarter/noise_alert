@@ -21,14 +21,15 @@ class HistoryScreen extends ConsumerWidget {
       body: snaps.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (Object e, StackTrace _) =>
-            Center(child: Text('Could not load snaps: $e')),
+            Center(child: Text('Could not open your recordings: $e')),
         data: (List<Snap> list) {
           if (list.isEmpty) {
             return const Center(
               child: Padding(
                 padding: EdgeInsets.all(32),
                 child: Text(
-                  'No snaps yet. Press the big button when an aircraft goes over.',
+                  'Nothing recorded yet. Press the big green button when '
+                  'an aircraft goes over.',
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -59,8 +60,8 @@ class _SnapTile extends ConsumerWidget {
     final ThemeData theme = Theme.of(context);
     final String flight = snap.confirmedAircraft?.displayName ??
         (snap.unidentifiedAircraft
-            ? 'Unidentified aircraft'
-            : snap.match?.best?.aircraft.displayName ?? 'No match');
+            ? 'Aircraft not identified'
+            : snap.match?.best?.aircraft.displayName ?? 'No aircraft found');
 
     return Dismissible(
       key: ValueKey<String>(snap.id),
@@ -76,9 +77,10 @@ class _SnapTile extends ConsumerWidget {
           await showDialog<bool>(
             context: context,
             builder: (BuildContext context) => AlertDialog(
-              title: const Text('Delete this snap?'),
-              content:
-                  const Text('The measurement and any saved clip are removed.'),
+              title: const Text('Delete this recording?'),
+              content: const Text(
+                  'The measurement and the saved sound are removed from this '
+                  'phone. This cannot be undone.'),
               actions: <Widget>[
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(false),
@@ -125,9 +127,9 @@ class _SnapTile extends ConsumerWidget {
   static String _statusLabel(Snap snap) {
     switch (snap.status) {
       case SnapStatus.unmatched:
-        return 'no flight matched';
+        return 'no aircraft found';
       case SnapStatus.awaitingReview:
-        return 'needs review';
+        return 'needs a look';
       case SnapStatus.confirmed:
         return 'ready to send';
       case SnapStatus.sent:

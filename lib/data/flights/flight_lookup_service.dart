@@ -181,7 +181,13 @@ class FlightLookupService {
       return FlightMatch.none(
         searchedFrom: from,
         searchedTo: to,
-        note: 'Add OpenSky API credentials in Settings to look up past snaps.',
+        // Say what is actually wrong. "Nothing found" reads as "no aircraft
+        // was there", which is a different and much more discouraging claim
+        // than "this app cannot see into the past without an account".
+        note: 'This recording is in the past, and live flight feeds only show '
+            'aircraft that are in the sky right now. Looking up a past event '
+            'needs OpenSky history — add OpenSky API credentials in Settings, '
+            'within an hour of the recording.',
       );
     }
 

@@ -31,6 +31,7 @@ class Snap {
     this.gpsAltitudeM,
     this.clipPath,
     this.attachClip = false,
+    this.markedPeakMs,
     this.match,
     this.selectedIcao24,
     this.unidentifiedAircraft = false,
@@ -73,6 +74,15 @@ class Snap {
   /// clip exists: the user can keep a clip for their own records and still not
   /// send it.
   final bool attachClip;
+
+  /// Where the user says the worst of the flyover was, in milliseconds from
+  /// the start of the recording.
+  ///
+  /// Null means they have not moved it, and the complaint speaks only of the
+  /// measured maximum. When it is set, the letter says plainly that the
+  /// complainant marked the moment — it is a statement about what was
+  /// experienced, not a second measurement, and must never be presented as one.
+  final int? markedPeakMs;
 
   final FlightMatch? match;
 
@@ -124,6 +134,8 @@ class Snap {
     SnapStatus? status,
     String? clipPath,
     bool? attachClip,
+    int? markedPeakMs,
+    bool clearMarkedPeak = false,
     FlightMatch? match,
     String? selectedIcao24,
     bool? unidentifiedAircraft,
@@ -143,6 +155,8 @@ class Snap {
         status: status ?? this.status,
         clipPath: clipPath ?? this.clipPath,
         attachClip: attachClip ?? this.attachClip,
+        markedPeakMs:
+            clearMarkedPeak ? null : (markedPeakMs ?? this.markedPeakMs),
         match: match ?? this.match,
         selectedIcao24:
             clearSelection ? null : (selectedIcao24 ?? this.selectedIcao24),
@@ -165,6 +179,7 @@ class Snap {
         'status': status.name,
         'clip_path': clipPath,
         'attach_clip': attachClip ? 1 : 0,
+        'marked_peak_ms': markedPeakMs,
         'match_json': match == null ? null : jsonEncode(encodeMatch(match!)),
         'selected_icao24': selectedIcao24,
         'unidentified': unidentifiedAircraft ? 1 : 0,
@@ -197,6 +212,7 @@ class Snap {
       ),
       clipPath: row['clip_path'] as String?,
       attachClip: (row['attach_clip'] as int? ?? 0) == 1,
+      markedPeakMs: (row['marked_peak_ms'] as num?)?.toInt(),
       match: matchJson == null
           ? null
           : decodeMatch(jsonDecode(matchJson) as Map<String, Object?>),

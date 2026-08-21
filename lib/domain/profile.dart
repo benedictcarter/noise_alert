@@ -21,7 +21,6 @@ class ComplainantProfile {
     this.addressLine2 = '',
     this.town = '',
     this.postcode = '',
-    this.email = '',
     this.phone = '',
   });
 
@@ -30,16 +29,18 @@ class ComplainantProfile {
   final String addressLine2;
   final String town;
   final String postcode;
-
-  /// Shown in the letter so replies reach the user even if the mail account
-  /// they send from is a different one.
-  final String email;
   final String phone;
 
+  /// Everything a complaint actually requires.
+  ///
+  /// A name and a postcode, and nothing else. The house number and street are
+  /// welcome but not demanded: a council can act on "someone in TW6 1AP" and
+  /// the point of this app is that a person who is annoyed by a jet can say so
+  /// without first completing a form. No email address is asked for either --
+  /// the letter is sent from the user's own mail account, so the reply address
+  /// travels with it whether we print it or not.
   bool get isComplete =>
-      fullName.trim().isNotEmpty &&
-      postcode.trim().isNotEmpty &&
-      email.trim().isNotEmpty;
+      fullName.trim().isNotEmpty && postcode.trim().isNotEmpty;
 
   List<String> get addressLines => <String>[
         if (addressLine1.trim().isNotEmpty) addressLine1.trim(),
@@ -57,7 +58,6 @@ class ComplainantProfile {
     String? addressLine2,
     String? town,
     String? postcode,
-    String? email,
     String? phone,
   }) =>
       ComplainantProfile(
@@ -66,7 +66,6 @@ class ComplainantProfile {
         addressLine2: addressLine2 ?? this.addressLine2,
         town: town ?? this.town,
         postcode: postcode ?? this.postcode,
-        email: email ?? this.email,
         phone: phone ?? this.phone,
       );
 
@@ -76,7 +75,6 @@ class ComplainantProfile {
         'addressLine2': addressLine2,
         'town': town,
         'postcode': postcode,
-        'email': email,
         'phone': phone,
       };
 
@@ -92,7 +90,6 @@ class ComplainantProfile {
           other.addressLine2 == addressLine2 &&
           other.town == town &&
           other.postcode == postcode &&
-          other.email == email &&
           other.phone == phone;
 
   @override
@@ -102,7 +99,6 @@ class ComplainantProfile {
         addressLine2,
         town,
         postcode,
-        email,
         phone,
       );
 
@@ -113,7 +109,9 @@ class ComplainantProfile {
         addressLine2: json['addressLine2'] as String? ?? '',
         town: json['town'] as String? ?? '',
         postcode: json['postcode'] as String? ?? '',
-        email: json['email'] as String? ?? '',
+        // 'email' appears in rows written before the field was dropped. Read
+        // past it: the letter is sent from the user's own mail account, so it
+        // was never doing anything the reply-to header did not already do.
         phone: json['phone'] as String? ?? '',
       );
 }

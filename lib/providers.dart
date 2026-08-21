@@ -10,6 +10,7 @@ import 'data/flights/adsb_source.dart';
 import 'data/flights/flight_lookup_service.dart';
 import 'data/flights/opensky_source.dart';
 import 'data/flights/tar1090_source.dart';
+import 'data/postcode/postcode_service.dart';
 import 'data/snap_service.dart';
 import 'data/storage/database.dart';
 import 'domain/profile.dart';
@@ -50,6 +51,26 @@ final Provider<QuickSnapChannel> quickSnapProvider =
   ref.onDispose(channel.dispose);
   return channel;
 });
+
+/// False until there is a name and a postcode to write a complaint with.
+///
+/// Seeded from the stored profile rather than from a "have they seen it" flag,
+/// so an install that already has details never sees the welcome screen, and
+/// one that somehow lost them gets asked again instead of failing at the end
+/// of a recording. Not persisted: it is a question the profile can always
+/// answer.
+final StateProvider<bool> onboardedProvider = StateProvider<bool>(
+  (Ref ref) => ref.read(initialProfileProvider).isComplete,
+);
+
+/// Turns a postcode into a town, on the My details screen and nowhere else.
+///
+/// Shares the app's one HTTP client rather than opening a second: the lookup
+/// happens at most a handful of times in the life of an install.
+final Provider<PostcodeService> postcodeServiceProvider =
+    Provider<PostcodeService>(
+  (Ref ref) => PostcodeService(client: ref.watch(httpClientProvider)),
+);
 
 final Provider<DeviceInfoService> deviceInfoProvider =
     Provider<DeviceInfoService>((Ref ref) => DeviceInfoService());
@@ -103,7 +124,6 @@ final StateNotifierProvider<ProfileController, ComplainantProfile>
 final Provider<RecorderService> recorderProvider =
     Provider<RecorderService>((Ref ref) {
   final RecorderService service = RecorderService(
-    calibrationOffsetDb: ref.read(settingsProvider).calibrationOffsetDb,
   );
   ref.onDispose(service.dispose);
   return service;

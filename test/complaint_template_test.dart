@@ -15,11 +15,9 @@ const ComplainantProfile _profile = ComplainantProfile(
   addressLine1: '1 Quiet Lane',
   town: 'Someton',
   postcode: 'AB1 2CD',
-  email: 'resident@example.com',
 );
 
 AcousticMetrics _metrics({
-  bool calibrated = false,
   bool clipped = false,
   double laMax = 78.4,
   double? ambient = 38.1,
@@ -38,8 +36,6 @@ AcousticMetrics _metrics({
       peakWindowDurationMs: 10000,
       eventDurationMs: 50000,
       clipped: clipped,
-      calibrated: calibrated,
-      calibrationOffsetDb: 120,
       sampleRate: 48000,
     );
 
@@ -74,10 +70,10 @@ FlightMatch _match() => FlightMatch(
     );
 
 Snap _snap({
+  AcousticMetrics? metrics,
   bool confirmed = true,
   bool unidentified = false,
   bool withMatch = true,
-  bool calibrated = false,
   bool clipped = false,
   String? clipPath,
   bool attachClip = false,
@@ -85,6 +81,7 @@ Snap _snap({
   double? ambient = 38.1,
   double preRoll = 30,
   bool trace = true,
+  int? markedPeakMs,
 }) =>
     Snap(
       id: 'snap-1',
@@ -92,19 +89,20 @@ Snap _snap({
       latitude: located ? 51.50012 : null,
       longitude: located ? -0.10034 : null,
       gpsAccuracyM: located ? 8 : null,
-      metrics: _metrics(
-        calibrated: calibrated,
-        clipped: clipped,
-        ambient: ambient,
-        preRoll: preRoll,
-        trace: trace,
-      ),
+      metrics: metrics ??
+          _metrics(
+            clipped: clipped,
+            ambient: ambient,
+            preRoll: preRoll,
+            trace: trace,
+          ),
       status: SnapStatus.confirmed,
       match: withMatch ? _match() : null,
       selectedIcao24: confirmed && withMatch ? 'abc123' : null,
       unidentifiedAircraft: unidentified,
       clipPath: clipPath,
       attachClip: attachClip,
+      markedPeakMs: markedPeakMs,
       deviceModel: 'Google Pixel 8',
       osVersion: 'Android 15 (SDK 35)',
       appVersion: '0.1.0+1',
@@ -150,7 +148,7 @@ void main() {
     expect(draft.body, isNot(contains('{')));
   });
 
-  test('an uncalibrated handset is declared, with its make and OS', () {
+  test('the handset is named, and the rise is what the letter leads on', () {
     final ComplaintDraft draft = template.render(
       snap: _snap(),
       profile: _profile,
@@ -159,19 +157,25 @@ void main() {
 
     expect(draft.body, contains('Google Pixel 8'));
     expect(draft.body, contains('Android 15 (SDK 35)'));
-    expect(draft.body, contains('NOT been calibrated'));
-    expect(draft.body, contains('40.3 dB')); // 78.4 − 38.1, offset-independent
+    // 78.4 - 38.1. The peak and the background came off the same microphone
+    // minutes apart, so this figure is unaffected by whatever that microphone
+    // is individually out by.
+    expect(draft.body, contains('40.3 dB'));
+    expect(draft.body, contains('like-for-like'));
   });
 
-  test('a calibrated handset says so instead', () {
+  test('the letter never apologises for the handset', () {
+    // Deliberate: there is no calibration setting any more, and a paragraph
+    // conceding that the figures may be wrong invites a recipient to dismiss
+    // the whole complaint rather than read the comparison it is built on.
     final ComplaintDraft draft = template.render(
-      snap: _snap(calibrated: true),
+      snap: _snap(),
       profile: _profile,
       settings: settings,
     );
 
-    expect(draft.body, contains('was calibrated against a reference'));
-    expect(draft.body, isNot(contains('NOT been calibrated')));
+    expect(draft.body.toLowerCase(), isNot(contains('calibrat')));
+    expect(draft.body, isNot(contains('indicative')));
   });
 
   test('clipping is disclosed as a lower bound', () {
@@ -202,7 +206,7 @@ void main() {
     expect(with_.body, contains('Attached is a 10 second'));
   });
 
-  test('bccSelf adds the complainant once, without duplicating', () {
+  test('the Bcc list is sent exactly as it was configured', () {
     final ComplaintDraft draft = template.render(
       snap: _snap(),
       profile: _profile,
@@ -218,12 +222,13 @@ void main() {
       ),
     );
 
+    // No address of the user's own is folded in: the app does not know one.
+    // Anyone wanting a copy of their own complaint puts themselves in Bcc.
     expect(draft.to, <String>['airport@example.com']);
     expect(
-      draft.bcc.where((String a) => a == 'resident@example.com').length,
-      1,
+      draft.bcc,
+      <String>['resident@example.com', 'group@example.com'],
     );
-    expect(draft.bcc, contains('group@example.com'));
   });
 
   test('an unknown token is left visible rather than silently dropped', () {
@@ -291,11 +296,8 @@ void main() {
     );
 
     expect(draft.body, contains('not measured'));
-    expect(draft.body, contains('background level before the event was not '
-        'captured'));
-    expect(draft.body, isNot(contains('Rise above background: 40.3 dB')));
-    // The uncalibrated warning must survive: it is the other honesty clause.
-    expect(draft.body, contains('has NOT been calibrated'));
+    expect(draft.body, contains('too short to contain a quiet moment'));
+    expect(draft.body, isNot(contains('Rise above the background: 40.3 dB')));
   });
 
   test('the chart is described in the letter and attached to it', () {
@@ -310,9 +312,10 @@ void main() {
 
     expect(draft.attachmentPaths, contains('/tmp/snap-1-level.png'));
     expect(draft.body, contains('Attached: a chart'));
-    // The calibration caveat must travel with the picture, not only with the
-    // numbers - a chart reads as far more authoritative than a line of text.
-    expect(draft.body, contains('UNCALIBRATED'));
+    // The caption has to say what the picture is being read against, not only
+    // what it plots - a chart reads as far more authoritative than a line of
+    // text, and on its own it is just a wiggly line with numbers beside it.
+    expect(draft.body, contains('background the peak is measured against'));
   });
 
   test('no trace means no chart sentence at all', () {
@@ -340,5 +343,196 @@ void main() {
 
     expect(draft.attachmentPaths,
         <String>['/tmp/snap-1-level.png', '/tmp/snap-1.wav']);
+  });
+
+  group('the marked worst moment', () {
+    test('says nothing at all when the user has not marked one', () {
+      final ComplaintDraft draft = template.render(
+        snap: _snap(),
+        profile: _profile,
+        settings: settings,
+      );
+
+      expect(draft.body, isNot(contains('as I experienced it')));
+    });
+
+    test('is written as the complainant\'s account, never as a measurement',
+        () {
+      final ComplaintDraft draft = template.render(
+        snap: _snap(markedPeakMs: 1500),
+        profile: _profile,
+        settings: settings,
+      );
+
+      // The mark is a claim about experience. A recipient who reads it as a
+      // second measurement, notices it disagrees with LAmax, and concludes the
+      // numbers are unreliable has been handed the letter's own undoing.
+      expect(draft.body, contains('as I experienced it'));
+      expect(draft.body, contains('not a separate measurement'));
+      expect(draft.body, contains('2 s into the recording'));
+      // The trace is one value every 250 ms, so 1500 ms is index 6.
+      expect(draft.body, contains('42.0 dB(A)'));
+    });
+
+    test('a mark past the end of the trace still reads as a time', () {
+      // Guard against an index that walks off the trace: the mark is stored in
+      // milliseconds and nothing stops an old record from disagreeing with a
+      // shorter trace.
+      final ComplaintDraft draft = template.render(
+        snap: _snap(markedPeakMs: 999000),
+        profile: _profile,
+        settings: settings,
+      );
+
+      expect(draft.body, contains('999 s into the recording'));
+      expect(draft.body, contains('not a separate measurement'));
+    });
+  });
+
+  group('a recording the microphone never delivered', () {
+    // Ben's bar for the app: "if there is an email saying I live at this
+    // address and at this time a plane annoyed me, that is sufficient". A
+    // silent microphone loses the evidence, not the complaint.
+    const AcousticMetrics none = AcousticMetrics.unmeasured(
+      note: 'The microphone delivered no audio for this recording.',
+    );
+
+    test('the letter still names the address, the time and the aircraft', () {
+      final ComplaintDraft draft = template.render(
+        snap: _snap(metrics: none),
+        profile: _profile,
+        settings: settings,
+      );
+
+      expect(draft.body, contains('1 Quiet Lane'));
+      expect(draft.body, contains('21:14:30'));
+      expect(draft.body, contains('callsign BAW123'));
+      expect(draft.body, contains('clearly audible'));
+    });
+
+    test('no zero is ever printed as if it were a reading', () {
+      final ComplaintDraft draft = template.render(
+        snap: _snap(metrics: none),
+        profile: _profile,
+        settings: settings,
+      );
+
+      expect(draft.body, isNot(contains('0.0 dB')));
+      expect(draft.body, isNot(contains('Maximum (LAmax')));
+      expect(draft.body, contains('Sound level: not measured'));
+      expect(draft.body, contains('The microphone delivered no audio'));
+    });
+
+    test('the method note does not claim a sampling rate it never had', () {
+      // The old note read "sampling at 0 kHz with IEC 61672 A-weighting",
+      // which is worse than saying nothing: it describes a measurement
+      // procedure that did not happen.
+      final ComplaintDraft draft = template.render(
+        snap: _snap(metrics: none),
+        profile: _profile,
+        settings: settings,
+      );
+
+      expect(draft.body, isNot(contains('0 kHz')));
+      expect(draft.body, contains('No sound measurement is attached'));
+    });
+
+    test('individual level tokens degrade too, for an edited letter', () {
+      final ComplaintDraft draft = template.render(
+        snap: _snap(metrics: none),
+        profile: _profile,
+        settings: const AppSettings(
+          templateBody: 'Peak {laMax} dB(A) over {eventSeconds} s.',
+        ),
+      );
+
+      expect(draft.body, 'Peak not measured dB(A) over not measured s.');
+    });
+  });
+
+  test('a named flight is offered for checking, not asserted', () {
+    // The app now names the closest ADS-B match without asking, which only
+    // stays honest if the letter says that is what it is.
+    final ComplaintDraft draft = template.render(
+      snap: _snap(),
+      profile: _profile,
+      settings: settings,
+    );
+
+    expect(draft.body, contains('closest to my position'));
+    expect(draft.body, contains('not independently verified'));
+  });
+
+  group('the at-a-glance block', () {
+    // Ben's ask: "the human can scan the email to see if this is bonkers".
+    // Three figures, at the top, before any prose.
+
+    test('leads with when, how loud and which aircraft', () {
+      final ComplaintDraft draft = template.render(
+        snap: _snap(),
+        profile: _profile,
+        settings: settings,
+      );
+
+      final int glance = draft.body.indexOf('AT A GLANCE');
+      expect(glance, greaterThanOrEqualTo(0));
+      // Before the salutation's follow-on prose, and before the detail
+      // sections it summarises -- a summary further down the page is not one.
+      expect(glance, lessThan(draft.body.indexOf('Aircraft:')));
+      expect(draft.body, contains('When: '));
+      expect(draft.body, contains('21:14:30'));
+      expect(draft.body, contains('Loudest: '));
+    });
+
+    test('the loud line leads with the rise, not the absolute figure', () {
+      // The block is designed to be read on its own, so the comparison that
+      // makes the number mean something has to be on the same line as it.
+      final ComplaintDraft draft = template.render(
+        snap: _snap(),
+        profile: _profile,
+        settings: settings,
+      );
+
+      final String line = draft.body
+          .split('\n')
+          .firstWhere((String l) => l.startsWith('Loudest:'));
+
+      expect(line, startsWith('Loudest: 40.3 dB above the background'));
+      expect(line, contains('78.4 dB(A) at its peak'));
+      expect(line, contains('38.1 dB(A) when it was quiet'));
+    });
+
+    test('the aircraft line carries altitude, distance and the caveat', () {
+      final ComplaintDraft draft = template.render(
+        snap: _snap(),
+        profile: _profile,
+        settings: settings,
+      );
+
+      final String line = draft.body
+          .split('\n')
+          .firstWhere((String l) => l.startsWith('Aircraft: '));
+
+      expect(line, contains('ft above me'));
+      expect(line, contains('m away'));
+      expect(line, contains('closest match, not verified'));
+    });
+
+    test('a missing figure keeps its line rather than disappearing', () {
+      // A vanished line reads as "there was nothing unusual here". "Not
+      // measured" reads as what it is.
+      final ComplaintDraft draft = template.render(
+        snap: _snap(
+          metrics: const AcousticMetrics.unmeasured(),
+          confirmed: false,
+        ),
+        profile: _profile,
+        settings: settings,
+      );
+
+      expect(draft.body, contains('Loudest: not measured'));
+      expect(draft.body, contains('Aircraft: not identified'));
+      expect(draft.body, isNot(contains('0.0 dB')));
+    });
   });
 }

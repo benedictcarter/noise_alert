@@ -36,6 +36,9 @@ class ChartImageService {
           palette: LevelChartPalette.forEmail(),
           pressAtSeconds: snap.metrics.preRollSeconds,
           ambientDb: snap.metrics.ambientLa90Db,
+          markedAtSeconds: snap.markedPeakMs == null
+              ? null
+              : snap.markedPeakMs! / 1000,
         ),
         size: chartSize,
       );

@@ -6,7 +6,7 @@ import 'package:noise_alert/data/audio/noise_analyzer.dart';
 import 'package:noise_alert/domain/acoustic_metrics.dart';
 
 const double _fs = 48000;
-const double _offset = 120; // dB SPL at full scale, the uncalibrated default.
+const double _offset = 120; // dB SPL at full scale; see LevelReference.
 
 /// A 1 kHz tone, where A-weighting is unity gain, so the expected level can be
 /// worked out on paper: 20·log10(amplitude/√2) + offset.
@@ -44,14 +44,11 @@ void main() {
     final AcousticMetrics m = analyzer.analyze(
       samples: _tone(seconds: 3, amplitude: 0.1),
       sampleRate: _fs,
-      calibrationOffsetDb: _offset,
-      calibrated: false,
       peakWindowSeconds: 1,
     );
 
     expect(m.laEqDb, closeTo(_expectedDb(0.1), 0.2));
     expect(m.laMaxDb, closeTo(_expectedDb(0.1), 0.3));
-    expect(m.calibrated, isFalse);
     expect(m.clipped, isFalse);
   });
 
@@ -66,8 +63,6 @@ void main() {
     final AcousticMetrics m = analyzer.analyze(
       samples: samples,
       sampleRate: _fs,
-      calibrationOffsetDb: _offset,
-      calibrated: false,
       ambientSampleCount: (5 * _fs).round(),
       peakWindowSeconds: 4,
     );
@@ -83,8 +78,12 @@ void main() {
   });
 
   test(
-      'ambient L90 comes from the pre-roll only, so the event does not '
-      'inflate the background', () {
+      'the background is the quiet part of the recording, not an average of '
+      'it', () {
+    // Half quiet street, half aircraft. A mean over the whole recording sits
+    // 3 dB below the aircraft, because the aircraft is what dominates the
+    // energy -- so a mean would report a rise of ~3 dB for a flyover 40 dB
+    // above the street. The L90 finds the street.
     final Float64List samples = _concat(<Float64List>[
       _tone(seconds: 10, amplitude: 0.002),
       _tone(seconds: 10, amplitude: 0.2),
@@ -93,27 +92,60 @@ void main() {
     final AcousticMetrics m = analyzer.analyze(
       samples: samples,
       sampleRate: _fs,
-      calibrationOffsetDb: _offset,
-      calibrated: false,
-      ambientSampleCount: (10 * _fs).round(),
       peakWindowSeconds: 5,
     );
 
     expect(m.ambientLa90Db, closeTo(_expectedDb(0.002), 0.5));
-
-    // The figure that survives an uncalibrated microphone: the offset cancels.
     expect(m.excessOverAmbientDb, closeTo(40, 1.0));
 
-    final AcousticMetrics shifted = analyzer.analyze(
+    // And it is nowhere near the overall LAeq, which the aircraft owns.
+    expect(m.laEqDb, greaterThan(m.ambientLa90Db! + 30));
+  });
+
+  test('no pre-roll is needed for a background any more', () {
+    // The app records from the moment it opens, so nothing precedes the press.
+    // The whole point of measuring the background from the recording itself is
+    // that this case -- which is now every case -- still gets a comparison.
+    final Float64List samples = _concat(<Float64List>[
+      _tone(seconds: 8, amplitude: 0.002),
+      _tone(seconds: 6, amplitude: 0.2),
+      _tone(seconds: 8, amplitude: 0.002),
+    ]);
+
+    final AcousticMetrics m = analyzer.analyzeSource(
+      samples: FloatSamples(samples),
+      sampleRate: _fs,
+      peakWindowSeconds: 5,
+      preRollSeconds: 0,
+    );
+
+    expect(m.hasAmbient, isTrue);
+    expect(m.ambientLa90Db, closeTo(_expectedDb(0.002), 0.5));
+    expect(m.excessOverAmbientDb, closeTo(40, 1.0));
+  });
+
+  test('a dropout does not become the background', () {
+    // Why L90 and not the true minimum. One 125 ms block of digital silence --
+    // a buffer underrun, a moment the microphone was stolen by another app --
+    // would otherwise set the floor 100 dB low and turn a 40 dB rise into a
+    // preposterous one. Exactly the sort of figure that gets a complaint
+    // thrown out.
+    final Float64List quiet = _tone(seconds: 10, amplitude: 0.002);
+    final Float64List glitch = Float64List((0.2 * _fs).round());
+    final Float64List samples = _concat(<Float64List>[
+      quiet,
+      glitch,
+      _tone(seconds: 6, amplitude: 0.2),
+    ]);
+
+    final AcousticMetrics m = analyzer.analyze(
       samples: samples,
       sampleRate: _fs,
-      calibrationOffsetDb: _offset + 17,
-      calibrated: false,
-      ambientSampleCount: (10 * _fs).round(),
       peakWindowSeconds: 5,
     );
-    expect(shifted.excessOverAmbientDb, closeTo(m.excessOverAmbientDb!, 0.001));
-    expect(shifted.laMaxDb, closeTo(m.laMaxDb + 17, 0.001));
+
+    expect(m.ambientLa90Db, closeTo(_expectedDb(0.002), 0.5));
+    expect(m.excessOverAmbientDb, closeTo(40, 1.0));
   });
 
   test('clipping is reported so the complaint can say "at least this loud"',
@@ -121,8 +153,6 @@ void main() {
     final AcousticMetrics m = analyzer.analyze(
       samples: _tone(seconds: 1, amplitude: 1.0),
       sampleRate: _fs,
-      calibrationOffsetDb: _offset,
-      calibrated: false,
       peakWindowSeconds: 0.5,
     );
     expect(m.clipped, isTrue);
@@ -132,15 +162,11 @@ void main() {
     final AcousticMetrics low = analyzer.analyze(
       samples: _tone(seconds: 2, amplitude: 0.1, frequency: 63),
       sampleRate: _fs,
-      calibrationOffsetDb: _offset,
-      calibrated: false,
       peakWindowSeconds: 1,
     );
     final AcousticMetrics mid = analyzer.analyze(
       samples: _tone(seconds: 2, amplitude: 0.1),
       sampleRate: _fs,
-      calibrationOffsetDb: _offset,
-      calibrated: false,
       peakWindowSeconds: 1,
     );
 
@@ -151,8 +177,6 @@ void main() {
     final AcousticMetrics m = analyzer.analyze(
       samples: _tone(seconds: 1, amplitude: 0.05),
       sampleRate: _fs,
-      calibrationOffsetDb: _offset,
-      calibrated: false,
       peakWindowSeconds: 0.5,
     );
     final AcousticMetrics back = AcousticMetrics.fromJson(m.toJson());
@@ -161,29 +185,20 @@ void main() {
     expect(back.laMaxDb, m.laMaxDb);
     expect(back.ambientLa90Db, m.ambientLa90Db);
     expect(back.peakWindowStartMs, m.peakWindowStartMs);
-    expect(back.calibrated, m.calibrated);
     expect(back.sampleRate, m.sampleRate);
   });
 
-  test('too little pre-roll yields no ambient level rather than a wrong one', () {
-    // The widget fires a capture the instant the mic opens, and the ring buffer
-    // zero-fills the history it never recorded. Averaging digital silence into
-    // an L90 would report a background tens of dB below anything real and so
-    // inflate the quoted rise — the one direction that would discredit the
-    // complaint. Below minAmbientSeconds the answer is "not measured".
-    final Float64List samples = _concat(<Float64List>[
-      _tone(seconds: 1, amplitude: 0.002),
-      _tone(seconds: 4, amplitude: 0.2),
-    ]);
-
-    final AcousticMetrics m = analyzer.analyze(
-      samples: samples,
+  test('a recording too short to hold a quiet moment quotes no background',
+      () {
+    // Under minAmbientSeconds the L90 would just be the aircraft, and the
+    // letter would say the flyover was 0 dB above the background — which reads
+    // as "this was not loud" when the truth is "this was not recorded for long
+    // enough to say". The answer is "not measured".
+    final AcousticMetrics m = analyzer.analyzeSource(
+      samples: FloatSamples(_tone(seconds: 2, amplitude: 0.2)),
       sampleRate: _fs,
-      calibrationOffsetDb: _offset,
-      calibrated: false,
       peakWindowSeconds: 1,
-      ambientSampleCount: (1 * _fs).round(),
-      preRollSeconds: 1,
+      preRollSeconds: 0,
     );
 
     expect(m.ambientLa90Db, isNull);
@@ -191,23 +206,35 @@ void main() {
     expect(m.excessOverAmbientDb, isNull);
     // The event itself is still measured; only the comparison is withheld.
     expect(m.laMaxDb, closeTo(_expectedDb(0.2), 0.3));
-    expect(m.preRollSeconds, 1);
   });
 
-  test('exactly minAmbientSeconds of pre-roll is enough to measure', () {
-    final Float64List samples = _concat(<Float64List>[
-      _tone(seconds: NoiseAnalyzer.minAmbientSeconds, amplitude: 0.002),
-      _tone(seconds: 4, amplitude: 0.2),
-    ]);
-
-    final AcousticMetrics m = analyzer.analyze(
-      samples: samples,
+  test('a pre-roll rescues a recording that is too short for its own quiet',
+      () {
+    // The fallback the pre-roll now exists for, and the only case it is used
+    // in: the user stopped almost immediately, so there is nothing quiet
+    // inside the recording, but the microphone had been listening beforehand.
+    final AcousticMetrics m = analyzer.analyzeSource(
+      samples: FloatSamples(_tone(seconds: 2, amplitude: 0.2)),
       sampleRate: _fs,
-      calibrationOffsetDb: _offset,
-      calibrated: false,
+      ambient: FloatSamples(_tone(seconds: 10, amplitude: 0.002)),
       peakWindowSeconds: 1,
-      ambientSampleCount: (NoiseAnalyzer.minAmbientSeconds * _fs).round(),
-      preRollSeconds: NoiseAnalyzer.minAmbientSeconds,
+      preRollSeconds: 0,
+    );
+
+    expect(m.hasAmbient, isTrue);
+    expect(m.ambientLa90Db, closeTo(_expectedDb(0.002), 0.5));
+  });
+
+  test('exactly minAmbientSeconds of recording is enough to measure', () {
+    // The boundary is inclusive, so a recording sitting exactly on it does not
+    // flip behaviour on a rounding error in the sample count.
+    final AcousticMetrics m = analyzer.analyzeSource(
+      samples: FloatSamples(
+        _tone(seconds: NoiseAnalyzer.minAmbientSeconds, amplitude: 0.002),
+      ),
+      sampleRate: _fs,
+      peakWindowSeconds: 1,
+      preRollSeconds: 0,
     );
 
     expect(m.ambientLa90Db, closeTo(_expectedDb(0.002), 0.5));
@@ -227,8 +254,6 @@ void main() {
       peakWindowDurationMs: 10000,
       eventDurationMs: 20000,
       clipped: false,
-      calibrated: false,
-      calibrationOffsetDb: _offset,
       sampleRate: _fs,
     );
 
@@ -237,6 +262,82 @@ void main() {
     expect(back.ambientLa90Db, isNull);
     expect(back.preRollSeconds, 0);
     expect(back.hasAmbient, isFalse);
+  });
+
+  group('an event that starts at the press', () {
+    // The build that this group tests changed what a recording is: RECORD
+    // starts the event, so the trace no longer carries a pre-roll and the
+    // background has to arrive as a buffer of its own.
+    test('the recording supplies its own background, pre-roll or not', () {
+      // A recording long enough to contain a quiet moment uses that quiet
+      // moment, and ignores the pre-roll entirely. The pre-roll here is a
+      // decoy: it is a different level, so if it were being used the assertion
+      // below would catch it.
+      final Float64List decoy = _tone(seconds: 10, amplitude: 0.02);
+      final Float64List recording = _concat(<Float64List>[
+        _tone(seconds: 6, amplitude: 0.001),
+        _tone(seconds: 8, amplitude: 0.2),
+        _tone(seconds: 6, amplitude: 0.001),
+      ]);
+
+      final AcousticMetrics m = analyzer.analyzeSource(
+        samples: FloatSamples(recording),
+        sampleRate: _fs,
+        ambient: FloatSamples(decoy),
+        preRollSeconds: 0,
+      );
+
+      expect(m.ambientLa90Db, closeTo(_expectedDb(0.001), 1.5));
+      expect(m.ambientSeconds, closeTo(20, 0.05));
+      // Nothing precedes the press any more, so the marker sits at zero.
+      expect(m.preRollSeconds, 0);
+      expect(m.eventDurationMs, closeTo(20000, 30));
+    });
+
+    test('PCM16 samples measure the same as the floats they came from', () {
+      // The event is held as Int16List so a five-minute recording fits in
+      // memory. That is only safe if it measures identically.
+      final Float64List floats = _tone(seconds: 5, amplitude: 0.3);
+      final Int16List pcm = Int16List(floats.length);
+      for (int i = 0; i < floats.length; i++) {
+        pcm[i] = (floats[i] * 32767).round();
+      }
+
+      final AcousticMetrics fromFloats = analyzer.analyzeSource(
+        samples: FloatSamples(floats),
+        sampleRate: _fs,
+        preRollSeconds: 0,
+      );
+      final AcousticMetrics fromPcm = analyzer.analyzeSource(
+        samples: Pcm16Samples(pcm),
+        sampleRate: _fs,
+        preRollSeconds: 0,
+      );
+
+      expect(fromPcm.laEqDb, closeTo(fromFloats.laEqDb, 0.05));
+      expect(fromPcm.laMaxDb, closeTo(fromFloats.laMaxDb, 0.05));
+      expect(fromPcm.levelTrace.length, fromFloats.levelTrace.length);
+    });
+
+    test('a long recording is measured in one pass without a copy of itself',
+        () {
+      // Five minutes at 48 kHz. The old analyzer built three Float64 arrays
+      // the length of the recording -- about 345 MB -- and would have died
+      // here; this is the regression guard for that.
+      final Int16List pcm = Int16List((300 * _fs).round());
+      for (int i = 0; i < pcm.length; i++) {
+        pcm[i] = (0.1 * 32767 * math.sin(2 * math.pi * 1000 * i / _fs)).round();
+      }
+
+      final AcousticMetrics m = analyzer.analyzeSource(
+        samples: Pcm16Samples(pcm),
+        sampleRate: _fs,
+        preRollSeconds: 0,
+      );
+
+      expect(m.laEqDb, closeTo(_expectedDb(0.1), 0.5));
+      expect(m.eventDurationMs, closeTo(300000, 50));
+    });
   });
 
   test('the level trace follows the shape of the event', () {
@@ -251,8 +352,6 @@ void main() {
     final AcousticMetrics m = analyzer.analyze(
       samples: samples,
       sampleRate: _fs,
-      calibrationOffsetDb: _offset,
-      calibrated: false,
       peakWindowSeconds: 1,
     );
 
@@ -277,8 +376,6 @@ void main() {
     final AcousticMetrics m = analyzer.analyze(
       samples: _tone(seconds: 4, amplitude: 0.1),
       sampleRate: _fs,
-      calibrationOffsetDb: _offset,
-      calibrated: false,
       peakWindowSeconds: 1,
     );
     final AcousticMetrics back = AcousticMetrics.fromJson(m.toJson());
@@ -303,6 +400,9 @@ void main() {
       'peakWindowDurationMs': 10000,
       'eventDurationMs': 50000,
       'clipped': 0,
+      // Written by a build that still had a calibration setting. Deliberately
+      // left in: the reader must walk past keys it no longer knows rather than
+      // throw, or every event logged before this build becomes unopenable.
       'calibrated': 0,
       'calibrationOffsetDb': _offset,
       'sampleRate': _fs,
@@ -312,5 +412,6 @@ void main() {
 
     expect(m.levelTrace, isEmpty);
     expect(m.hasTrace, isFalse);
+    expect(m.laMaxDb, 78.4);
   });
 }

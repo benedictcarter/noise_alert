@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Modify this file to customize your launch splash screen -->
+<!-- The window the OS shows while the process starts and the Flutter engine
+     warms up. Left as a bare white rectangle it reads as a blank screen and
+     people think the app has failed to open, so it carries the wordmark
+     instead. White in both light and dark mode deliberately: the artwork is
+     black ink with a transparent ground, and ?android:colorBackground would
+     put it on black on a dark-mode handset. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="?android:colorBackground" />
-
-    <!-- You can insert your own image assets here -->
-    <!-- <item>
+    <item android:drawable="@android:color/white" />
+    <item>
         <bitmap
             android:gravity="center"
-            android:src="@mipmap/launch_image" />
-    </item> -->
+            android:src="@drawable/splash_wordmark" />
+    </item>
 </layer-list>

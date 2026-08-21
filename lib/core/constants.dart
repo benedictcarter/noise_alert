@@ -9,15 +9,25 @@ class AudioConfig {
   /// Seconds of audio held live while the snap screen is open.
   static const double ringBufferSeconds = 60;
 
-  /// Captured before the button press. A low overflight is audible for roughly
-  /// 30 s and the human reaction lands well after the peak, so we look back.
+  /// Recorded before the button press, and now only a fallback.
+  ///
+  /// The background is taken from the recording itself — its quietest tenth
+  /// — because a recording that runs from before the aircraft until after it
+  /// has gone contains its own quiet street. The look-back survives for the one
+  /// case that does not: a recording stopped within
+  /// [NoiseAnalyzer.minAmbientSeconds], which is all aircraft and no street.
   static const double preRollSeconds = 30;
 
-  /// Captured after the button press.
-  static const double postRollSeconds = 20;
-
-  /// Leading slice of the pre-roll used to establish the background level.
+  /// Leading slice of the pre-roll used as that fallback background.
   static const double ambientWindowSeconds = 10;
+
+  /// Hard stop on a single recording.
+  ///
+  /// The user ends the recording, not a timer — but an app left recording in a
+  /// pocket must not grow without limit. Five minutes is far longer than any
+  /// overflight and costs about 29 MB of PCM16 at 48 kHz, which the analyser
+  /// then reads in place rather than converting.
+  static const double maxEventSeconds = 300;
 
   /// Length of the attachable clip, taken from the loudest part of the event.
   static const double clipSeconds = 10;
@@ -29,15 +39,20 @@ class AudioConfig {
   static const int meterIntervalMs = 100;
 }
 
-class CalibrationDefaults {
+class LevelReference {
   /// dB SPL corresponding to a full-scale (rms = 1.0) signal.
   ///
-  /// Phone MEMS microphones typically have an acoustic overload point around
-  /// 120–125 dB SPL and digital full scale is set near it, so 120 is the least
-  /// wrong default. It is still a guess: every snap taken on this default is
-  /// flagged `calibrated: false` and the email says so explicitly. The one
-  /// figure that survives a bad offset is the excess over the local background,
-  /// because the offset cancels in the subtraction.
+  /// Phone MEMS microphones have an acoustic overload point around 120–125 dB
+  /// SPL and digital full scale is set near it, so 120 is the least wrong
+  /// figure to hang the scale on. It is fixed, and there is no user-facing
+  /// calibration: asking someone to borrow a reference sound level meter
+  /// before they may complain about a jet is a way of ensuring nobody
+  /// complains.
+  ///
+  /// It also does not much matter. The number the complaint turns on is the
+  /// gap between the loudest moment and the quietest, and this offset appears
+  /// in both, so it cancels in the subtraction. A handset several decibels out
+  /// still reports the right *rise*.
   static const double fullScaleDbSpl = 120.0;
 }
 
@@ -61,6 +76,17 @@ class MatchConfig {
   /// Candidates lower than this elevation angle above the horizon are unlikely
   /// to be the aircraft that dominated the recording.
   static const double minElevationDegrees = 10;
+
+  /// How close overhead the best candidate has to be before SEND will
+  /// name it without asking.
+  ///
+  /// One kilometre horizontally. Inside that the aircraft was effectively over
+  /// the house and there is nothing for the user to adjudicate; outside it the
+  /// geometry stops being obvious — a jet 3 km away on the ground track can
+  /// easily be the wrong one — so the review screen is shown instead and the
+  /// user picks. This is the whole of the difference between saving a click and
+  /// putting a stranger's callsign in a complaint for no reason.
+  static const double autoConfirmMaxHorizontalM = 1000;
 
   /// Poll interval for the rolling aircraft track cache while armed. The free
   /// community feeds ask for no more than one request per second.

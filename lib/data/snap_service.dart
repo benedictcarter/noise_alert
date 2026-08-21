@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
@@ -43,6 +42,33 @@ class CaptureProgress {
 /// else is measured relative to that instant, because the press is the only
 /// moment we know the user actually heard the aircraft. GPS and network waits
 /// happen afterwards and must not shift the recording window.
+/// Thrown when a recording nobody asked for is discarded.
+///
+/// Not an error: the caller catches it and says nothing, because from the
+/// user's point of view nothing happened.
+class CaptureAbandoned implements Exception {
+  const CaptureAbandoned();
+
+  @override
+  String toString() => 'The recording was discarded before it was saved.';
+}
+
+/// What came of a SEND.
+///
+/// Either the letter is open in the user's mail app, or the aircraft was
+/// ambiguous enough that SEND quietly became REVIEW and the review
+/// screen has to be shown.
+class CaptureSendResult {
+  const CaptureSendResult({required this.snap, this.outcome});
+
+  final Snap snap;
+
+  /// Null when the send was deliberately not attempted.
+  final MailOutcome? outcome;
+
+  bool get needsReview => outcome == null;
+}
+
 class SnapService {
   SnapService({
     required this.database,
@@ -94,14 +120,42 @@ class SnapService {
   Future<void> openLocationSettings() =>
       location.openRelevantSettings(_locationStatus.availability);
 
+  /// The app's page in the phone's settings. Borrowed from the location
+  /// plugin, which is the only one here that offers it, but it opens the whole
+  /// app entry -- microphone included.
+  Future<void> openAppSettings() => location.openAppSettings();
+
   /// Opens the microphone and starts polling for nearby aircraft.
   ///
   /// Called when the snap screen appears, not when the button is pressed: the
   /// pre-roll buffer and the aircraft track cache both need to already be
   /// running by the time the user reacts to a noise.
   Future<void> arm({required AppSettings settings}) async {
+    // Wait out a disarm that is still unwinding. Without this the two overlap
+    // and leave the microphone shut: disarm() clears _armed synchronously and
+    // only then awaits recorder.stop(), so an arm() arriving in between sees
+    // "not armed", calls recorder.start(), which returns immediately because
+    // the old subscription is technically still alive -- and then the pending
+    // stop() cancels it. The service believes it is armed and the microphone
+    // is off. That is the widget path exactly: the app is backgrounded (paused
+    // -> disarm), the widget is tapped, the app resumes and arms, and the
+    // recording that follows contains nothing at all.
+    await _transition;
     if (_armed) return;
-    recorder.calibrationOffsetDb = settings.calibrationOffsetDb;
+
+    final Future<void> arming = _arm(settings);
+    _transition = arming;
+    try {
+      await arming;
+    } finally {
+      if (identical(_transition, arming)) _transition = null;
+    }
+  }
+
+  /// Serialises [arm] against [disarm]; see the note in [arm].
+  Future<void>? _transition;
+
+  Future<void> _arm(AppSettings settings) async {
     await recorder.start();
     _armed = true;
 
@@ -123,14 +177,40 @@ class SnapService {
     }
   }
 
-  /// Stops waiting for the rest of the post-roll and saves what is recorded.
+  /// Ends the recording and saves it. The user's STOP.
   /// Safe at any point: outside a capture it does nothing.
-  void finishCaptureEarly() => recorder.cutCaptureShort();
+  void finishCaptureEarly() => recorder.stopEventCapture();
+
+  /// Ends the recording and throws it away.
+  ///
+  /// Only ever used for a recording the user did not ask for. The app opens
+  /// recording, which is right for the case it is built around -- something is
+  /// overhead now -- but wrong the moment the user walks off to Settings: a
+  /// snap they never pressed for, and a clip of their kitchen, should not be
+  /// waiting for them when they come back. Nothing is written to disk before
+  /// the check, so abandoning really does leave no trace.
+  void abandonCapture() {
+    _abandoned = true;
+    recorder.stopEventCapture();
+  }
+
+  bool _abandoned = false;
+
+  /// Seconds recorded so far, for the running clock on the button.
+  double get eventSeconds => recorder.eventSeconds;
 
   Future<void> disarm() async {
+    await _transition;
     _armed = false;
     lookup.stopTracking();
-    await recorder.stop();
+
+    final Future<void> disarming = recorder.stop();
+    _transition = disarming;
+    try {
+      await disarming;
+    } finally {
+      if (identical(_transition, disarming)) _transition = null;
+    }
   }
 
   /// The button.
@@ -143,21 +223,43 @@ class SnapService {
     String notes = '',
   }) async {
     final DateTime pressedAt = DateTime.now();
-    recorder.prepareCapture();
+    _abandoned = false;
 
-    // The fix is fetched *alongside* the post-roll rather than before it. A
+    // Last line of defence. Opening an event on a stopped microphone records
+    // silence for as long as the user cares to hold the phone up, so if the
+    // stream is not live, spend the moment it takes to start it. The press is
+    // already timestamped, so the complaint still says when the aircraft was
+    // heard; only the first fraction of a second of audio is lost, which is a
+    // far better trade than the whole recording.
+    if (!recorder.isRunning) {
+      try {
+        await recorder.start();
+      } on Object {
+        // No microphone, then. The capture continues regardless and the
+        // complaint goes out without a sound level.
+      }
+    }
+
+    // Synchronous, and first: the recording has to begin at the press, so
+    // nothing may be awaited between here and opening the event.
+    recorder.startEventCapture();
+
+    // The fix is fetched *alongside* the recording rather than before it. A
     // cold receiver can take ten seconds, and there is no reason to spend them
     // standing still: the press is already timestamped, the microphone is
     // already running, and the aircraft is already leaving. Serialising the
     // two used to add the whole GPS wait to every capture.
     final Future<SnapLocation?> pendingFix = _bestEffortLocation();
 
-    _emit(
-      CaptureStage.recording,
-      'Recording the tail of the event (${AudioConfig.postRollSeconds} s)…',
-    );
-    final EventWindow window = await recorder.captureEventWindow(pressedAt);
-    final Float64List samples = window.samples;
+    _emit(CaptureStage.recording,
+        'Recording — press a button below when it has passed.');
+    final EventWindow window = await recorder.awaitEventEnd();
+    if (_abandoned) {
+      _abandoned = false;
+      _emit(CaptureStage.idle);
+      throw const CaptureAbandoned();
+    }
+    final Int16List samples = window.samples;
     // What the microphone actually delivered, which is not always what was
     // asked for. Every duration and every filter below is derived from this
     // rather than from AudioConfig.sampleRate.
@@ -167,36 +269,32 @@ class SnapService {
     final SnapLocation? fix = await pendingFix;
 
     _emit(CaptureStage.analysing);
-    // The ambient window can only be as long as the pre-roll actually was. A
-    // snap fired from the widget, or seconds after opening the app, has less
-    // than the full 30 s — the analyzer returns a null background rather than
-    // measuring one out of audio that does not exist.
-    final int ambientSamples = math.min(
-      (AudioConfig.ambientWindowSeconds * sampleRate).round(),
-      window.preRollSamples,
-    );
-    final AcousticMetrics metrics = analyzer.analyze(
+    // The background can only be as long as the microphone had been listening.
+    // A recording started from the widget, or seconds after opening the app,
+    // has less than the full 30 s — the analyzer returns a null background
+    // rather than measuring one out of audio that does not exist.
+    final AcousticMetrics metrics = _measure(
       samples: samples,
+      window: window,
       sampleRate: sampleRate,
-      calibrationOffsetDb: settings.calibrationOffsetDb,
-      calibrated: settings.calibrated,
-      ambientSampleCount: ambientSamples,
-      peakWindowSeconds: AudioConfig.clipSeconds.toDouble(),
-      preRollSeconds: window.preRollSeconds,
+      settings: settings,
     );
 
     final DeviceDescription device = await deviceInfo.describe();
     final String id = _idFor(pressedAt);
 
-    String? clipPath;
-    if (settings.keepClip) {
-      clipPath = await _writeClip(
-        id: id,
-        samples: samples,
-        metrics: metrics,
-        sampleRate: sampleRate,
-      );
-    }
+    // Always written. Whether it is *attached* is the user's decision, made on
+    // the review screen with the clip in front of them; whether it exists is
+    // not a question worth asking at capture time, when the audio is the one
+    // thing that cannot be recovered afterwards.
+    final String? clipPath = metrics.hasMeasurement
+        ? await _writeClip(
+            id: id,
+            samples: samples,
+            metrics: metrics,
+            sampleRate: sampleRate,
+          )
+        : null;
 
     Snap snap = Snap(
       id: id,
@@ -222,7 +320,8 @@ class SnapService {
         CaptureStage.done,
         'Saved without a location fix — ${_locationStatus.isReady ? 'the '
             'receiver did not report a position in time' : _locationStatus
-            .message} No flight lookup is possible without one.',
+            .message} The complaint can still be sent from your home address; '
+        'it just cannot name a flight.',
       );
       return snap;
     }
@@ -233,10 +332,132 @@ class SnapService {
     return snap;
   }
 
+  /// The acoustics, or an honest blank where they should have been.
+  ///
+  /// Everything in here is best-effort by design. The microphone can be held by
+  /// another app, muted by the OS, or simply deliver nothing; the analyzer can
+  /// be handed a window too short to measure. None of that is a reason to throw
+  /// away a complaint the user has already decided to make, so every failure
+  /// path ends in [AcousticMetrics.unmeasured] with the reason attached rather
+  /// than in an exception.
+  AcousticMetrics _measure({
+    required Int16List samples,
+    required EventWindow window,
+    required double sampleRate,
+    required AppSettings settings,
+  }) {
+    if (window.isEmpty || sampleRate <= 0) {
+      return const AcousticMetrics.unmeasured(
+        note: 'The microphone delivered no audio for this recording.',
+      );
+    }
+
+    // The background now comes out of the recording itself — the quiet
+    // stretches either side of the flyover. The pre-roll is passed anyway as a
+    // fallback for a recording stopped too soon to contain one.
+    final Float64List ambient = window.ambient;
+    final int ambientWanted =
+        (AudioConfig.ambientWindowSeconds * sampleRate).round();
+
+    try {
+      return analyzer.analyzeSource(
+        samples: Pcm16Samples(samples),
+        sampleRate: sampleRate,
+        // The most recent slice of the pre-roll, not the oldest: the street a
+        // few seconds before the aircraft is the fairest comparison.
+        ambient: FloatSamples(
+          ambient.length > ambientWanted
+              ? Float64List.sublistView(ambient, ambient.length - ambientWanted)
+              : ambient,
+        ),
+        peakWindowSeconds: AudioConfig.clipSeconds.toDouble(),
+        preRollSeconds: 0,
+      );
+    } on Object catch (e) {
+      return AcousticMetrics.unmeasured(
+        note: 'The recording could not be analysed ($e).',
+      );
+    }
+  }
+
+  /// Names the best candidate outright when it was plainly overhead.
+  ///
+  /// Ben's call, and it overrides the older rule that no flight is ever named
+  /// without a tap: within [MatchConfig.autoConfirmMaxHorizontalM] of the
+  /// observer there is nothing to adjudicate, and the click costs more than it
+  /// buys. Beyond that the choice goes back to the user, because a candidate
+  /// out on the ground track is exactly the case where the matcher can pick the
+  /// wrong aircraft. The letter says either way that the identification is the
+  /// closest ADS-B match and has not been independently verified.
+  static Snap autoConfirm(Snap snap) {
+    final FlightCandidate? best = snap.match?.best;
+    if (best == null) return snap;
+    if (best.horizontalRangeM > MatchConfig.autoConfirmMaxHorizontalM) {
+      return snap;
+    }
+    return snap.copyWith(
+      selectedIcao24: best.aircraft.icao24,
+      status: SnapStatus.confirmed,
+    );
+  }
+
+  /// SEND: capture, decide the aircraft question, open the letter.
+  ///
+  /// The point of the button is that one press ends the recording and the next
+  /// thing the user sees is their own mail app with a complaint in it. That is
+  /// only honest when there is nothing left to ask them:
+  ///
+  ///  * an aircraft within [MatchConfig.autoConfirmMaxHorizontalM] is named;
+  ///  * no candidates at all means there is nothing to choose between, so the
+  ///    complaint goes out saying the aircraft was not identified — a letter
+  ///    that says "an aircraft was audible at this address at this time" is
+  ///    still a complaint, and is the whole point of the app;
+  ///  * anything in between is a real question, so the button degrades to
+  ///    REVIEW and the caller shows the review screen.
+  Future<CaptureSendResult> captureAndSend({
+    required AppSettings settings,
+    String notes = '',
+  }) async =>
+      sendCaptured(await capture(settings: settings, notes: notes));
+
+  /// The second half of SEND, for a snap that has already been captured.
+  ///
+  /// Separate from [captureAndSend] because the UI cannot know which button
+  /// will be pressed until the recording is already running: both buttons end
+  /// the same capture, and only afterwards does it become a save or a send.
+  Future<CaptureSendResult> sendCaptured(Snap captured) async {
+    final Snap decided = autoConfirm(captured);
+
+    if (decided.confirmedCandidate == null) {
+      if (captured.match?.hasCandidates ?? false) {
+        // Candidates, but none of them obviously overhead. This is the one
+        // case worth a tap.
+        return CaptureSendResult(snap: decided);
+      }
+      // Nothing was found, so there is nothing to confirm.
+      final Snap unidentified = decided.copyWith(
+        unidentifiedAircraft: true,
+        status: SnapStatus.confirmed,
+      );
+      await database.upsertSnap(unidentified);
+      return CaptureSendResult(
+        snap: unidentified,
+        outcome: await compose(unidentified),
+      );
+    }
+
+    await database.upsertSnap(decided);
+    return CaptureSendResult(snap: decided, outcome: await compose(decided));
+  }
+
   /// Runs (or re-runs) the flight lookup for a snap and stores the result.
   ///
-  /// Live sources first; if they turn up nothing and the snap is still inside
-  /// OpenSky's one-hour retrospective window, back-fill from there.
+  /// Which source is asked depends entirely on how old the snap is. A live feed
+  /// only ever reports aircraft that are in the sky *now*, so for anything
+  /// older than the track cache holds, querying one cannot succeed -- the
+  /// matcher correctly rejects every aircraft it returns, and the user is told
+  /// "nothing found" when the truth is "nothing was asked". Past events go
+  /// straight to the retrospective source instead.
   Future<Snap> resolveMatch(Snap snap, {bool preferHistorical = false}) async {
     if (!snap.hasLocation) {
       // Searching from a guessed position is worse than not searching: the
@@ -260,21 +481,22 @@ class SnapService {
       altitudeM: snap.gpsAltitudeM ?? 0,
     );
 
+    // Older than the rolling cache retains, so neither the cache nor a fresh
+    // live query can hold anything from the moment in question.
+    final Duration age = DateTime.now().difference(snap.recordedAt);
+    final bool past = age > lookup.historyRetention;
+
     FlightMatch match;
-    if (preferHistorical) {
+    if (preferHistorical || past) {
       match =
           await lookup.backfill(observer: observer, heardAt: snap.recordedAt);
     } else {
       match =
           await lookup.resolve(observer: observer, heardAt: snap.recordedAt);
-      if (match.candidates.isEmpty) {
-        final Duration age = DateTime.now().difference(snap.recordedAt);
-        if (age > const Duration(seconds: 30) &&
-            age < const Duration(minutes: 55)) {
-          final FlightMatch historical = await lookup.backfill(
-              observer: observer, heardAt: snap.recordedAt);
-          if (historical.candidates.isNotEmpty) match = historical;
-        }
+      if (match.candidates.isEmpty && age > const Duration(seconds: 30)) {
+        final FlightMatch historical = await lookup.backfill(
+            observer: observer, heardAt: snap.recordedAt);
+        if (historical.candidates.isNotEmpty) match = historical;
       }
     }
 
@@ -312,6 +534,21 @@ class SnapService {
 
   Future<Snap> setAttachClip(Snap snap, bool attach) async {
     final Snap updated = snap.copyWith(attachClip: attach);
+    await database.upsertSnap(updated);
+    return updated;
+  }
+
+  /// Records where the user says the worst of the flyover was.
+  ///
+  /// Pass null to go back to letting the measured maximum speak for itself.
+  /// This never changes a measured figure: the clip was cut at capture time
+  /// from the loudest slice and stays there, and the letter quotes the marked
+  /// moment as the complainant's own account of it.
+  Future<Snap> setMarkedPeak(Snap snap, int? millis) async {
+    final Snap updated = snap.copyWith(
+      markedPeakMs: millis,
+      clearMarkedPeak: millis == null,
+    );
     await database.upsertSnap(updated);
     return updated;
   }
@@ -415,7 +652,7 @@ class SnapService {
   /// Writes the loudest [AudioConfig.clipSeconds] of the event, not the first.
   Future<String?> _writeClip({
     required String id,
-    required Float64List samples,
+    required Int16List samples,
     required AcousticMetrics metrics,
     required double sampleRate,
   }) async {
@@ -439,7 +676,10 @@ class SnapService {
       );
       final File file = await wavWriter.write(
         path: p.join(dir.path, '$id.wav'),
-        samples: Float64List.sublistView(samples, start, end),
+        // Converted a slice at a time: a five-minute recording turned into
+        // doubles in one go would cost four times what holding it as PCM16
+        // costs, for the sake of the ten seconds actually being saved.
+        samples: pcm16SliceToFloat(samples, start, end),
         sourceSampleRate: sampleRate,
       );
       return file.path;
