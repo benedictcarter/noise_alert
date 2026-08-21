@@ -4,6 +4,23 @@
   LESSONS_LEARNT.md written.
 
 
+## Sign the release properly, before anyone installs it (2026-08-21)
+v1.0.0 was tagged and about to be emailed out still carrying Flutter's scaffolded
+`signingConfig = signingConfigs.getByName("debug")`. Debug-signed builds install and run, so nothing
+had ever complained — but Android refuses an update across a signature change, so every one of those
+installs would have had to be uninstalled (losing the user's recordings) before a properly signed
+version could reach them.
+
+- **A real key**: 4096-bit RSA, 10,000 days, `CN=Flightpath Watch`, in
+  `android/flightpath-watch-release.jks` with its password in `android/key.properties`. Both are
+  gitignored and both are copied to `S:/code/_secrets/noise_alert/` — lose them and the app can never
+  be updated again.
+- **The Gradle config falls back to the debug key when `key.properties` is missing**, so a fresh
+  clone and any CI runner still build. Only a machine holding the key produces a distributable APK.
+- Verified with `apksigner verify --print-certs`: one signer, v2 scheme, the right DN.
+- Released as **v1.0.1** rather than re-cutting v1.0.0, because that tag was already pushed and
+  moving a published tag is a force-push.
+
 ## The launch screen, and the app is called Flightpath Watch Report (2026-08-21)
 Opening the app flashed a plain white window while the process started and the database opened.
 Nothing was broken — `main()` awaits `AppDatabase.open()` before `runApp` — but a blank white screen

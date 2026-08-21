@@ -31,3 +31,6 @@ Thumbs.db
 
 # Kotlin daemon scratch dir, created by AGP; not build output.
 android/.kotlin/
+
+# Built APKs staged for distribution; rebuild them, do not version them.
+release/
