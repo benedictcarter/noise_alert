@@ -77,7 +77,7 @@ class MatchConfig {
   /// to be the aircraft that dominated the recording.
   static const double minElevationDegrees = 10;
 
-  /// How close overhead the best candidate has to be before STOP & SEND will
+  /// How close overhead the best candidate has to be before SEND will
   /// name it without asking.
   ///
   /// One kilometre horizontally. Inside that the aircraft was effectively over

@@ -16,9 +16,9 @@ Flutter (iOS + Android) app for logging aircraft noise events and generating com
   number are all optional, and no email address is asked for at all — the letter goes from the
   user's own mail account, so the reply address travels with it. `ComplainantProfile.isComplete`
   is the single definition of "enough to complain with".
-- **Name the closest match, and say that is what it is.** STOP & SEND names the top ADS-B
+- **Name the closest match, and say that is what it is.** SEND names the top ADS-B
   candidate outright when it was within `MatchConfig.autoConfirmMaxHorizontalM` (1 km) horizontally;
-  beyond that it degrades to STOP & SAVE and the review screen shows confidence and alternates.
+  beyond that it degrades to REVIEW and the review screen shows confidence and alternates.
   Every letter states that the identification is the closest match and has not been independently
   verified.
 - **A complaint is never blocked by missing evidence.** No microphone, no fix and no flight is

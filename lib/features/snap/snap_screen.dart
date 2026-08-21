@@ -20,7 +20,7 @@ import 'level_meter.dart';
 /// Opening the app *is* the press. Someone reaching for their phone under a
 /// flight path has already decided to complain, and the seconds spent finding
 /// a button are seconds of the aircraft they do not get back. So the recording
-/// starts on arrival and only STOP ends it: nothing else knows when the
+/// starts on arrival and only the user ends it: nothing else knows when the
 /// aircraft has gone.
 ///
 /// The background comes out of the recording itself — the quietest stretches
@@ -396,7 +396,7 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
       case CaptureStage.locating:
         return 'Getting a location fix…';
       case CaptureStage.recording:
-        return 'Recording — press STOP when it has passed.';
+        return 'Recording — press a button below when it has passed.';
       case CaptureStage.analysing:
         return 'Measuring the sound level…';
       case CaptureStage.matching:
@@ -666,8 +666,8 @@ class _Banner extends StatelessWidget {
 /// Shown in place of RECORD while a recording is running.
 ///
 /// Two buttons, because there are two things a user might want and only one of
-/// them is worth a detour through a review screen. STOP & SAVE keeps the
-/// recording for later; STOP & SEND drafts the complaint and hands it to the
+/// them is worth a detour through a review screen. REVIEW keeps the
+/// recording and opens it; SEND drafts the complaint and hands it to the
 /// mail app, which makes the whole job three taps: open, stop-and-send, send.
 ///
 /// Nothing else ends a recording. An earlier build stopped itself after a
@@ -714,7 +714,7 @@ class _StopButtons extends StatelessWidget {
               Expanded(
                 child: _StopButton(
                   onPressed: onDiscard,
-                  label: 'STOP\n& BIN IT',
+                  label: 'DISCARD',
                   background: _discardOrange,
                   foreground: Colors.white,
                 ),
@@ -723,7 +723,7 @@ class _StopButtons extends StatelessWidget {
               Expanded(
                 child: _StopButton(
                   onPressed: onSave,
-                  label: 'STOP\n& SAVE',
+                  label: 'REVIEW',
                   background: colors.secondaryContainer,
                   foreground: colors.onSecondaryContainer,
                 ),
@@ -732,7 +732,7 @@ class _StopButtons extends StatelessWidget {
               Expanded(
                 child: _StopButton(
                   onPressed: onSend,
-                  label: 'STOP\n& SEND',
+                  label: 'SEND',
                   background: _sendBlue,
                   foreground: Colors.white,
                 ),
@@ -774,7 +774,7 @@ class _StopButton extends StatelessWidget {
         child: Text(
           label,
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
         ),
       ),
     );

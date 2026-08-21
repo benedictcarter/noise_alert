@@ -53,10 +53,10 @@ class CaptureAbandoned implements Exception {
   String toString() => 'The recording was discarded before it was saved.';
 }
 
-/// What came of a STOP & SEND.
+/// What came of a SEND.
 ///
 /// Either the letter is open in the user's mail app, or the aircraft was
-/// ambiguous enough that the button quietly became STOP & SAVE and the review
+/// ambiguous enough that SEND quietly became REVIEW and the review
 /// screen has to be shown.
 class CaptureSendResult {
   const CaptureSendResult({required this.snap, this.outcome});
@@ -251,7 +251,8 @@ class SnapService {
     // two used to add the whole GPS wait to every capture.
     final Future<SnapLocation?> pendingFix = _bestEffortLocation();
 
-    _emit(CaptureStage.recording, 'Recording — press STOP when it has passed.');
+    _emit(CaptureStage.recording,
+        'Recording — press a button below when it has passed.');
     final EventWindow window = await recorder.awaitEventEnd();
     if (_abandoned) {
       _abandoned = false;
@@ -400,7 +401,7 @@ class SnapService {
     );
   }
 
-  /// STOP & SEND: capture, decide the aircraft question, open the letter.
+  /// SEND: capture, decide the aircraft question, open the letter.
   ///
   /// The point of the button is that one press ends the recording and the next
   /// thing the user sees is their own mail app with a complaint in it. That is
@@ -412,14 +413,14 @@ class SnapService {
   ///    that says "an aircraft was audible at this address at this time" is
   ///    still a complaint, and is the whole point of the app;
   ///  * anything in between is a real question, so the button degrades to
-  ///    STOP & SAVE and the caller shows the review screen.
+  ///    REVIEW and the caller shows the review screen.
   Future<CaptureSendResult> captureAndSend({
     required AppSettings settings,
     String notes = '',
   }) async =>
       sendCaptured(await capture(settings: settings, notes: notes));
 
-  /// The second half of STOP & SEND, for a snap that has already been captured.
+  /// The second half of SEND, for a snap that has already been captured.
   ///
   /// Separate from [captureAndSend] because the UI cannot know which button
   /// will be pressed until the recording is already running: both buttons end
