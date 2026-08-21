@@ -82,7 +82,7 @@ void main() {
 
     test('an aircraft without a position is dropped, not defaulted to 0,0', () {
       // A sample at lat 0 lon 0 would sit in the Gulf of Guinea and score as
-      // 5,000 km away — harmless — but a null-coalesced 0 would silently
+      // 5,000 km away (harmless) but a null-coalesced 0 would silently
       // corrupt any later averaging. Drop it instead.
       expect(samples.map((AircraftSample s) => s.icao24),
           isNot(contains('a1b2c3')));

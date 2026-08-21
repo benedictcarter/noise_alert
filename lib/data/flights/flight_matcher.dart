@@ -152,7 +152,7 @@ class FlightMatcher {
       final double slant = slantRangeMetres(horizontal, height);
 
       // Would the sound emitted at t have reached the observer by the time the
-      // button was pressed — and not so long before that they would have
+      // button was pressed, and not so long before that they would have
       // forgotten about it?
       final DateTime arrival = t.add(
           soundTravelTime(slant, speedOfSoundMs: MatchConfig.speedOfSoundMs));
@@ -284,7 +284,7 @@ class FlightMatcher {
     return proximity * overhead * confidencePenalty;
   }
 
-  /// Conservative on purpose — this number gates whether the UI dares put a
+  /// Conservative on purpose: this number gates whether the UI dares put a
   /// flight number in front of the user as the likely answer.
   double _confidence(List<FlightCandidate> ranked) {
     final FlightCandidate best = ranked.first;

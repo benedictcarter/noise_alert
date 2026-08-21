@@ -14,7 +14,7 @@ import '../../data/map/map_image_service.dart';
 /// MapLibre's `takeSnapshot` does not photograph the map you are looking at: on
 /// both platforms it hands the job to `MapSnapshotter`, an independent renderer
 /// given only the style URL and the camera. Runtime layers are absent from the
-/// result — so the on-screen map's tracks and markers would not appear in the
+/// result, so the on-screen map's tracks and markers would not appear in the
 /// picture anyway, and they are painted over the top in Dart instead.
 ///
 /// And the picture needs its own camera. The record screen is framed on live
@@ -25,7 +25,7 @@ import '../../data/map/map_image_service.dart';
 /// What is left is a map that has to exist but not be seen. It is scaled into
 /// a single pixel in the corner rather than hidden with [Offstage], because a
 /// platform view that is never laid out or painted is a platform view that may
-/// never be created — and this one only has to get as far as loading its style.
+/// never be created, and this one only has to get as far as loading its style.
 class MapSnapshotHost extends StatefulWidget {
   const MapSnapshotHost({
     super.key,

@@ -40,7 +40,7 @@ class FlightMapView extends StatefulWidget {
 
   final List<MapAircraft> aircraft;
 
-  /// False wherever the map sits in a scrolling list -- which is both screens
+  /// False wherever the map sits in a scrolling list, which is both screens
   /// that show one. A map that accepts drags swallows the vertical scroll, and
   /// the page appears stuck whenever the user's thumb lands on it.
   final bool interactive;
@@ -255,7 +255,7 @@ class _FlightMapViewState extends State<FlightMapView> {
     );
   }
 
-  /// `["case", ["get", "highlighted"], hot, cold]` — one style expression, used
+  /// `["case", ["get", "highlighted"], hot, cold]`: one style expression, used
   /// by every layer, so "which aircraft is the complaint about" is answered in
   /// one place and the map never needs a second source to hold the other one.
   static List<Object> _byHighlight(Object hot, Object cold) => <Object>[

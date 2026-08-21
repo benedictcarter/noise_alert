@@ -14,7 +14,7 @@ import 'plane_icon.dart';
 ///
 /// Separate from the widget because the picture that goes to a council is not
 /// a screenshot of a phone. It has its own size, its own legend and its own
-/// caption, and it has to be reproducible from a stored snap months later — so
+/// caption, and it has to be reproducible from a stored snap months later, so
 /// it is painted from the same data, with a projection this code owns, rather
 /// than captured from whatever happened to be on screen.
 class MapOverlay {
@@ -70,7 +70,7 @@ class MapOverlay {
     _paintFooter(canvas);
   }
 
-  // --- map furniture -----------------------------------------------------
+  // === map furniture ===
 
   void _paintTrack(Canvas canvas, MapAircraft a) {
     if (a.points.length < 2) return;
@@ -207,7 +207,14 @@ class MapOverlay {
     if (!mPerPx.isFinite || mPerPx <= 0) return;
 
     const List<double> steps = <double>[
-      50, 100, 200, 250, 500, 1000, 2000, 5000,
+      50,
+      100,
+      200,
+      250,
+      500,
+      1000,
+      2000,
+      5000,
     ];
     final double target = view.width * 0.22 * mPerPx;
     final double metres =
@@ -271,8 +278,8 @@ class MapOverlay {
         ..strokeWidth = 1 * scale,
     );
 
-    void line(String text, double dy, double size, Color color,
-        FontWeight weight) {
+    void line(
+        String text, double dy, double size, Color color, FontWeight weight) {
       final TextPainter tp = TextPainter(
         text: TextSpan(
           text: text,
@@ -287,7 +294,7 @@ class MapOverlay {
     }
 
     line(caption, 8 * scale, 14 * scale, _ink, FontWeight.w600);
-    line(MapConfig.attribution, 27 * scale, 11 * scale, _muted,
-        FontWeight.w400);
+    line(
+        MapConfig.attribution, 27 * scale, 11 * scale, _muted, FontWeight.w400);
   }
 }

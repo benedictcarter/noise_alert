@@ -1,6 +1,6 @@
 # Done
 
-- 2026-08-19 — Repo initialised; stack and architecture decided; PLAN.md / TODO.md / CLAUDE.md /
+- 2026-08-19: Repo initialised; stack and architecture decided; PLAN.md / TODO.md / CLAUDE.md /
   LESSONS_LEARNT.md written.
 
 
@@ -11,8 +11,8 @@ microphone.
 
 - **Basemap is OpenFreeMap** (`https://tiles.openfreemap.org/styles/liberty`) through `maplibre_gl`:
   real OSM vector tiles, no API key, no registration, no request limit, no cookies. The attribution
-  line is the whole of what it asks in return, so it lives in `FlightMapPanel` — a map cannot be put
-  on a screen without it — and is *painted into* the emailed PNG, because a line under a widget does
+  line is the whole of what it asks in return, so it lives in `FlightMapPanel` (a map cannot be put
+  on a screen without it) and is *painted into* the emailed PNG, because a line under a widget does
   not travel with an image into somebody's inbox. This is the app's third and last outbound call,
   and `CLAUDE.md` now says so.
 - **Tracks come free.** The matcher was already polling adsb.lol every three seconds; the lookup
@@ -25,8 +25,8 @@ microphone.
 - **The picture is drawn, not screenshotted.** `takeSnapshot` does not photograph the map on screen:
   both platforms hand the job to an independent `MapSnapshotter` given only a style URL and a camera,
   so every runtime layer is absent from the result. The basemap comes from a hidden one-pixel map
-  (`MapSnapshotHost`) and everything else — tracks, aeroplanes, the house, scale bar, caption,
-  attribution — is painted in Dart over the top through `MercatorView`, which reproduces MapLibre's
+  (`MapSnapshotHost`) and everything else (tracks, aeroplanes, the house, scale bar, caption,
+  attribution) is painted in Dart over the top through `MercatorView`, which reproduces MapLibre's
   own projection. See LESSONS_LEARNT.
 - **Live map on the record screen, event map on review.** The review map highlights whichever
   candidate the radio buttons currently point at, so "which of these four was it?" can be answered by
@@ -42,13 +42,13 @@ microphone.
 ## Sign the release properly, before anyone installs it (2026-08-21)
 v1.0.0 was tagged and about to be emailed out still carrying Flutter's scaffolded
 `signingConfig = signingConfigs.getByName("debug")`. Debug-signed builds install and run, so nothing
-had ever complained — but Android refuses an update across a signature change, so every one of those
+had ever complained, but Android refuses an update across a signature change, so every one of those
 installs would have had to be uninstalled (losing the user's recordings) before a properly signed
 version could reach them.
 
 - **A real key**: 4096-bit RSA, 10,000 days, `CN=Flightpath Watch`, in
   `android/flightpath-watch-release.jks` with its password in `android/key.properties`. Both are
-  gitignored and both are copied to `S:/code/_secrets/noise_alert/` — lose them and the app can never
+  gitignored and both are copied to `S:/code/_secrets/noise_alert/`: lose them and the app can never
   be updated again.
 - **The Gradle config falls back to the debug key when `key.properties` is missing**, so a fresh
   clone and any CI runner still build. Only a machine holding the key produces a distributable APK.
@@ -58,7 +58,7 @@ version could reach them.
 
 ## The launch screen, and the app is called Flightpath Watch Report (2026-08-21)
 Opening the app flashed a plain white window while the process started and the database opened.
-Nothing was broken — `main()` awaits `AppDatabase.open()` before `runApp` — but a blank white screen
+Nothing was broken: `main()` awaits `AppDatabase.open()` before `runApp`, but a blank white screen
 is indistinguishable from an app that has failed to start, which is exactly the wrong first second
 for this audience.
 
@@ -71,7 +71,7 @@ for this audience.
   dark-mode handset would otherwise have shown black on black.
 - **Android 12+ gets `values-v31`.** From API 31 the OS draws its own splash and ignores
   `windowBackground` entirely, so that path sets `windowSplashScreenBackground` white and the
-  launcher icon as the animated icon. The wordmark cannot go there — the animated icon is masked to
+  launcher icon as the animated icon. The wordmark cannot go there: the animated icon is masked to
   a circle.
 - **Renamed to Flightpath Watch Report** in `strings.xml`, `MaterialApp.title`, the welcome screen,
   the letter's provenance line and `pubspec.yaml`. The Dart package, the repo and the Android
@@ -84,17 +84,17 @@ for this audience.
 The audience is largely pensioners, opening the app because a jet has just gone over. Every screen
 had to stop reading as a list of things that might be wrong with their phone.
 
-- **A welcome screen.** `WelcomeScreen` replaces the whole app — not a dialog over it — until there
+- **A welcome screen.** `WelcomeScreen` replaces the whole app (not a dialog over it) until there
   is a name and a postcode. It is rendered instead of `HomeShell` precisely so `SnapScreen` is never
   built, and therefore never asks for the microphone, before the user has read what the app is for.
 - **Name and postcode are the only mandatory fields.** House number, street, town and phone are
   optional. `ComplainantProfile.isComplete` is the one definition of enough.
 - **The email address field is gone entirely.** It fed exactly two things: a `bccSelf` switch and an
-  `{email}` sign-off token. Both were redundant — the letter is sent from the user's own account, so
+  `{email}` sign-off token. Both were redundant: the letter is sent from the user's own account, so
   the reply address is already on it. Anyone wanting a copy puts themselves in Bcc. The `{email}`
   token survives resolving to an empty string, because `_substitute` leaves an *unknown* token
   standing as literal text and a user who had edited their letter would otherwise post "{email}".
-- **Postcode lookup.** `PostcodeService` hits postcodes.io — free, no key, no quota, ONS open data —
+- **Postcode lookup.** `PostcodeService` hits postcodes.io (free, no key, no quota, ONS open data)
   and fills in the town. Only on a button press, and a failure says "it does not matter, type it
   yourself" rather than blocking anything.
 - **Settings split into three screens.** A menu, not a form: My details / The complaint email /
@@ -102,8 +102,8 @@ had to stop reading as a list of things that might be wrong with their phone.
   missing. `MyDetailsForm` is shared with the welcome screen so there is one form, not two.
 - **The microphone refusal has a UI at last.** A refused permission is no longer an error banner; the
   record button itself becomes an amber TURN ON THE MIC, which explains why the microphone is needed,
-  asks again, and — if the phone has stopped showing its own dialog, which Android does after two
-  refusals — offers the app's settings page. Retryable for ever: nothing dead-ends.
+  asks again, and (if the phone has stopped showing its own dialog, which Android does after two
+  refusals) offers the app's settings page. Retryable for ever: nothing dead-ends.
 - **String sweep.** "snap" is now "recording" throughout; LAeq/LA90/LAmax carry plain-English labels
   with the term in brackets; the review screen leads on the rise ("23 dB louder than the quiet
   street") rather than an absolute figure; and the "microphone hit its limit" and "no background"
@@ -122,7 +122,7 @@ had to stop reading as a list of things that might be wrong with their phone.
   trace is stored in the metrics row, because the audio usually is not kept. Fixed 30-110 dB axis,
   so a quiet event and a loud one cannot look alike, and the UNCALIBRATED caveat travels in the
   caption.
-- **Renamed to Flightpath Watch Report** — app label, in-app title, iOS display name and the letter's
+- **Renamed to Flightpath Watch Report**: app label, in-app title, iOS display name and the letter's
   "measured with" line. The Dart package and the repo stay `noise_alert`.
 - **New launcher icon**: the real plane-and-swoosh, lifted out of the FLIGHTPATH WATCH logo by
   `scripts/make_icons.py` and exported to every Android density plus an adaptive (and monochrome)
@@ -135,17 +135,17 @@ had to stop reading as a list of things that might be wrong with their phone.
   that predate the address pick it up exactly once and a user who deletes it does not get it back.
 - 72 tests, `flutter analyze` clean.
 
-## M0 — Scaffold (2026-08-19)
+## M0: Scaffold (2026-08-19)
 - Flutter 3.47 project for iOS + Android only; toolchain installed (Flutter SDK, Android SDK,
   licences accepted, two Android devices visible to `flutter devices`).
 - Riverpod 2.x wiring, strict lints, `flutter analyze` → **No issues found!**
 - Dropped freezed / json_serializable / drift / dio in favour of hand-written models, `sqflite` and
-  `package:http` — the code-gen chain would not resolve against the SDK's analyzer.
+  `package:http`: the code-gen chain would not resolve against the SDK's analyzer.
 - Permissions declared: `RECORD_AUDIO`, `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `INTERNET`
   plus `SENDTO`/`VIEW` queries on Android; `NSMicrophoneUsageDescription` and
   `NSLocationWhenInUseUsageDescription` on iOS.
 
-## M1 — Snap core (2026-08-19)
+## M1: Snap core (2026-08-19)
 - Raw PCM capture at **48 kHz** mono via `record`, `AndroidAudioSource.unprocessed`, AGC / echo
   cancellation / noise suppression off, Bluetooth mic routing blocked on both platforms.
 - IEC 61672-1 A-weighting: three bilinear-transformed biquads normalised to 0 dB at 1 kHz.
@@ -158,22 +158,22 @@ had to stop reading as a list of things that might be wrong with their phone.
 - Big-button snap screen with live dB(A) meter and clipping indicator; history list with
   swipe-to-delete.
 
-## M2 — Flight match (2026-08-19)
+## M2: Flight match (2026-08-19)
 - `AdsbSource` interface; `Tar1090Source` covering **adsb.lol** and **airplanes.live** (free, no key).
 - `OpenSkySource` with OAuth2 client-credentials for the 1-hour retrospective back-fill.
-- FlightRadar24 ruled out — enterprise-only, no free tier.
-- Propagation-delay-aware matcher: searches T−45 s … T+10 s, scores by closest approach (slant range,
+- FlightRadar24 ruled out: enterprise-only, no free tier.
+- Propagation-delay-aware matcher: searches T-45 s … T+10 s, scores by closest approach (slant range,
   elevation angle, altitude, time alignment), returns confidence plus the runner-up list.
 - Review screen: candidates as a single radio group with an explicit "None of these / unidentified"
   option, pre-ticked only when confidence clears the pre-select bar, plus "look up again".
 
-## M3 — Complaint email (2026-08-19)
+## M3: Complaint email (2026-08-19)
 - Device-only profile store (name, address, postcode, email, phone).
 - Recipient set (to / cc / bcc) with an optional BCC-to-self so the user keeps their own record.
 - Form-letter template with ~30 tokens, live preview, editable subject and body, reset to defaults.
 - `flutter_email_sender` handoff with the clip attached, falling back to `mailto:` when no composer
   is configured; snap marked sent only if the composer actually opened.
-- Clip preview player on the review screen — play the snip *before* choosing to attach it.
+- Clip preview player on the review screen: play the snip *before* choosing to attach it.
 
 ## Product invariants locked by tests (2026-08-19)
 - **Never name a flight the user has not confirmed.** The template reads `snap.confirmedCandidate`
@@ -188,18 +188,18 @@ had to stop reading as a list of things that might be wrong with their phone.
 `complaint_template_test` (9) · `ring_buffer_test` (5) · `database_test` (8, real SQLite via
 `sqflite_common_ffi`) · `adsb_parsing_test` (12, fixture bodies through the real JSON path).
 
-Added value equality to `ComplainantProfile`, `RecipientSet` and `AppSettings` along the way —
+Added value equality to `ComplainantProfile`, `RecipientSet` and `AppSettings` along the way:
 `StateNotifier` only notifies listeners when `state != newState`, so without it every keystroke in
 the settings form rebuilt every consumer.
 
 ## First Android build (2026-08-19)
 - Release APK builds on Windows: 52.7 MB, debug-signed via Flutter's template `release` config, so
   no keystore is needed until store submission.
-- Dropped `permission_handler` and `share_plus` — declared but never imported, and the former broke
+- Dropped `permission_handler` and `share_plus`: declared but never imported, and the former broke
   the build by demanding an SDK platform hash (`android-37`) that no longer exists.
 - `kotlin.incremental=false` in `android/gradle.properties`; Kotlin's incremental caches fail to
   unmap on Windows and killed two builds on different modules.
-- APK sideloaded to the test handset over MTP — the LG G7 ThinQ exposes no ADB interface, so
+- APK sideloaded to the test handset over MTP: the LG G7 ThinQ exposes no ADB interface, so
   `flutter run` and hot reload are unavailable on it.
 
 ## Widget, GPS honesty, stop-and-save, mail attachments (2026-08-20)
@@ -207,9 +207,9 @@ All four from Ben's first round of on-device use.
 
 - **1×1 home-screen widget.** `SnapWidgetProvider` + `snap_widget.xml`; the tap launches
   `MainActivity` with `snap_now`, and Dart picks it up over `MethodChannel('noise_alert/quick_snap')`
-  by two paths — a pull at startup for a cold launch, a push via `onNewIntent` while running.
+  by two paths: a pull at startup for a cold launch, a push via `onNewIntent` while running.
   Handling only the first is the classic bug: the widget then works once per app lifetime.
-- **GPS read 0, 0.** Root cause was two-fold — `capture()` did `fix?.latitude ?? 0`, and the app
+- **GPS read 0, 0.** Root cause was two-fold: `capture()` did `fix?.latitude ?? 0`, and the app
   never showed that location was off device-wide (which it was). Latitude/longitude are now nullable
   end to end, schema v2 migrates existing `0, 0` rows to NULL, the permission is requested when the
   snap screen opens rather than mid-capture, and a banner offers "Turn on" or "Settings" depending
@@ -231,19 +231,19 @@ All four from Ben's first round of on-device use.
 - **The recording starts at the press.** RECORD opens the event; nothing before the press is in the
   graph, the LAeq or the clip. The 30 s ring buffer still runs, but now for one purpose only: a
   snapshot of the street taken at the instant of the press, carried to the analyzer as a *separate*
-  buffer (`EventWindow.ambient`) so the rise above background — the one figure an uncalibrated
-  handset cannot distort — survives.
+  buffer (`EventWindow.ambient`) so the rise above background (the one figure an uncalibrated
+  handset cannot distort) survives.
 - **Nothing stops the recording but STOP.** The fixed 20 s post-roll is gone; the person holding the
   phone is the only one who knows when the aircraft has gone. The button counts *up*, and a
   5-minute cap (`AudioConfig.maxEventSeconds`) exists purely as a memory backstop.
 - **A clip is always saved**, on the device only. The keep-or-not switch is gone from the snap
   screen and from settings; the only remaining question is whether to *attach* it.
-- **SNAP is now RECORD** — the button, the nav bar tab, the progress text and the home-screen
+- **SNAP is now RECORD**: the button, the nav bar tab, the progress text and the home-screen
   widget, which went back to a 1x1 red circle: the plane mark at 22 dp over "REC". The 2x1 pill
   existed to hold a whole word, and one cell is enough once the word is three letters. Now
   resizable in both directions, so the mark can be stretched out again on a roomier home screen.
 - **The user can drag the peak marker.** Tapping or dragging on the review chart marks the worst
-  moment as *experienced* — closest approach, or whatever actually made the noise unbearable. It is
+  moment as *experienced*: closest approach, or whatever actually made the noise unbearable. It is
   stored as `Snap.markedPeakMs` (schema v3), drawn on the attached chart in a distinct colour, and
   written into the letter as `{markedPeakNote}` in the first person and explicitly *not* as a
   measurement.
@@ -267,13 +267,13 @@ All four from Ben's first round of on-device use.
   reason instead of an exception, and every consumer asks `hasMeasurement` before printing a
   decibel figure. The letter says "Sound level: not measured", gives the reason, and stands on the
   address and the time.
-- **Green, not red.** The record button and the home-screen widget are green — red is the colour
+- **Green, not red.** The record button and the home-screen widget are green: red is the colour
   every other app uses for "this deletes something".
 - **The meter and the chart are half-lit when not recording**, so what is being logged is obvious
   from arm's length.
 - **A past snap goes straight to the historical source.** A live feed only reports aircraft in the
   sky *now*, so for anything older than the track cache the live query could only ever return
-  "nothing found" — slowly, and without saying why. It now says exactly why: live feeds cannot see
+  "nothing found", slowly, and without saying why. It now says exactly why: live feeds cannot see
   into the past, and OpenSky history needs credentials.
 - **Stored letters upgrade themselves** when they are an untouched older default, so a handset that
   saved its settings under b8 stops mailing a hard-coded table of zeroes. An edited letter is never
@@ -288,7 +288,7 @@ All four from Ben's first round of on-device use.
   the service convinced it was armed with the microphone off. Both are fixed, and a capture now
   starts the recorder itself if it finds it stopped.
 - **AT A GLANCE.** The letter opens with when it happened, how loud it was and which aircraft it
-  was, so a recipient -- or Ben, before he sends it -- can see in three lines whether the figures
+  was, so a recipient (or Ben, before he sends it) can see in three lines whether the figures
   are plausible. Plain text, because the composer is handed `isHTML: false` and the mailto:
   fallback could not carry markup anyway; an upper-case heading and labelled lines survive every
   mail client, which bold characters and HTML do not. The calibration caveat sits on the same line
@@ -312,7 +312,7 @@ All four from Ben's first round of on-device use.
   fallback for a recording stopped inside `NoiseAnalyzer.minAmbientSeconds` (3 s); anything longer
   supplies its own quiet street. This closes the first "Record-on-open follow-ups" item.
 - **The letter was rewritten around the rise.** AT A GLANCE now reads
-  `Loudest: 40.3 dB above the background -- 78.4 dB(A) at its peak, against 38.1 dB(A) when it was
+  `Loudest: 40.3 dB above the background, 78.4 dB(A) at its peak, against 38.1 dB(A) when it was
   quiet`; the measurement block leads with the rise, then LAmax, then the background labelled
   "quietest 10% of the recording (LA90)", then LAeq labelled as the average over the whole
   recording. The method note states handset, OS, sample rate and weighting, then that the peak and

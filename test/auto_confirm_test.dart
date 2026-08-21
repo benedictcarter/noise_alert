@@ -73,7 +73,7 @@ void main() {
 
     test('a candidate out on the ground track is left for the user', () {
       // This is the case the review screen exists for. A jet a kilometre and a
-      // half away horizontally may well be the one that was heard -- or may be
+      // half away horizontally may well be the one that was heard, or may be
       // one of three, and the app has no business picking.
       final Snap out = SnapService.autoConfirm(_snap(<FlightCandidate>[
         _candidate('abc123', MatchConfig.autoConfirmMaxHorizontalM + 1),

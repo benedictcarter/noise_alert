@@ -51,8 +51,8 @@ class Explainer extends StatelessWidget {
 /// A text field that keeps its own controller so the cursor does not jump when
 /// the provider writes the value back.
 ///
-/// [external] is for a value the screen itself may change underneath the user
-/// — the postcode lookup tidying "tw61ap" into "TW6 1AP", say. Passing it makes
+/// [external] is for a value the screen itself may change underneath the user:
+/// the postcode lookup tidying "tw61ap" into "TW6 1AP", say. Passing it makes
 /// the field adopt the new text; leaving it null means the field is the only
 /// author of its own contents, which is the normal case.
 class SettingsField extends StatefulWidget {

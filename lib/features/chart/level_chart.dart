@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 /// Draws A-weighted level against time.
 ///
 /// One painter serves two masters: the live meter on the snap screen and the
-/// PNG attached to the complaint. They must agree — a recipient who is told the
+/// PNG attached to the complaint. They must agree: a recipient who is told the
 /// chart shows what the complainant saw should be looking at the same drawing,
 /// not a second implementation of it that has drifted.
 ///
@@ -55,14 +55,14 @@ class LevelChartPainter extends CustomPainter {
   /// Null for the live meter, which has no press.
   final double? pressAtSeconds;
 
-  /// Background level, drawn as a reference line. Null when none was measured —
+  /// Background level, drawn as a reference line. Null when none was measured,
   /// in which case no line is drawn rather than one at an invented level.
   final double? ambientDb;
 
   /// A moment the *user* marked, in seconds from the start of the trace.
   ///
   /// The measured maximum is where the microphone was loudest; this is where
-  /// the person standing under it says the aircraft was worst — closest
+  /// the person standing under it says the aircraft was worst: closest
   /// approach, or the part that actually made the room unusable. They are
   /// often not the same instant, and only one of them is evidence of what was
   /// experienced. Null until the user places it.
@@ -115,7 +115,10 @@ class LevelChartPainter extends CustomPainter {
     final double? ambient = ambientDb;
     if (ambient != null) {
       final double y = yFor(ambient);
-      _dashedLine(canvas, Offset(plot.left, y), Offset(plot.right, y),
+      _dashedLine(
+          canvas,
+          Offset(plot.left, y),
+          Offset(plot.right, y),
           Paint()
             ..color = palette.ambient
             ..strokeWidth = 1.2);
@@ -152,7 +155,10 @@ class LevelChartPainter extends CustomPainter {
     final double? press = pressAtSeconds;
     if (press != null && press > 0 && press < totalSeconds) {
       final double x = xFor(press);
-      _dashedLine(canvas, Offset(x, plot.top), Offset(x, plot.bottom),
+      _dashedLine(
+          canvas,
+          Offset(x, plot.top),
+          Offset(x, plot.bottom),
           Paint()
             ..color = palette.press
             ..strokeWidth = 1.2);
@@ -161,9 +167,8 @@ class LevelChartPainter extends CustomPainter {
 
     final double? marked = markedAtSeconds;
     if (marked != null && levels.isNotEmpty) {
-      final int index = (marked * 1000 / intervalMs)
-          .floor()
-          .clamp(0, levels.length - 1);
+      final int index =
+          (marked * 1000 / intervalMs).floor().clamp(0, levels.length - 1);
       final double x = xFor((index + 0.5) * intervalMs / 1000);
       final double y = yFor(levels[index]);
       final Paint stroke = Paint()
@@ -233,8 +238,8 @@ class LevelChartPainter extends CustomPainter {
 
     if (levels.length >= 2) {
       final double totalSeconds = levels.length * intervalMs / 1000;
-      _label(canvas, '0 s', Offset(plot.left, plot.bottom + 3), palette.axis,
-          10);
+      _label(
+          canvas, '0 s', Offset(plot.left, plot.bottom + 3), palette.axis, 10);
       _label(
         canvas,
         '${totalSeconds.toStringAsFixed(0)} s',

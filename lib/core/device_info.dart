@@ -7,7 +7,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 ///
 /// This goes in every complaint. There is no calibration certificate behind a
 /// phone microphone, so telling the recipient exactly what recorded the number
-/// is the honest substitute — it lets them weigh it, and it lets a future
+/// is the honest substitute: it lets them weigh it, and it lets a future
 /// per-device calibration table be applied retrospectively.
 class DeviceDescription {
   const DeviceDescription({

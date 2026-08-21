@@ -11,7 +11,7 @@ import io.flutter.plugin.common.MethodChannel
  * Two separate paths, because Android has two: a cold launch carries the extra
  * on the intent the activity is created with, and a tap while the app is
  * already running arrives at [onNewIntent]. Handling only the first is the
- * usual bug — the widget then works exactly once per app lifetime.
+ * usual bug: the widget then works exactly once per app lifetime.
  */
 class MainActivity : FlutterActivity() {
 

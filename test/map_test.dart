@@ -80,8 +80,7 @@ void main() {
       );
       // 800 m out needs 1600 m of span, plus the 15% margin.
       expect(frame.spanM, closeTo(1600 * 1.15, 20));
-      expect(haversineMetres(_lat, _lon, frame.north, _lon),
-          greaterThan(800));
+      expect(haversineMetres(_lat, _lon, frame.north, _lon), greaterThan(800));
     });
 
     test('ignores the far end of a flight rather than zooming out to it', () {
@@ -153,8 +152,8 @@ void main() {
         height: 640,
       );
       final (double lat, double lon) = _offsetMetres(0, 500);
-      final double px = (view.project(lat, lon).dx - view.project(_lat, _lon).dx)
-          .abs();
+      final double px =
+          (view.project(lat, lon).dx - view.project(_lat, _lon).dx).abs();
       expect(px * view.metresPerPixel, closeTo(500, 5));
     });
 
@@ -269,10 +268,10 @@ void main() {
     });
 
     test('no fix means no observer feature, not a feature at zero', () {
-      expect((observerGeoJson(null, null)['features']! as List<Object?>),
-          isEmpty);
-      expect((observerGeoJson(_lat, null)['features']! as List<Object?>),
-          isEmpty);
+      expect(
+          (observerGeoJson(null, null)['features']! as List<Object?>), isEmpty);
+      expect(
+          (observerGeoJson(_lat, null)['features']! as List<Object?>), isEmpty);
     });
 
     test('a one-point aircraft gets a marker but no line', () {
@@ -284,8 +283,8 @@ void main() {
         ),
       ];
       expect((trackGeoJson(aircraft)['features']! as List<Object?>), isEmpty);
-      expect((planeGeoJson(aircraft)['features']! as List<Object?>),
-          hasLength(1));
+      expect(
+          (planeGeoJson(aircraft)['features']! as List<Object?>), hasLength(1));
     });
 
     test('heading is zero rather than null when nothing has moved', () {

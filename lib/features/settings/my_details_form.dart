@@ -98,9 +98,8 @@ class _MyDetailsFormState extends ConsumerState<MyDetailsForm> {
         _PostcodeCheck(
           state: _lookup,
           town: _foundTown,
-          onPressed: canCheck && _lookup != _Lookup.checking
-              ? _checkPostcode
-              : null,
+          onPressed:
+              canCheck && _lookup != _Lookup.checking ? _checkPostcode : null,
         ),
         SettingsField(
           label: 'Town',
@@ -110,7 +109,7 @@ class _MyDetailsFormState extends ConsumerState<MyDetailsForm> {
           onChanged: (String v) => profiles.update(profile.copyWith(town: v)),
         ),
         SettingsField(
-          label: 'House number and street — optional',
+          label: 'House number and street (optional)',
           value: profile.addressLine1,
           textCapitalization: TextCapitalization.words,
           hint: 'Only if you want to. Your postcode is enough.',
@@ -118,7 +117,7 @@ class _MyDetailsFormState extends ConsumerState<MyDetailsForm> {
               profiles.update(profile.copyWith(addressLine1: v)),
         ),
         SettingsField(
-          label: 'Phone number — optional',
+          label: 'Phone number (optional)',
           value: profile.phone,
           keyboardType: TextInputType.phone,
           onChanged: (String v) => profiles.update(profile.copyWith(phone: v)),
@@ -131,7 +130,7 @@ class _MyDetailsFormState extends ConsumerState<MyDetailsForm> {
 /// The lookup button and whatever it last had to say.
 ///
 /// A failure is reported as a shrug, not an error. The postcode is not being
-/// validated — the user is being saved some typing — so a service that is down
+/// validated (the user is being saved some typing) so a service that is down
 /// must not read as the user having got something wrong.
 class _PostcodeCheck extends StatelessWidget {
   const _PostcodeCheck({
@@ -157,7 +156,7 @@ class _PostcodeCheck extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Found it — $town. We have filled in the town for you.',
+                'Found it: $town. We have filled in the town for you.',
                 style: theme.textTheme.bodyMedium,
               ),
             ),
@@ -165,7 +164,7 @@ class _PostcodeCheck extends StatelessWidget {
         );
       case _Lookup.failed:
         message = Text(
-          'We could not check that just now. It does not matter — type your '
+          'We could not check that just now. It does not matter. Type your '
           'town below and carry on.',
           style: theme.textTheme.bodyMedium
               ?.copyWith(color: theme.colorScheme.onSurfaceVariant),

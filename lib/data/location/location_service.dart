@@ -47,7 +47,7 @@ enum LocationAvailability {
   denied,
 
   /// Denied permanently (or blocked by policy). Only system settings can undo
-  /// this — asking again silently returns denied without showing anything.
+  /// this: asking again silently returns denied without showing anything.
   deniedForever,
 }
 
@@ -140,7 +140,7 @@ class LocationService {
   /// outright: indoors, or under cloud on a cold receiver, `best` can miss its
   /// deadline while the network provider has had a perfectly serviceable
   /// several-hundred-metre fix all along. For picking an aircraft out of a
-  /// 25 nm query, several hundred metres is fine — the slant ranges involved
+  /// 25 nm query, several hundred metres is fine: the slant ranges involved
   /// are kilometres.
   Future<SnapLocation> current({
     Duration timeout = const Duration(seconds: 12),

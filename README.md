@@ -19,4 +19,4 @@ flutter test         # 31 tests
 flutter run          # Android; iOS needs a Mac
 ```
 
-iOS cannot be built on Windows — a macOS machine or CI runner is required for TestFlight.
+iOS cannot be built on Windows: a macOS machine or CI runner is required for TestFlight.

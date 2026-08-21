@@ -27,7 +27,7 @@ import 'level_meter.dart';
 /// starts on arrival and only the user ends it: nothing else knows when the
 /// aircraft has gone.
 ///
-/// The background comes out of the recording itself — the quietest stretches
+/// The background comes out of the recording itself: the quietest stretches
 /// of it, which on a recording that runs from before the aircraft until after
 /// it has gone are the street with no jet over it. That is why recording from
 /// launch costs nothing: the comparison the letter leads on is peak against
@@ -179,7 +179,7 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
   ///
   /// There is no limit on this by design. Someone who tapped Deny to make a
   /// box go away, and now wants to record an aeroplane, must be able to get
-  /// back to Allow by pressing the obvious button -- not by being told the app
+  /// back to Allow by pressing the obvious button, not by being told the app
   /// is broken and left there.
   ///
   /// Two refusals in, Android stops showing its own dialog and simply answers
@@ -318,7 +318,7 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
       );
     } on CaptureAbandoned {
       // Two ways to get here. Walking away from a recording nobody asked for
-      // is silent -- there is nothing to tell someone who has already left.
+      // is silent: there is nothing to tell someone who has already left.
       // Pressing DISCARD is a deliberate act and gets an acknowledgement, or
       // the user is left wondering whether the button did anything.
       if (_discarding && mounted) {
@@ -399,7 +399,7 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
       case CaptureStage.locating:
         return 'Getting a location fix…';
       case CaptureStage.recording:
-        return 'Recording — press a button below when it has passed.';
+        return 'Recording. Press a button below when it has passed.';
       case CaptureStage.analysing:
         return 'Measuring the sound level…';
       case CaptureStage.matching:
@@ -440,7 +440,7 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
                   child: _Banner(
                     icon: Icons.location_off,
                     text: '${_location.message} The noise is still measured '
-                        'and the complaint can still be sent — but without a '
+                        'and the complaint can still be sent, but without a '
                         'location no aircraft can be named.',
                     action: TextButton(
                       onPressed: _fixLocation,
@@ -454,7 +454,7 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
                   ),
                 ),
               const SizedBox(height: 12),
-              // Top, and given every pixel the controls below do not need --
+              // Top, and given every pixel the controls below do not need,
               // which is also what keeps this screen off a scrollbar: the map
               // absorbs whatever the banners and the status line take, so
               // everything else can stay a fixed height and still fit.
@@ -471,8 +471,8 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
               ),
               const SizedBox(height: 12),
               // Half-lit when nothing is being recorded. The trace is live
-              // either way -- the microphone is always listening while this
-              // screen is up -- but only what is drawn during a recording ends
+              // either way (the microphone is always listening while this
+              // screen is up) but only what is drawn during a recording ends
               // up in a complaint, and the difference has to be visible at a
               // glance from arm's length.
               AnimatedOpacity(
@@ -525,9 +525,7 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
                         ? 'The app cannot hear anything yet. Press the button '
                             'above to let it use the microphone. You can say '
                             'no and try again as often as you like.'
-                        : 'Not recording. Press RECORD to log an aircraft — a '
-                            'complaint is still worth sending with no sound, '
-                            'no location and no flight named.',
+                        : 'Not recording. Press RECORD to log an aircraft.',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall,
                 // Bounded because nothing on this screen scrolls any more. At
@@ -553,9 +551,10 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
 /// chart alone and the screen holds map, trace, buttons and help text at once
 /// with nothing to scroll.
 ///
-/// The readout is offset by the painter's own [LevelChartPainter.axisGutter]
-/// rather than a hand-picked number, so it lands just inside the plot instead
-/// of on the decibel labels -- and stays there if the gutter is ever retuned.
+/// The readout is centred over the *plot*, not the widget: the left inset is
+/// the painter's own [LevelChartPainter.axisGutter], so the number sits in the
+/// middle of the drawing rather than being pushed half a gutter left by the
+/// strip of axis labels, and stays centred if the gutter is ever retuned.
 class _LiveTrace extends StatelessWidget {
   const _LiveTrace({
     required this.reading,
@@ -584,8 +583,9 @@ class _LiveTrace extends StatelessWidget {
             height: _height,
           ),
           Positioned(
-            left: LevelChartPainter.axisGutter + 6,
-            top: 6,
+            left: LevelChartPainter.axisGutter,
+            right: 0,
+            top: 4,
             child: LevelMeter(reading: reading, running: running),
           ),
         ],
@@ -599,8 +599,8 @@ class _LiveTrace extends StatelessWidget {
 /// nothing: it is a view of a cache that was being filled anyway.
 ///
 /// Not interactive, and sized by its parent. Panning it would be a second way
-/// to get lost on a screen whose job is one button, and the frame it chooses --
-/// the house plus whatever is flying near it -- is the frame worth looking at.
+/// to get lost on a screen whose job is one button, and the frame it chooses
+/// (the house plus whatever is flying near it) is the frame worth looking at.
 class _LiveMap extends ConsumerWidget {
   const _LiveMap({required this.latitude, required this.longitude});
 
@@ -677,7 +677,7 @@ class _RecordButton extends StatelessWidget {
 ///
 /// The same size and shape as the record button rather than a small link in a
 /// banner: it is the one thing to press, so it is the one thing that is big.
-/// Amber, not red -- nothing has gone wrong, something is simply not switched
+/// Amber, not red: nothing has gone wrong, something is simply not switched
 /// on yet.
 class _MicButton extends StatelessWidget {
   const _MicButton({required this.onPressed});
@@ -745,7 +745,7 @@ class _Banner extends StatelessWidget {
 /// Three buttons. Both of the keeping ones end in a sent complaint, so they
 /// are labelled by the route rather than the outcome: REVIEW & SEND stops to
 /// show the measurement and the aircraft first, JUST SEND goes straight to the
-/// mail app and makes the whole job three taps -- open, just-send, send.
+/// mail app and makes the whole job three taps: open, just-send, send.
 /// DISCARD is the third thing a user might want and the only one that keeps
 /// nothing.
 ///
@@ -782,7 +782,7 @@ class _StopButtons extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(
-              'Recording — $seconds s',
+              'Recording: $seconds s',
               style: theme.textTheme.titleMedium,
             ),
           ),

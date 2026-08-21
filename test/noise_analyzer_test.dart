@@ -53,7 +53,7 @@ void main() {
   });
 
   test('the peak window lands on the loudest slice, not the first', () {
-    // 6 s quiet, then 4 s loud, then 6 s quiet — the shape of an overflight.
+    // 6 s quiet, then 4 s loud, then 6 s quiet: the shape of an overflight.
     final Float64List samples = _concat(<Float64List>[
       _tone(seconds: 6, amplitude: 0.005),
       _tone(seconds: 4, amplitude: 0.2),
@@ -82,7 +82,7 @@ void main() {
       'it', () {
     // Half quiet street, half aircraft. A mean over the whole recording sits
     // 3 dB below the aircraft, because the aircraft is what dominates the
-    // energy -- so a mean would report a rise of ~3 dB for a flyover 40 dB
+    // energy, so a mean would report a rise of ~3 dB for a flyover 40 dB
     // above the street. The L90 finds the street.
     final Float64List samples = _concat(<Float64List>[
       _tone(seconds: 10, amplitude: 0.002),
@@ -105,7 +105,7 @@ void main() {
   test('no pre-roll is needed for a background any more', () {
     // The app records from the moment it opens, so nothing precedes the press.
     // The whole point of measuring the background from the recording itself is
-    // that this case -- which is now every case -- still gets a comparison.
+    // that this case, which is now every case, still gets a comparison.
     final Float64List samples = _concat(<Float64List>[
       _tone(seconds: 8, amplitude: 0.002),
       _tone(seconds: 6, amplitude: 0.2),
@@ -188,10 +188,9 @@ void main() {
     expect(back.sampleRate, m.sampleRate);
   });
 
-  test('a recording too short to hold a quiet moment quotes no background',
-      () {
+  test('a recording too short to hold a quiet moment quotes no background', () {
     // Under minAmbientSeconds the L90 would just be the aircraft, and the
-    // letter would say the flyover was 0 dB above the background — which reads
+    // letter would say the flyover was 0 dB above the background, which reads
     // as "this was not loud" when the truth is "this was not recorded for long
     // enough to say". The answer is "not measured".
     final AcousticMetrics m = analyzer.analyzeSource(
@@ -322,7 +321,7 @@ void main() {
     test('a long recording is measured in one pass without a copy of itself',
         () {
       // Five minutes at 48 kHz. The old analyzer built three Float64 arrays
-      // the length of the recording -- about 345 MB -- and would have died
+      // the length of the recording (about 345 MB) and would have died
       // here; this is the regression guard for that.
       final Int16List pcm = Int16List((300 * _fs).round());
       for (int i = 0; i < pcm.length; i++) {

@@ -18,7 +18,7 @@ class FlightCandidate {
   /// The aircraft, at the sample nearest its closest approach.
   final AircraftSample aircraft;
 
-  /// When it was closest — *not* when the sound was heard. The two differ by
+  /// When it was closest, *not* when the sound was heard. The two differ by
   /// the propagation delay, which the matcher has already accounted for.
   final DateTime closestApproachTime;
 

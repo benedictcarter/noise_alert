@@ -72,7 +72,7 @@ class NoiseAnalyzer {
   /// Ten blocks of 125 ms is the bare minimum for an L90 to mean anything. A
   /// recording shorter than this is all aircraft and no street, so its quiet
   /// floor would be the aircraft itself and the rise above it would be nearly
-  /// zero -- a figure that reads as "this was not loud" when the truth is
+  /// zero, a figure that reads as "this was not loud" when the truth is
   /// "this was not measured for long enough to say".
   static const double minAmbientSeconds = 3;
 
@@ -92,7 +92,7 @@ class NoiseAnalyzer {
 
   /// [samples] must be normalised to -1.0..1.0 and unweighted.
   ///
-  /// The background is measured from [samples] itself -- see [analyzeSource].
+  /// The background is measured from [samples] itself; see [analyzeSource].
   /// [ambient] is only a fallback for a recording too short to contain a quiet
   /// moment of its own.
   AcousticMetrics analyze({
@@ -123,7 +123,7 @@ class NoiseAnalyzer {
   /// quiet parts of it are the fairest available statement of what the street
   /// sounds like without a jet over it. Measuring the background from a
   /// separate pre-roll, as this used to, means no background at all whenever
-  /// the recording began at the press -- which is now every recording.
+  /// the recording began at the press, which is now every recording.
   ///
   /// [ambient] and [ambientSampleCount] survive as a fallback for a recording
   /// shorter than [minAmbientSeconds], where there is no quiet moment inside
@@ -147,7 +147,7 @@ class NoiseAnalyzer {
     final int blocks = n ~/ blockSamples;
     final Float64List blockEnergy = Float64List(blocks);
 
-    // --- the single streaming pass ---------------------------------------
+    // === the single streaming pass ===
     // Everything that needs every sample is computed here: clipping, the
     // overall energy, the fast-weighted maximum, and the per-block energies
     // that every windowed figure below is derived from. Nothing of the
@@ -204,12 +204,12 @@ class NoiseAnalyzer {
       return _toDb((prefix[to] - prefix[from]) / (count * blockSamples));
     }
 
-    // --- the background: how quiet it got ---------------------------------
+    // === the background: how quiet it got ===
     // Taken from the recording itself. The L90 of a two-minute recording that
     // contains a forty-second flyover is the street either side of it, which
     // is exactly the comparison the complaint wants to make. Only when the
-    // recording is too short for that -- the user stopped almost immediately
-    // -- does the separately captured pre-roll get a look in.
+    // recording is too short for that (the user stopped almost
+    // immediately) does the separately captured pre-roll get a look in.
     final int minAmbientSamples = (sampleRate * minAmbientSeconds).round();
     final SampleSource? fallback = ambient ??
         (ambientSampleCount > 0
@@ -228,7 +228,7 @@ class NoiseAnalyzer {
         ? null
         : _l90(backgroundSource, sampleRate: sampleRate);
 
-    // --- loudest peakWindowSeconds slice ----------------------------------
+    // === loudest peakWindowSeconds slice ===
     final int windowBlocks = blocks == 0
         ? 0
         : math.min(
@@ -251,7 +251,7 @@ class NoiseAnalyzer {
     final int peakWindowSamples =
         windowBlocks == 0 ? n : windowBlocks * blockSamples;
 
-    // --- level over time, for the chart in the letter ---------------------
+    // === level over time, for the chart in the letter ===
     final int traceBlocks =
         math.max(1, (traceIntervalMs / analysisBlockMs).round());
     final List<double> trace = <double>[];
@@ -315,7 +315,7 @@ class NoiseAnalyzer {
   ///
   /// Not 0.0. The true minimum is a single 125 ms block, and one dropout,
   /// buffer underrun or momentary gap in the traffic puts it twenty decibels
-  /// below anything real -- which would then be subtracted from the peak and
+  /// below anything real, which would then be subtracted from the peak and
   /// reported as the rise. The tenth percentile is what "the quietest it got"
   /// actually means once you have to defend the number.
   static double _percentile(List<double> values, double fraction) {

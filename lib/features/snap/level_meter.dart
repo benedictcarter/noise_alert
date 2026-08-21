@@ -2,21 +2,26 @@ import 'package:flutter/material.dart';
 
 import '../../data/audio/recorder_service.dart';
 
-/// The live A-weighted level, sized and shaped to sit on top of the trace.
+/// The live A-weighted level, as a bare number laid over the trace.
 ///
-/// This was once a 110-point number, a progress bar and a 30–110 scale stacked
+/// This was once a 110-point number, a progress bar and a 30-110 scale stacked
 /// above the chart: three ways of saying the same thing, taking half the screen
 /// to say it. The chart underneath already plots magnitude against time and
 /// carries its own decibel axis, so the bar and the scale were the drawing's
-/// job done twice, worse. What is left is the one thing a trace reads badly —
+/// job done twice, worse. What is left is the one thing a trace reads badly:
 /// the number, right now, legible at arm's length while an aeroplane is
 /// overhead.
 ///
-/// Drawn on its own translucent plate rather than straight onto the chart. It
-/// sits in the top-left corner, which on a fixed 30–110 dB axis is the 100+
-/// region and therefore empty on all but a clipping recording — but "almost
-/// always empty" is not "always", and a number that becomes unreadable exactly
-/// when the aircraft is loudest would be the wrong number to lose.
+/// No unit beside it and no plate behind it. The unit is written down the
+/// chart's own axis a centimetre away, and on the one screen whose entire job
+/// is "is it loud", a person holding the phone under an aeroplane is reading
+/// the number and nothing else. The letter is where dB(A) has to be spelled
+/// out; this is not the letter.
+///
+/// It sits top-centre, which on a fixed 30-110 dB axis is the 100+ region and
+/// therefore empty except on a recording that is clipping, and a clipping
+/// reading turns red, which is the one case where the trace behind it is
+/// telling the same story anyway.
 class LevelMeter extends StatelessWidget {
   const LevelMeter({super.key, required this.reading, required this.running});
 
@@ -32,59 +37,27 @@ class LevelMeter extends StatelessWidget {
 
     return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: <Widget>[
-        Container(
-          padding: const EdgeInsets.fromLTRB(10, 2, 10, 4),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface.withValues(alpha: 0.78),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: <Widget>[
-              Text(
-                !running
-                    ? '—'
-                    : level == null
-                        ? '…'
-                        : level.toStringAsFixed(0),
-                style: theme.textTheme.displayMedium?.copyWith(
-                  fontWeight: FontWeight.w300,
-                  fontSize: 56,
-                  height: 1,
-                  color: colour,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 7),
-                child: Text(
-                  'dB(A)',
-                  style: theme.textTheme.titleSmall?.copyWith(color: colour),
-                ),
-              ),
-            ],
+        Text(
+          !running
+              ? '-'
+              : level == null
+                  ? '…'
+                  : level.toStringAsFixed(0),
+          style: theme.textTheme.displayMedium?.copyWith(
+            fontWeight: FontWeight.w300,
+            fontSize: 56,
+            height: 1,
+            color: colour,
           ),
         ),
         if (clipping)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface.withValues(alpha: 0.78),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                child: Text(
-                  'At maximum — the true level is higher.',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.error),
-                ),
-              ),
-            ),
+          Text(
+            'At maximum. The true level is higher.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.error),
           ),
       ],
     );

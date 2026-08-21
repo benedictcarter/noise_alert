@@ -55,8 +55,8 @@ android {
     buildTypes {
         release {
             // Signed with the real key when there is one. An app signed with the
-            // debug key cannot later be upgraded in place by one signed properly --
-            // Android refuses an update across a signature change -- so every
+            // debug key cannot later be upgraded in place by one signed properly
+            // (Android refuses an update across a signature change) so every
             // distributed build has to carry this signature from the first one.
             signingConfig = signingConfigs.getByName(
                 if (hasReleaseKey) "release" else "debug"

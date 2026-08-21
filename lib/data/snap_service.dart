@@ -125,7 +125,7 @@ class SnapService {
 
   /// The app's page in the phone's settings. Borrowed from the location
   /// plugin, which is the only one here that offers it, but it opens the whole
-  /// app entry -- microphone included.
+  /// app entry, microphone included.
   Future<void> openAppSettings() => location.openAppSettings();
 
   /// Opens the microphone and starts polling for nearby aircraft.
@@ -138,7 +138,7 @@ class SnapService {
     // and leave the microphone shut: disarm() clears _armed synchronously and
     // only then awaits recorder.stop(), so an arm() arriving in between sees
     // "not armed", calls recorder.start(), which returns immediately because
-    // the old subscription is technically still alive -- and then the pending
+    // the old subscription is technically still alive, and then the pending
     // stop() cancels it. The service believes it is armed and the microphone
     // is off. That is the widget path exactly: the app is backgrounded (paused
     // -> disarm), the widget is tapped, the app resumes and arms, and the
@@ -187,8 +187,8 @@ class SnapService {
   /// Ends the recording and throws it away.
   ///
   /// Only ever used for a recording the user did not ask for. The app opens
-  /// recording, which is right for the case it is built around -- something is
-  /// overhead now -- but wrong the moment the user walks off to Settings: a
+  /// recording, which is right for the case it is built around (something is
+  /// overhead now), but wrong the moment the user walks off to Settings: a
   /// snap they never pressed for, and a clip of their kitchen, should not be
   /// waiting for them when they come back. Nothing is written to disk before
   /// the check, so abandoning really does leave no trace.
@@ -255,7 +255,7 @@ class SnapService {
     final Future<SnapLocation?> pendingFix = _bestEffortLocation();
 
     _emit(CaptureStage.recording,
-        'Recording — press a button below when it has passed.');
+        'Recording. Press a button below when it has passed.');
     final EventWindow window = await recorder.awaitEventEnd();
     if (_abandoned) {
       _abandoned = false;
@@ -274,7 +274,7 @@ class SnapService {
     _emit(CaptureStage.analysing);
     // The background can only be as long as the microphone had been listening.
     // A recording started from the widget, or seconds after opening the app,
-    // has less than the full 30 s — the analyzer returns a null background
+    // has less than the full 30 s: the analyzer returns a null background
     // rather than measuring one out of audio that does not exist.
     final AcousticMetrics metrics = _measure(
       samples: samples,
@@ -321,9 +321,8 @@ class SnapService {
     if (fix == null) {
       _emit(
         CaptureStage.done,
-        'Saved without a location fix — ${_locationStatus.isReady ? 'the '
-            'receiver did not report a position in time' : _locationStatus
-            .message} The complaint can still be sent from your home address; '
+        'Saved without a location fix: ${_locationStatus.isReady ? 'the '
+            'receiver did not report a position in time.' : _locationStatus.message} The complaint can still be sent from your home address; '
         'it just cannot name a flight.',
       );
       return snap;
@@ -355,7 +354,7 @@ class SnapService {
       );
     }
 
-    // The background now comes out of the recording itself — the quiet
+    // The background now comes out of the recording itself: the quiet
     // stretches either side of the flyover. The pre-roll is passed anyway as a
     // fallback for a recording stopped too soon to contain one.
     final Float64List ambient = window.ambient;
@@ -412,7 +411,7 @@ class SnapService {
   ///
   ///  * an aircraft within [MatchConfig.autoConfirmMaxHorizontalM] is named;
   ///  * no candidates at all means there is nothing to choose between, so the
-  ///    complaint goes out saying the aircraft was not identified — a letter
+  ///    complaint goes out saying the aircraft was not identified, a letter
   ///    that says "an aircraft was audible at this address at this time" is
   ///    still a complaint, and is the whole point of the app;
   ///  * anything in between is a real question, so the button degrades to
@@ -457,7 +456,7 @@ class SnapService {
   ///
   /// Which source is asked depends entirely on how old the snap is. A live feed
   /// only ever reports aircraft that are in the sky *now*, so for anything
-  /// older than the track cache holds, querying one cannot succeed -- the
+  /// older than the track cache holds, querying one cannot succeed: the
   /// matcher correctly rejects every aircraft it returns, and the user is told
   /// "nothing found" when the truth is "nothing was asked". Past events go
   /// straight to the retrospective source instead.
@@ -497,8 +496,8 @@ class SnapService {
       match =
           await lookup.resolve(observer: observer, heardAt: snap.recordedAt);
       if (match.candidates.isEmpty && age > const Duration(seconds: 30)) {
-        final FlightMatch historical = await lookup.backfill(
-            observer: observer, heardAt: snap.recordedAt);
+        final FlightMatch historical =
+            await lookup.backfill(observer: observer, heardAt: snap.recordedAt);
         if (historical.candidates.isNotEmpty) match = historical;
       }
     }
@@ -516,7 +515,7 @@ class SnapService {
   /// Records the user's decision about which aircraft it was.
   ///
   /// Passing null for [icao24] with [unidentified] true is a positive choice to
-  /// complain without naming a flight — which is a legitimate complaint, and
+  /// complain without naming a flight, which is a legitimate complaint, and
   /// far better than guessing.
   Future<Snap> confirmAircraft(
     Snap snap, {
@@ -566,7 +565,7 @@ class SnapService {
   ///
   /// The snap is only marked sent once the composer actually opened. Neither
   /// platform reports whether the user pressed send, so "sent" here means
-  /// "handed to your mail app" — the history screen says so in as many words.
+  /// "handed to your mail app": the history screen says so in as many words.
   Future<MailOutcome> compose(Snap snap) async {
     if (!snap.isReadyToSend) {
       return const MailOutcome(
@@ -632,7 +631,7 @@ class SnapService {
     await _progress.close();
   }
 
-  // --- internals ---------------------------------------------------------
+  // === internals ===
 
   Future<SnapLocation?> _bestEffortLocation() async {
     try {
@@ -644,7 +643,7 @@ class SnapService {
       }
       return fix;
     } on Object {
-      // A stale fix beats no snap at all — the user is standing in their own
+      // A stale fix beats no snap at all: the user is standing in their own
       // garden, and the previous fix is almost certainly the same garden.
       try {
         return await location.lastKnown();

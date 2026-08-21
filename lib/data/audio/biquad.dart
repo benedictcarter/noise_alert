@@ -16,7 +16,7 @@ class Biquad {
   ///
   ///   H(s) = (b2*s^2 + b1*s + b0) / (a2*s^2 + a1*s + a0)
   ///
-  /// using the bilinear transform at [sampleRate] (no frequency pre-warping —
+  /// using the bilinear transform at [sampleRate] (no frequency pre-warping;
   /// the cascade is gain-normalised at 1 kHz afterwards instead, which is what
   /// actually matters for a weighting filter).
   factory Biquad.bilinear({

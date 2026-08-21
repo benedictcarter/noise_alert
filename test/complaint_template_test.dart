@@ -144,8 +144,7 @@ void main() {
       expect(draft.body, contains('BAW123'));
       // The picture is the part most likely to be forwarded on its own, so the
       // caveat travels with it in the text as well as on the image.
-      expect(
-          draft.body, contains('has not been independently verified'));
+      expect(draft.body, contains('has not been independently verified'));
     });
 
     test('says so plainly when no aircraft was identified', () {
@@ -176,7 +175,7 @@ void main() {
     });
 
     test('a letter is still sent when the map could not be drawn', () {
-      // Tiles unreachable, renderer gone, disk full -- all arrive here as a
+      // Tiles unreachable, renderer gone, disk full: all arrive here as a
       // null path, and none of them may cost the user their complaint.
       final ComplaintDraft draft = template.render(
         snap: _snap(),
@@ -319,7 +318,7 @@ void main() {
 
   test('a snap with no fix says so instead of quoting a coordinate', () {
     // The old code stored a missing fix as 0, 0 and the letter printed
-    // "Location: 0.00000, 0.00000" — a real position off the coast of Ghana,
+    // "Location: 0.00000, 0.00000": a real position off the coast of Ghana,
     // and one the recipient has no way of recognising as a failure.
     final ComplaintDraft draft = template.render(
       snap: _snap(located: false),
@@ -347,7 +346,7 @@ void main() {
   test('with no background measured, no rise above background is claimed', () {
     // A widget-triggered snap has no pre-roll. Quoting a rise over a
     // background derived from un-recorded silence would overstate the event by
-    // tens of dB — precisely the direction that would discredit a complaint.
+    // tens of dB, precisely the direction that would discredit a complaint.
     final ComplaintDraft draft = template.render(
       snap: _snap(ambient: null, preRoll: 0),
       profile: _profile,
@@ -536,7 +535,7 @@ void main() {
       final int glance = draft.body.indexOf('AT A GLANCE');
       expect(glance, greaterThanOrEqualTo(0));
       // Before the salutation's follow-on prose, and before the detail
-      // sections it summarises -- a summary further down the page is not one.
+      // sections it summarises: a summary further down the page is not one.
       expect(glance, lessThan(draft.body.indexOf('Aircraft:')));
       expect(draft.body, contains('When: '));
       expect(draft.body, contains('21:14:30'));

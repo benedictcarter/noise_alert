@@ -14,7 +14,7 @@ class PostcodeResult {
   /// and their letter stops looking like it was written in a hurry.
   final String postcode;
 
-  /// The local authority the postcode sits in — "Hounslow", "Windsor and
+  /// The local authority the postcode sits in: "Hounslow", "Windsor and
   /// Maidenhead".
   ///
   /// Deliberately the council area rather than the post town, which this data
@@ -29,7 +29,7 @@ class PostcodeResult {
 ///
 /// This is the one thing in the app that sends anything anywhere on the user's
 /// behalf, and it only happens when they press the button. A postcode is a lot
-/// less than the app already hands adsb.lol — that gets the coordinates of the
+/// less than the app already hands adsb.lol: that gets the coordinates of the
 /// spot they are standing on, to five decimal places.
 ///
 /// postcodes.io is a free, key-less front end to the ONS Postcode Directory,
@@ -49,8 +49,7 @@ class PostcodeService {
   static final RegExp _shape =
       RegExp(r'^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$', caseSensitive: false);
 
-  static bool looksLikeAPostcode(String value) =>
-      _shape.hasMatch(value.trim());
+  static bool looksLikeAPostcode(String value) => _shape.hasMatch(value.trim());
 
   /// Null when the postcode does not exist, or when the lookup could not be
   /// reached.
@@ -64,9 +63,11 @@ class PostcodeService {
     if (!looksLikeAPostcode(trimmed)) return null;
 
     try {
-      final Uri uri = Uri.https(_host, '/postcodes/${Uri.encodeComponent(
-        trimmed.toUpperCase(),
-      )}');
+      final Uri uri = Uri.https(
+          _host,
+          '/postcodes/${Uri.encodeComponent(
+            trimmed.toUpperCase(),
+          )}');
       final http.Response response =
           await _client.get(uri).timeout(const Duration(seconds: 8));
       if (response.statusCode != 200) return null;

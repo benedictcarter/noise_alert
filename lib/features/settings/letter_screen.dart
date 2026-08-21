@@ -81,7 +81,7 @@ class LetterScreen extends ConsumerWidget {
                 config.edit((AppSettings s) => s.copyWith(templateBody: v)),
           ),
           const Explainer(
-            'The words in curly brackets are filled in for each complaint — '
+            'The words in curly brackets are filled in for each complaint: '
             'the time, the aircraft, the sound levels.',
           ),
           TextButton(

@@ -51,10 +51,9 @@ class AppDatabase {
     return AppDatabase._(db);
   }
 
-
   /// v2 made latitude/longitude nullable and added `stale_fix`.
   ///
-  /// v1 stored a missing fix as 0, 0 — a real position in the Gulf of Guinea —
+  /// v1 stored a missing fix as 0, 0 (a real position in the Gulf of Guinea)
   /// so the migration converts exactly those rows back to null. A snap genuinely
   /// taken at Null Island is a loss we can live with.
   static String _createSnapTable(String name) => '''
@@ -120,7 +119,7 @@ class AppDatabase {
 
   Future<void> close() => _db.close();
 
-  // --- key/value -------------------------------------------------------
+  // === key/value ===
 
   Future<Map<String, Object?>?> _readJson(String key) async {
     final List<Map<String, Object?>> rows = await _db.query(
@@ -159,7 +158,7 @@ class AppDatabase {
   Future<void> saveSettings(AppSettings settings) =>
       _writeJson(_keySettings, settings.toJson());
 
-  // --- snaps -----------------------------------------------------------
+  // === snaps ===
 
   Future<void> upsertSnap(Snap snap) async {
     await _db.insert(

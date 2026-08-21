@@ -17,7 +17,7 @@ class AircraftSample {
   });
 
   /// 24-bit ICAO address, lower case hex. The only globally stable identifier
-  /// here — callsigns are reused daily and registrations can be absent.
+  /// here: callsigns are reused daily and registrations can be absent.
   final String icao24;
   final DateTime timestamp;
   final double latitude;
@@ -153,7 +153,7 @@ class AircraftTrack {
   /// The most recent position report.
   final AircraftSample latest;
 
-  /// Oldest first, and only positions actually reported — the line drawn
+  /// Oldest first, and only positions actually reported: the line drawn
   /// between them is a rendering convenience, not observed data.
   final List<TrackPoint> points;
 

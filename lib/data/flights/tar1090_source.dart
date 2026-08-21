@@ -7,7 +7,7 @@ import '../../domain/aircraft.dart';
 import 'adsb_source.dart';
 
 /// Client for the community ADS-B feeds that serve the readsb/tar1090
-/// `aircraft.json` schema — adsb.lol and airplanes.live both do.
+/// `aircraft.json` schema: adsb.lol and airplanes.live both do.
 ///
 /// Both are free, need no key today and are live-only. Both ask for no more
 /// than about one request per second, which the polling interval respects.

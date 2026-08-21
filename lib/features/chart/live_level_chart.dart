@@ -8,7 +8,7 @@ import 'level_chart.dart';
 /// A plot of the level the microphone is hearing right now.
 ///
 /// Two modes, and the switch between them is the point. Idle, it scrolls the
-/// last [AudioConfig.ringBufferSeconds] of street — exactly the span the ring
+/// last [AudioConfig.ringBufferSeconds] of street, exactly the span the ring
 /// buffer holds, because a plot showing more history than the recorder keeps
 /// would promise audio that no longer exists. From RECORD it starts again from
 /// empty and keeps everything, so the graph on screen is the event itself and
@@ -37,7 +37,7 @@ class LiveLevelChart extends StatefulWidget {
 
 class _LiveLevelChartState extends State<LiveLevelChart> {
   /// One point per [_intervalMs]. A queue rather than a list so dropping the
-  /// oldest point is O(1) — this runs ten times a second for as long as the
+  /// oldest point is O(1): this runs ten times a second for as long as the
   /// screen is open.
   final Queue<double> _points = Queue<double>();
 
@@ -81,7 +81,8 @@ class _LiveLevelChartState extends State<LiveLevelChart> {
 
     final double? level = widget.levelDb;
     if (level == null) return;
-    _pending = _pending == null ? level : (level > _pending! ? level : _pending);
+    _pending =
+        _pending == null ? level : (level > _pending! ? level : _pending);
 
     final DateTime now = DateTime.now();
     if (now.difference(_lastPoint).inMilliseconds < _intervalMs) return;

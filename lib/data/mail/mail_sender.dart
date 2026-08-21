@@ -45,7 +45,7 @@ class MailSender {
       return const MailOutcome(MailResult.composerOpened);
     } catch (error) {
       // An attachment failure must not cost the user their letter. The most
-      // common cause is the platform refusing to share the file's directory —
+      // common cause is the platform refusing to share the file's directory,
       // and dropping straight to mailto: for that would throw away the message
       // formatting as well as the clip, which reads to the user as the app
       // mangling their complaint. Retry the real composer without the
@@ -99,7 +99,7 @@ class MailSender {
             ? 'No mail app accepted the complaint directly, so it was opened '
                 'through a mailto: link. Some clients reflow the text.'
             : 'No mail app accepted the complaint directly, so it was opened '
-                'through a mailto: link — the audio clip is not attached and '
+                'through a mailto: link. The audio clip is not attached, and '
                 'some clients reflow the text.',
       );
     } catch (error) {

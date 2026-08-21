@@ -16,7 +16,7 @@ import 'biquad.dart';
 ///
 /// Use a 48 kHz sample rate. At 16 kHz the 12.2 kHz pole pair sits so close to
 /// Nyquist that the high-frequency end of the curve falls outside IEC class 2
-/// tolerance — harmless for jet noise, but the filter would no longer be
+/// tolerance, harmless for jet noise, but the filter would no longer be
 /// honestly describable as "A-weighted".
 class AWeighting {
   AWeighting(this.sampleRate) : _cascade = _design(sampleRate);

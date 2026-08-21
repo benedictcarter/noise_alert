@@ -9,8 +9,8 @@ import '../settings/my_details_form.dart';
 ///
 /// Shown instead of the app, not on top of it, until there is a name and a
 /// postcode. That is not a nag: without them there is no complaint to send,
-/// and finding that out at the end — after standing in the garden recording an
-/// aeroplane — is the worst possible moment to be sent to a settings screen.
+/// and finding that out at the end (after standing in the garden recording an
+/// aeroplane) is the worst possible moment to be sent to a settings screen.
 ///
 /// It is also why the microphone is not touched yet. The record screen asks
 /// for permission the instant it is built, and a permission dialog landing on

@@ -77,7 +77,7 @@ final Provider<PostcodeService> postcodeServiceProvider =
 final Provider<DeviceInfoService> deviceInfoProvider =
     Provider<DeviceInfoService>((Ref ref) => DeviceInfoService());
 
-// --- settings & profile ---------------------------------------------------
+// === settings and profile ===
 
 class SettingsController extends StateNotifier<AppSettings> {
   SettingsController(this._db, AppSettings initial) : super(initial);
@@ -121,12 +121,11 @@ final StateNotifierProvider<ProfileController, ComplainantProfile>
   ),
 );
 
-// --- services -------------------------------------------------------------
+// === services ===
 
 final Provider<RecorderService> recorderProvider =
     Provider<RecorderService>((Ref ref) {
-  final RecorderService service = RecorderService(
-  );
+  final RecorderService service = RecorderService();
   ref.onDispose(service.dispose);
   return service;
 });
@@ -174,7 +173,7 @@ final Provider<SnapService> snapServiceProvider =
   return service;
 });
 
-// --- live streams ---------------------------------------------------------
+// === live streams ===
 
 final StreamProvider<MeterReading> meterProvider = StreamProvider<MeterReading>(
     (Ref ref) => ref.watch(recorderProvider).meterStream);
@@ -202,7 +201,7 @@ extension _Seeded<T> on Stream<T> {
   }
 }
 
-// --- snap history ---------------------------------------------------------
+// === snap history ===
 
 /// The snap list is held in memory and written through to sqflite, rather than
 /// re-queried on every change: the list is small, and the review screen needs

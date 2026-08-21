@@ -80,7 +80,7 @@ void main() {
     expect(best.heightAboveObserverFt, closeTo(1000, 20));
     expect(best.elevationDegrees, greaterThan(80));
 
-    // The closest approach is *before* the press — that is the entire point of
+    // The closest approach is *before* the press, which is the entire point of
     // searching backwards rather than asking "what is overhead now".
     expect(best.closestApproachTime.isBefore(heardAt), isTrue);
     expect(

@@ -26,7 +26,7 @@ tasks.register<Delete>("clean") {
 // maplibre_gl configures its Kotlin compiler through the `kotlin { }` extension,
 // and from AGP 9 it deliberately stops applying the Kotlin Gradle Plugin itself
 // (its own comment cites Flutter #905). That is only safe when AGP supplies
-// Kotlin instead -- and the Flutter app template explicitly sets
+// Kotlin instead, and the Flutter app template explicitly sets
 // `android.builtInKotlin=false`, so it does not. The plugin's build script then
 // dies on `Could not find method kotlin()` before a line of our code compiles.
 //
@@ -42,7 +42,7 @@ tasks.register<Delete>("clean") {
 // and one homogeneous toolchain is worth more than its declared floor.
 //
 // Registered from here, not from inside the `withPlugin` callback, so this
-// `afterEvaluate` is queued before AGP queues its own -- it has to overwrite
+// `afterEvaluate` is queued before AGP queues its own: it has to overwrite
 // what the plugin's script sets, and be read by AGP when it builds variants.
 subprojects {
     if (name == "maplibre_gl") {

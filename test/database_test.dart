@@ -212,7 +212,7 @@ void main() {
     );
   });
 
-test('a marked worst moment survives the round trip and can be cleared',
+  test('a marked worst moment survives the round trip and can be cleared',
       () async {
     final Snap snap = _snap(id: 'marked', at: DateTime(2026, 8, 19, 21))
         .copyWith(markedPeakMs: 42500);
@@ -236,7 +236,7 @@ test('a marked worst moment survives the round trip and can be cleared',
     expect(await db.snapById('a'), isNull);
     expect(await db.allSnaps(), hasLength(1));
 
-    // Deleting something that is not there is a no-op, not a crash — the
+    // Deleting something that is not there is a no-op, not a crash: the
     // history screen deletes optimistically.
     await db.deleteSnap('a');
   });

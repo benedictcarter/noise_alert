@@ -11,7 +11,7 @@ const double _metresPerDegreeLat = kEarthRadiusM * math.pi / 180.0;
 ///
 /// Always centred on the observer, never on the aircraft or on the middle of
 /// the two. The complaint is about a house, and a frame that drifts to keep an
-/// aeroplane centred is a frame that eventually leaves the house off the edge —
+/// aeroplane centred is a frame that eventually leaves the house off the edge,
 /// which is the one thing the picture exists to show.
 class MapFrame {
   const MapFrame({
@@ -68,8 +68,8 @@ class MapFrame {
     double wanted = 0;
     double nearest = double.infinity;
     for (final TrackPoint p in points) {
-      final double d = haversineMetres(
-          latitude, longitude, p.latitude, p.longitude);
+      final double d =
+          haversineMetres(latitude, longitude, p.latitude, p.longitude);
       if (d < nearest) nearest = d;
       if (d <= focusRadius && d > wanted) wanted = d;
     }

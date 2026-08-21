@@ -15,7 +15,7 @@ class AppSettings {
   /// Whether the saved clip is attached to the complaint unless the user says
   /// otherwise. On, because the recording is the evidence.
   ///
-  /// A clip is always saved — it is the one part of a recording that cannot be
+  /// A clip is always saved: it is the one part of a recording that cannot be
   /// recovered later, and it never leaves the phone on its own. Attaching it is
   /// still the user's decision, but it is now the decision they have to
   /// *unmake* rather than remember to make: a letter that says an aircraft was
@@ -23,8 +23,8 @@ class AppSettings {
   /// of it playable underneath, and a complaint sent without the sound cannot
   /// have the sound added afterwards.
   ///
-  /// The counter-argument — a microphone in a residential street picks up the
-  /// neighbours as readily as the aeroplane — is answered on the review screen,
+  /// The counter-argument (a microphone in a residential street picks up the
+  /// neighbours as readily as the aeroplane) is answered on the review screen,
   /// where the clip is playable and one tap off, not by leaving it off for
   /// everyone by default.
   ///
@@ -139,7 +139,7 @@ class AppSettings {
       activeRecipientSetId:
           json['activeRecipientSetId'] as String? ?? 'default',
       recipientSeed: currentRecipientSeed,
-      templateSubject: json['templateSubject'] as String? ?? defaultSubject,
+      templateSubject: _currentSubject(json['templateSubject'] as String?),
       templateBody: _currentBody(json['templateBody'] as String?),
     );
   }
@@ -149,7 +149,7 @@ class AppSettings {
   ///
   /// The template is written to storage the first time settings are saved, so
   /// by the time a token is added or a section rewritten, every existing
-  /// install is holding a frozen copy of whatever the default was that day --
+  /// install is holding a frozen copy of whatever the default was that day,
   /// which is how a handset ends up mailing a table of zeroes long after the
   /// app stopped generating one. Matching the exact text is the only safe
   /// upgrade: an edited letter matches none of these and is left alone, which
@@ -316,8 +316,20 @@ Yours faithfully,
     return _legacyDefaultBodies.contains(stored) ? defaultBody : stored;
   }
 
+  /// Earlier default subject lines, on the same terms as the bodies above: an
+  /// untouched one is upgraded, an edited one is the user's and is left alone.
+  static const List<String> _legacyDefaultSubjects = <String>[
+    'Aircraft noise complaint — {flight} over {postcode} at {time}',
+  ];
+
+  /// The stored subject line, upgraded if it is an untouched older default.
+  static String _currentSubject(String? stored) {
+    if (stored == null) return defaultSubject;
+    return _legacyDefaultSubjects.contains(stored) ? defaultSubject : stored;
+  }
+
   static const String defaultSubject =
-      'Aircraft noise complaint — {flight} over {postcode} at {time}';
+      'Aircraft noise complaint: {flight} over {postcode} at {time}';
 
   /// Tokens are documented in `ComplaintTemplate.tokenHelp`.
   static const String defaultBody = '''

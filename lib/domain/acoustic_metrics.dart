@@ -73,8 +73,8 @@ class AcousticMetrics {
         // Absent in records written before the chart existed. An empty trace
         // means "no chart", not "a flat line at zero".
         levelTrace: <double>[
-          for (final Object? v in (json['levelTrace'] as List<Object?>?) ??
-              const <Object?>[])
+          for (final Object? v
+              in (json['levelTrace'] as List<Object?>?) ?? const <Object?>[])
             (v as num).toDouble(),
         ],
         traceIntervalMs: (json['traceIntervalMs'] as num?)?.toInt() ?? 250,
@@ -89,7 +89,7 @@ class AcousticMetrics {
 
   /// The background: how quiet it got, taken across the whole recording.
   ///
-  /// Not a mean — a mean is dragged upwards by the aircraft, which is the very
+  /// Not a mean: a mean is dragged upwards by the aircraft, which is the very
   /// thing being measured against. This is the level exceeded 90% of the time
   /// (L90), which is the standard way of writing down "the quiet floor" and is
   /// what the absolute minimum is trying to be. The true minimum is not used
@@ -115,7 +115,7 @@ class AcousticMetrics {
 
   bool get hasAmbient => ambientLa90Db != null;
 
-  /// LAeq of the loudest [peakWindowDurationMs] slice — the slice the attached
+  /// LAeq of the loudest [peakWindowDurationMs] slice, the slice the attached
   /// audio clip covers.
   final double peakWindowLaEqDb;
 
@@ -136,7 +136,7 @@ class AcousticMetrics {
   /// This is what the chart in the letter is drawn from. It is stored rather
   /// than recomputed because the audio itself is usually discarded: the clip is
   /// optional and only ten seconds long, so by the time a complaint is resent
-  /// or reviewed the samples are gone. Roughly 200 numbers for a 50 s event —
+  /// or reviewed the samples are gone. Roughly 200 numbers for a 50 s event,
   /// cheaper than keeping the audio and enough to show the shape of a flyover.
   final List<double> levelTrace;
 
@@ -154,7 +154,7 @@ class AcousticMetrics {
   /// a claim about the world rather than a gap in the evidence.
   bool get hasMeasurement => sampleRate > 0 && eventDurationMs > 0;
 
-  /// How far the loudest moment rose above the quietest — the figure the
+  /// How far the loudest moment rose above the quietest: the figure the
   /// complaint leads on.
   ///
   /// Both readings come from the same microphone in the same minute, so the
@@ -182,8 +182,7 @@ class AcousticMetrics {
         // phone microphone is not good to better than a decibel anyway, so
         // full float precision would triple the row size for nothing.
         'levelTrace': <double>[
-          for (final double v in levelTrace)
-            double.parse(v.toStringAsFixed(1)),
+          for (final double v in levelTrace) double.parse(v.toStringAsFixed(1)),
         ],
         'traceIntervalMs': traceIntervalMs,
         if (note.isNotEmpty) 'note': note,

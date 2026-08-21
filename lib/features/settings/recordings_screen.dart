@@ -29,7 +29,7 @@ class RecordingsScreen extends ConsumerWidget {
             'Every time you record, the loudest '
             '${AudioConfig.clipSeconds} seconds are kept on this phone. '
             'Nothing is uploaded. The clip goes with your complaint unless you '
-            'say otherwise — you can listen to it first, and take it off any '
+            'say otherwise. You can listen to it first, and take it off any '
             'single complaint on its review screen.',
           ),
           SwitchListTile(
@@ -51,14 +51,14 @@ class RecordingsScreen extends ConsumerWidget {
             'account, and it can reach about an hour back.',
           ),
           SettingsField(
-            label: 'OpenSky client ID — optional',
+            label: 'OpenSky client ID (optional)',
             value: settings.openSkyClientId,
             textCapitalization: TextCapitalization.none,
             onChanged: (String v) => config
                 .edit((AppSettings s) => s.copyWith(openSkyClientId: v.trim())),
           ),
           SettingsField(
-            label: 'OpenSky client secret — optional',
+            label: 'OpenSky client secret (optional)',
             value: settings.openSkyClientSecret,
             obscure: true,
             textCapitalization: TextCapitalization.none,

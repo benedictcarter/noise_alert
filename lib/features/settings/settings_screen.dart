@@ -12,7 +12,7 @@ import 'recordings_screen.dart';
 /// This used to be one page carrying the user's name and address, the
 /// council's email addresses, the full text of the form letter and a pair of
 /// API credentials, in that order, in one scroll. For the audience this app is
-/// for — largely pensioners, opening it because a jet has just gone over —
+/// for (largely pensioners, opening it because a jet has just gone over)
 /// that reads as a list of things they are expected to understand.
 ///
 /// Three rows instead. The first is the only one most people ever need, and it
@@ -59,7 +59,7 @@ class SettingsScreen extends ConsumerWidget {
     final String where = profile.town.trim().isEmpty
         ? profile.postcode.trim()
         : '${profile.town.trim()}, ${profile.postcode.trim()}';
-    return '${profile.fullName.trim()} — $where';
+    return '${profile.fullName.trim()}, $where';
   }
 }
 

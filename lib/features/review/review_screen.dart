@@ -104,14 +104,13 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
       if (!mounted) return;
 
       if (!outcome.opened) {
-        _toast(outcome.detail ??
-            'No email app could be opened on this phone.');
+        _toast(outcome.detail ?? 'No email app could be opened on this phone.');
         return;
       }
       ref.read(snapsProvider.notifier).put(
             confirmed.copyWith(status: SnapStatus.sent, sentAt: DateTime.now()),
           );
-      _toast(outcome.detail ?? 'Opened in your mail app — press send there.');
+      _toast(outcome.detail ?? 'Opened in your mail app. Press send there.');
       Navigator.of(context).maybePop();
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -250,7 +249,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
               initialValue: snap.notes,
               maxLines: 3,
               decoration: const InputDecoration(
-                labelText: 'Anything you want to add — optional',
+                labelText: 'Anything you want to add (optional)',
                 hintText: 'e.g. woke the children; third one this hour',
                 border: OutlineInputBorder(),
               ),
@@ -297,7 +296,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
   ///
   /// Built from the live radio selection rather than from
   /// [Snap.confirmedCandidate], so the map answers the question the screen is
-  /// asking -- "was it this one?" -- as the user tries each in turn.
+  /// asking "was it this one?" as the user tries each in turn.
   List<MapAircraft> _mapAircraft(Snap snap) {
     final FlightMatch? match = snap.match;
     if (match == null) return const <MapAircraft>[];
@@ -420,7 +419,7 @@ class _MeasurementCard extends StatelessWidget {
                     child: Text(
                       snap.markedPeakMs == null
                           ? 'Attached to the complaint as a picture. Tap or '
-                              'drag on it to mark the worst moment — closest '
+                              'drag on it to mark the worst moment: closest '
                               'approach, or whatever actually made the noise '
                               'unbearable.'
                           : 'Attached as a picture, with your marker on it. '
@@ -521,7 +520,7 @@ class _MeasurementCard extends StatelessWidget {
 /// says so plainly; 0, 0 would read as a position rather than as an absence.
 String _locationSummary(Snap snap) {
   if (!snap.hasLocation) {
-    return 'Location: not recorded — no satellite fix at the time.';
+    return 'Location: not recorded. No satellite fix at the time.';
   }
   final StringBuffer buffer = StringBuffer('Location: ')
     ..write(snap.latitude!.toStringAsFixed(5))
@@ -529,6 +528,8 @@ String _locationSummary(Snap snap) {
     ..write(snap.longitude!.toStringAsFixed(5));
   final double? accuracy = snap.gpsAccuracyM;
   if (accuracy != null) buffer.write(' (±${accuracy.round()} m)');
-  if (snap.staleFix) buffer.write(' — last known position, not a live fix');
+  if (snap.staleFix) {
+    buffer.write(' (last known position, not a live fix)');
+  }
   return buffer.toString();
 }

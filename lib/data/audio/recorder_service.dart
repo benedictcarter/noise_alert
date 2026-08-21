@@ -112,7 +112,7 @@ class RecorderService {
           manageBluetooth: false,
         ),
         iosConfig: IosRecordConfig(
-          // Same reason — the default options allow Bluetooth routing.
+          // Same reason: the default options allow Bluetooth routing.
           categoryOptions: <IosAudioCategoryOption>[],
         ),
       ),
@@ -206,9 +206,9 @@ class RecorderService {
   /// Samples per second the microphone is *actually* delivering.
   ///
   /// [AudioConfig.sampleRate] is what we asked for, not necessarily what we
-  /// got. Android is free to hand back a different rate — commonly 44.1 kHz,
+  /// got. Android is free to hand back a different rate, commonly 44.1 kHz,
   /// and as little as 16 kHz for `unprocessed` on hardware that does not truly
-  /// support it — and the plugin reports success either way. Measuring it is
+  /// support it, and the plugin reports success either way. Measuring it is
   /// the only way to know, and everything downstream (window lengths, the
   /// A-weighting design, the WAV header on the clip) has to use the real figure
   /// or it describes audio that does not exist.
@@ -235,7 +235,7 @@ class RecorderService {
   /// there is nothing here that can be awaited in between.
   ///
   /// The pre-roll is not part of the event. It is snapshotted out of the ring
-  /// here and used for one thing only — the background level the letter
+  /// here and used for one thing only: the background level the letter
   /// compares the event against.
   void startEventCapture() {
     _stopRequested = false;
@@ -288,8 +288,8 @@ class RecorderService {
   /// the whole of this method's subtlety. A stream that dies mid-recording has
   /// given us everything it is going to, so the capture ends. A stream that was
   /// never running when the event opened must NOT end it: the recording would
-  /// finish in the same millisecond it began, and the user -- who pressed a
-  /// button precisely because an aircraft was overhead -- would be thrown to
+  /// finish in the same millisecond it began, and the user, who pressed a
+  /// button precisely because an aircraft was overhead, would be thrown to
   /// the review screen before they had let go of the phone. In that case we
   /// wait for their STOP like any other recording and hand back an empty
   /// window, which downstream turns into a complaint with no sound rather than

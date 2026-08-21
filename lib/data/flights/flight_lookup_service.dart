@@ -189,8 +189,8 @@ class FlightLookupService {
           searchedTo: heardAt.add(
             Duration(seconds: MatchConfig.searchForwardSeconds.round()),
           ),
-          note: 'Could not reach a flight data source. The snap is saved — '
-              'retry the lookup within the hour and OpenSky can still fill it in.',
+          note: 'Could not reach a flight data source. The snap is saved. '
+              'Retry the lookup within the hour and OpenSky can still fill it in.',
         );
       }
     }
@@ -222,7 +222,7 @@ class FlightLookupService {
         // than "this app cannot see into the past without an account".
         note: 'This recording is in the past, and live flight feeds only show '
             'aircraft that are in the sky right now. Looking up a past event '
-            'needs OpenSky history — add OpenSky API credentials in Settings, '
+            'needs OpenSky history. Add OpenSky API credentials in Settings, '
             'within an hour of the recording.',
       );
     }

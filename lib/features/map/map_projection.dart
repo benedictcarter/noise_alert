@@ -7,7 +7,7 @@ import 'map_geometry.dart';
 ///
 /// This exists because `takeSnapshot` does not photograph the map on screen.
 /// Both platforms hand the job to MapLibre's own `MapSnapshotter`, which is an
-/// independent renderer given nothing but the style URL and the camera — every
+/// independent renderer given nothing but the style URL and the camera: every
 /// GeoJSON source, layer and image added at run time is absent from the result.
 /// So the basemap comes from the snapshotter and everything drawn on it comes
 /// from Dart, and the two only line up if Dart reproduces the same projection.
@@ -38,7 +38,7 @@ class MercatorView {
   /// Android's snapshotter defaults to a scale of 1, so its PNG comes back at
   /// exactly the requested size; iOS defaults to the screen scale, so the same
   /// request comes back two or three times larger. Rather than guess, the
-  /// caller measures the PNG it was actually given and scales this to match —
+  /// caller measures the PNG it was actually given and scales this to match;
   /// see [forImage].
   final double tilePixels;
 
@@ -83,7 +83,7 @@ class MercatorView {
   /// Metres covered by one pixel, for the scale bar.
   ///
   /// Mercator stretches with latitude, so this is only true along the parallel
-  /// through the centre of the image — which, the image being a few hundred
+  /// through the centre of the image, which, the image being a few hundred
   /// metres of one street, is true enough everywhere in it.
   double get metresPerPixel =>
       (2 * math.pi * 6378137.0 * math.cos(centreLat * math.pi / 180.0)) /
@@ -106,7 +106,8 @@ class MercatorView {
     final double usableH = math.max(height - paddingPx * 2, 16);
 
     final double spanX = (mercatorX(frame.east) - mercatorX(frame.west)).abs();
-    final double spanY = (mercatorY(frame.south) - mercatorY(frame.north)).abs();
+    final double spanY =
+        (mercatorY(frame.south) - mercatorY(frame.north)).abs();
 
     double zoomFor(double usable, double span) =>
         span <= 0 ? maxZoom : _log2(usable / (tileSize * span));

@@ -14,7 +14,7 @@ import 'package:flutter/material.dart';
 class PlaneIcon {
   /// Raw pixels of the bitmap handed to MapLibre. The plugin decodes it with
   /// density scaling switched off, so this is the number the style's
-  /// `icon-size` multiplies — see [displayScale].
+  /// `icon-size` multiplies; see [displayScale].
   static const int pixels = 64;
 
   /// Multiplier that turns [pixels] into something the size of a thumbnail
@@ -25,7 +25,7 @@ class PlaneIcon {
   ///
   /// Nose *up* matters. MapLibre's `icon-rotate` and [Canvas.rotate] both
   /// measure clockwise from up, so an outline drawn pointing any other way is
-  /// wrong by that angle at every heading — and the error is invisible until
+  /// wrong by that angle at every heading, and the error is invisible until
   /// you notice every aircraft flying sideways.
   static Path path(double size) {
     final double s = size / 64.0;

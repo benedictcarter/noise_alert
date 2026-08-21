@@ -54,7 +54,7 @@ class MapAircraft {
   final List<TrackPoint> points;
 
   /// The one the complaint is about. Everything else is drawn faintly, as
-  /// context — it matters that the sky was busy, but not as much as which
+  /// context: it matters that the sky was busy, but not as much as which
   /// aeroplane this is.
   final bool highlighted;
 
@@ -63,7 +63,7 @@ class MapAircraft {
 
   /// Which way it is pointing, from the last movement it actually made.
   ///
-  /// Not the ADS-B track angle, which the map does not carry — the direction
+  /// Not the ADS-B track angle, which the map does not carry, but the direction
   /// between the last two distinct positions is observed rather than reported,
   /// and it is the one that matches the line drawn behind it.
   double? get headingDeg {
@@ -114,7 +114,7 @@ Map<String, Object?> observerGeoJson(double? latitude, double? longitude) {
 
 /// One LineString per aircraft, for the path flown.
 ///
-/// An aircraft seen only once has no line — a single position is a dot, and
+/// An aircraft seen only once has no line: a single position is a dot, and
 /// joining it to nothing would be inventing a direction of travel.
 Map<String, Object?> trackGeoJson(List<MapAircraft> aircraft) => _collection(
       <Map<String, Object?>>[

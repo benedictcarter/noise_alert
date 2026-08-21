@@ -7,7 +7,7 @@ import 'biquad.dart';
 ///
 /// Clips are decimated to [clipSampleRate] before writing. Aircraft noise is
 /// overwhelmingly below 4 kHz, so 16 kHz loses nothing audible while cutting
-/// the email attachment from ~960 kB to ~320 kB for a 10 s clip — which matters
+/// the email attachment from ~960 kB to ~320 kB for a 10 s clip, which matters
 /// when the recipient is a council mailbox with an attachment size limit.
 class WavWriter {
   const WavWriter({this.clipSampleRate = 16000});

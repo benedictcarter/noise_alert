@@ -17,7 +17,7 @@ void main() {
 
         if (frequency >= 16000) {
           // The bilinear transform warps frequency towards Nyquist, so at
-          // fs/3 the digital filter over-attenuates — about 6 dB low here.
+          // fs/3 the digital filter over-attenuates: about 6 dB low here.
           // IEC 61672-1 leaves the lower tolerance at 16 kHz effectively
           // unbounded for both classes, and aircraft noise has nothing up
           // there anyway, so over-attenuation is acceptable; being *above*

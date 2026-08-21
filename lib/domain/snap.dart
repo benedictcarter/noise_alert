@@ -46,7 +46,7 @@ class Snap {
   final String id;
 
   /// Wall-clock time of the button press, i.e. when the noise was *heard*.
-  /// The aircraft's closest approach was earlier — see [FlightMatch].
+  /// The aircraft's closest approach was earlier; see [FlightMatch].
   final DateTime recordedAt;
 
   /// Null when no fix was available. **Not** defaulted to zero: 0, 0 is a real
@@ -58,8 +58,8 @@ class Snap {
   final double? gpsAltitudeM;
 
   /// The fix came from the last-known cache rather than a live reading, so the
-  /// user may have moved since. Still worth having — it is almost always the
-  /// same garden — but the letter says which it was.
+  /// user may have moved since. Still worth having (it is almost always the
+  /// same garden) but the letter says which it was.
   final bool staleFix;
 
   bool get hasLocation => latitude != null && longitude != null;
@@ -80,7 +80,7 @@ class Snap {
   ///
   /// Null means they have not moved it, and the complaint speaks only of the
   /// measured maximum. When it is set, the letter says plainly that the
-  /// complainant marked the moment — it is a statement about what was
+  /// complainant marked the moment: it is a statement about what was
   /// experienced, not a second measurement, and must never be presented as one.
   final int? markedPeakMs;
 

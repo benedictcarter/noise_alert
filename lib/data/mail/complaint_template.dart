@@ -99,7 +99,7 @@ class ComplaintTemplate {
       'address': profile.addressBlock,
       'addressOneLine': profile.addressOneLine,
       'postcode': profile.postcode,
-      // No email address is collected any more -- the letter goes from the
+      // No email address is collected any more: the letter goes from the
       // user's own account, so the reply-to header already carries it. The
       // token stays, resolving to nothing, because a letter edited before the
       // field was dropped still contains it and an unknown token is left
@@ -155,16 +155,16 @@ class ComplaintTemplate {
   /// One reading, or an honest blank.
   ///
   /// A missing measurement is stored as zero, and "0.0 dB(A)" in a complaint is
-  /// not a gap in the evidence, it is a claim about the world -- and a false
+  /// not a gap in the evidence, it is a claim about the world, and a false
   /// one. Everything that prints a level goes through here.
   String _db(AcousticMetrics m, double value) =>
       m.hasMeasurement ? value.toStringAsFixed(1) : 'not measured';
 
   /// The three figures a human checks before believing the rest of the letter.
   ///
-  /// The letter is sent as plain text -- the composer is handed
+  /// The letter is sent as plain text: the composer is handed
   /// `isHTML: false`, and the mailto: fallback could not carry markup even if
-  /// it were not -- so there is no bold to reach for. An upper-case heading and
+  /// it were not, so there is no bold to reach for. An upper-case heading and
   /// three labelled lines do the same job in every client that has ever
   /// existed, including the council mail gateway that strips everything.
   ///
@@ -193,7 +193,7 @@ class ComplaintTemplate {
         // recipient can make about a phone being used as a sound level meter,
         // so it is the one a skimming eye should land on.
         buffer.writeln('Loudest: ${excess.toStringAsFixed(1)} dB above the '
-            'background -- ${_db(m, m.laMaxDb)} dB(A) at its peak, against '
+            'background, ${_db(m, m.laMaxDb)} dB(A) at its peak, against '
             '${ambient.toStringAsFixed(1)} dB(A) when it was quiet');
       } else {
         buffer.writeln('Loudest: ${_db(m, m.laMaxDb)} dB(A) at its peak');
@@ -231,8 +231,7 @@ class ComplaintTemplate {
           'time above.';
     }
 
-    final StringBuffer buffer = StringBuffer('Measured sound level')
-      ..writeln();
+    final StringBuffer buffer = StringBuffer('Measured sound level')..writeln();
     // The rise leads, because it is the figure that does not depend on the
     // handset: the peak and the background were read by the same microphone
     // minutes apart, so whatever its error is, it is in both and cancels.
@@ -272,7 +271,7 @@ class ComplaintTemplate {
   ///
   /// Gated on there being a fix, because that is exactly the condition
   /// `MapImageService.renderForEmail` draws under: no fix, no centre, no map.
-  /// Tiles that failed to load do *not* suppress this note -- the picture is
+  /// Tiles that failed to load do *not* suppress this note: the picture is
   /// still produced, still to scale and still true, just without streets under
   /// it.
   String _mapNote(Snap snap) {
@@ -292,8 +291,8 @@ class ComplaintTemplate {
   /// The moment the complainant marked as the worst of the flyover.
   ///
   /// Deliberately written in the first person and kept apart from every
-  /// measured figure. The mark is a claim about experience -- closest approach,
-  /// or whatever actually made the noise unbearable -- and a recipient who
+  /// measured figure. The mark is a claim about experience (closest approach,
+  /// or whatever actually made the noise unbearable), and a recipient who
   /// reads it as a second measurement, then finds it disagrees with LAmax, has
   /// been handed a reason to dismiss the whole letter.
   String _markedPeakNote(Snap snap) {
@@ -305,15 +304,14 @@ class ComplaintTemplate {
     final StringBuffer buffer = StringBuffer()
       ..write('The worst of it, as I experienced it, was about $at s into the '
           'recording');
-    final int index = m.traceIntervalMs <= 0
-        ? -1
-        : (marked / m.traceIntervalMs).round();
+    final int index =
+        m.traceIntervalMs <= 0 ? -1 : (marked / m.traceIntervalMs).round();
     if (index >= 0 && index < m.levelTrace.length) {
       buffer.write(' (${m.levelTrace[index].toStringAsFixed(1)} dB(A) at that '
           'moment)');
     }
     buffer.write('. That is my own account of when the aircraft was at its '
-        'most intrusive, not a separate measurement -- the figures above are '
+        'most intrusive, not a separate measurement. The figures above are '
         'the measured ones, and the maximum they quote may fall elsewhere in '
         'the recording.');
     return buffer.toString();
@@ -326,7 +324,7 @@ class ComplaintTemplate {
 
   String _aircraftDescription(AircraftSample? aircraft) {
     if (aircraft == null) {
-      return 'not identified — no ADS-B match could be confirmed';
+      return 'not identified: no ADS-B match could be confirmed';
     }
     final List<String> parts = <String>[];
     final String? cs = aircraft.callsign?.trim();
@@ -431,7 +429,7 @@ class ComplaintTemplate {
     if (accuracy != null) buffer.write(' (±${accuracy.round()} m)');
     buffer.write(suffix);
     if (snap.staleFix) {
-      buffer.write(' — taken from the last known position of the handset '
+      buffer.write(', taken from the last known position of the handset '
           'rather than a live fix at the time of the event.');
     }
     return buffer.toString();

@@ -40,7 +40,7 @@ class NoiseAlertApp extends StatelessWidget {
 /// has been told what the app is, which is how a Deny happens.
 ///
 /// Wrapped once, here, in the map that draws the picture for the letter. It
-/// has to sit above every route -- a complaint can be sent from the record
+/// has to sit above every route: a complaint can be sent from the record
 /// screen or from history, and the renderer must not go away with whichever
 /// screen the user has just left. See [MapSnapshotHost] for why it is a map of
 /// its own and not the one on screen.
@@ -60,9 +60,9 @@ class _Root extends ConsumerWidget {
 ///
 /// Lifted out of [_HomeShellState] because the record screen needs it. The
 /// screen starts recording the moment the app opens, and an [IndexedStack]
-/// keeps it alive and none the wiser when the user walks off to Settings --
-/// so without this it would carry on recording a conversation nobody asked it
-/// to record, and hand back a snap on the way out.
+/// keeps it alive and none the wiser when the user walks off to Settings, so
+/// without this it would carry on recording a conversation nobody asked it to
+/// record, and hand back a snap on the way out.
 final StateProvider<int> homeTabProvider = StateProvider<int>((Ref ref) => 0);
 
 class HomeShell extends ConsumerStatefulWidget {

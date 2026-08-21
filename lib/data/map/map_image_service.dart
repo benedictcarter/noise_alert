@@ -46,7 +46,7 @@ class MapImageService {
   MapImageService();
 
   /// Set by the hidden map when the app starts, and cleared when it goes.
-  /// Null means no picture — never a failed send.
+  /// Null means no picture, never a failed send.
   MapBasemapSource? basemap;
 
   static final DateFormat _caption = DateFormat('HH:mm on d MMMM yyyy');
@@ -80,8 +80,7 @@ class MapImageService {
         height: MapConfig.emailImageHeight,
       );
 
-      final ui.Image? base =
-          tiles == null ? null : await _decode(tiles);
+      final ui.Image? base = tiles == null ? null : await _decode(tiles);
 
       // Android's snapshotter renders at the size asked for; iOS renders at
       // the screen scale, so the same request comes back two or three times
@@ -150,7 +149,8 @@ class MapImageService {
       for (final FlightCandidate c in match.candidates)
         MapAircraft.ofCandidate(
           c,
-          highlighted: chosen != null && c.aircraft.icao24 == chosen.aircraft.icao24,
+          highlighted:
+              chosen != null && c.aircraft.icao24 == chosen.aircraft.icao24,
         ),
     ];
   }
@@ -197,7 +197,7 @@ class MapImageService {
       return 'Aircraft noise reported at $when. No aircraft identified.';
     }
     final AircraftSample a = c.aircraft;
-    return 'Closest match ${a.displayName} at $when — '
+    return 'Closest match ${a.displayName} at $when: '
         '${c.horizontalRangeM.round()} m away, '
         '${c.heightAboveObserverFt.round()} ft overhead.';
   }
