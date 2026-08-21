@@ -71,8 +71,6 @@ Most users are pensioners. Every screen has to read as "press this, we will hand
 list of things that might be wrong with their phone.
 - [ ] UAT the whole restructure on the handset: welcome form, mic refusal and recovery, the three
       settings screens, and a real overflight end to end.
-- [ ] The postcode lookup fills in the *council area*, not the post town. For most addresses these
-      are the same word; for some they are not. Watch whether that reads oddly in a real letter.
 - [ ] The review screen still shows five acoustics rows. They are labelled in plain English now,
       but consider collapsing them behind a "show the detail" tap so the headline stands alone.
 

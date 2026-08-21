@@ -17,9 +17,10 @@ class PostcodeResult {
   /// The local authority the postcode sits in — "Hounslow", "Windsor and
   /// Maidenhead".
   ///
-  /// Not strictly the post town, which this data set does not carry. For a
-  /// complaint it is arguably the better of the two: it is the council whose
-  /// area the noise is landing in.
+  /// Deliberately the council area rather than the post town, which this data
+  /// set does not carry anyway. For a complaint it is the better of the two:
+  /// it is the council whose area the noise is landing in, and therefore the
+  /// body being written to.
   final String town;
 }
 
