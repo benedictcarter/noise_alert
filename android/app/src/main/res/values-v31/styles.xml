@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12 took the launch window away from us: windowBackground is ignored
+     and the OS draws its own splash from the two attributes below. The wordmark
+     bitmap cannot be used here (the animated icon is masked to a circle), so
+     this matches the ground colour and shows the plane, and the Flutter side
+     carries the words instead. -->
+<resources>
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowSplashScreenBackground">@android:color/white</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+    </style>
+</resources>

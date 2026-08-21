@@ -21,8 +21,6 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
       file manager; there is no `flutter run` hot reload on this handset, so each change means a
       rebuild and re-copy.
 - [ ] CI: `flutter analyze` + `flutter test` on push (GitHub Actions).
-- [ ] Microphone permission denial / "denied forever" UI state. Location is done (banner with
-      "Turn on" / "Settings"); the mic still fails silently.
 - [ ] iOS quick-snap: the Android home-screen widget has no iOS counterpart. `QuickSnapChannel`
       degrades to "no pending snap" on any platform without the channel, so nothing breaks — but a
       Control Centre / Lock Screen widget is the iOS equivalent when iOS is unparked.
@@ -69,8 +67,9 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
 ## Make it safe for someone who is not technical
 Most users are pensioners. Every screen has to read as "press this, we will handle it", never as a
 list of things that might be wrong with their phone.
-- [ ] UAT the whole restructure on the handset: welcome form, mic refusal and recovery, the three
-      settings screens, and a real overflight end to end.
+- [ ] UAT the rest of the restructure on the handset: the welcome form on a fresh install, the
+      three settings screens, and a real overflight end to end. (Mic refusal and recovery, and the
+      three-button stop row, both passed on b13.)
 - [ ] The review screen still shows five acoustics rows. They are labelled in plain English now,
       but consider collapsing them behind a "show the detail" tap so the headline stands alone.
 

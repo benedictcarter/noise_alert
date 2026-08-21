@@ -30,7 +30,7 @@ class WelcomeScreen extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
           children: <Widget>[
             Text(
-              'Flightpath Watch Alert',
+              'Flightpath Watch Report',
               style: theme.textTheme.headlineSmall
                   ?.copyWith(fontWeight: FontWeight.w600),
             ),

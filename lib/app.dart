@@ -13,7 +13,7 @@ class NoiseAlertApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flightpath Watch Alert',
+      title: 'Flightpath Watch Report',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,

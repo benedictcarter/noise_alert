@@ -4,6 +4,30 @@
   LESSONS_LEARNT.md written.
 
 
+## The launch screen, and the app is called Flightpath Watch Report (2026-08-21)
+Opening the app flashed a plain white window while the process started and the database opened.
+Nothing was broken — `main()` awaits `AppDatabase.open()` before `runApp` — but a blank white screen
+is indistinguishable from an app that has failed to start, which is exactly the wrong first second
+for this audience.
+
+- **The launch window now carries the wordmark.** `drawable-*/splash_wordmark.png` is the plane from
+  the launcher icon over FLIGHTPATH / WATCH / REPORT, composed once at 4x by
+  `scripts/make_splash.py` and downsampled per density so the letterforms match across handsets.
+  The native splash cannot render text, so it has to be baked into a bitmap.
+- **White in dark mode too.** Both `launch_background.xml` variants pin `@android:color/white`
+  rather than `?android:colorBackground`. The artwork is black ink on a transparent ground, so a
+  dark-mode handset would otherwise have shown black on black.
+- **Android 12+ gets `values-v31`.** From API 31 the OS draws its own splash and ignores
+  `windowBackground` entirely, so that path sets `windowSplashScreenBackground` white and the
+  launcher icon as the animated icon. The wordmark cannot go there — the animated icon is masked to
+  a circle.
+- **Renamed to Flightpath Watch Report** in `strings.xml`, `MaterialApp.title`, the welcome screen,
+  the letter's provenance line and `pubspec.yaml`. The Dart package, the repo and the Android
+  application id stay `noise_alert`; renaming those buys nothing and breaks the installed build.
+- **The stop buttons say what they lead to.** DISCARD / REVIEW & SEND / JUST SEND, two lines each on
+  the last two, because both of them end in a sent complaint and the single words REVIEW and SEND
+  read as alternatives rather than as two routes to the same place.
+
 ## Make it simple enough for someone who is not technical (2026-08-20)
 The audience is largely pensioners, opening the app because a jet has just gone over. Every screen
 had to stop reading as a list of things that might be wrong with their phone.
@@ -46,7 +70,7 @@ had to stop reading as a list of things that might be wrong with their phone.
   trace is stored in the metrics row, because the audio usually is not kept. Fixed 30-110 dB axis,
   so a quiet event and a loud one cannot look alike, and the UNCALIBRATED caveat travels in the
   caption.
-- **Renamed to Flightpath Watch Alert** — app label, in-app title, iOS display name and the letter's
+- **Renamed to Flightpath Watch Report** — app label, in-app title, iOS display name and the letter's
   "measured with" line. The Dart package and the repo stay `noise_alert`.
 - **New launcher icon**: the real plane-and-swoosh, lifted out of the FLIGHTPATH WATCH logo by
   `scripts/make_icons.py` and exported to every Android density plus an adaptive (and monochrome)

@@ -344,13 +344,13 @@ class ComplaintTemplate {
   String _measurementNote(Snap snap) {
     final AcousticMetrics m = snap.metrics;
     if (!m.hasMeasurement) {
-      return 'Logged with the Flightpath Watch Alert app on a '
+      return 'Logged with the Flightpath Watch Report app on a '
           '${snap.deviceModel} running ${snap.osVersion}. No sound measurement '
           'is attached to this event, so nothing here should be read as one.';
     }
     final StringBuffer buffer = StringBuffer()
       ..write(
-        'Measured with the Flightpath Watch Alert app on a ${snap.deviceModel} running '
+        'Measured with the Flightpath Watch Report app on a ${snap.deviceModel} running '
         '${snap.osVersion}, sampling at ${(m.sampleRate / 1000).toStringAsFixed(0)} kHz '
         'with IEC 61672 A-weighting and fast (125 ms) time weighting.',
       );

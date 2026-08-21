@@ -413,7 +413,7 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
     final ThemeData theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Flightpath Watch Alert')),
+      appBar: AppBar(title: const Text('Flightpath Watch Report')),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -665,10 +665,12 @@ class _Banner extends StatelessWidget {
 
 /// Shown in place of RECORD while a recording is running.
 ///
-/// Two buttons, because there are two things a user might want and only one of
-/// them is worth a detour through a review screen. REVIEW keeps the
-/// recording and opens it; SEND drafts the complaint and hands it to the
-/// mail app, which makes the whole job three taps: open, stop-and-send, send.
+/// Three buttons. Both of the keeping ones end in a sent complaint, so they
+/// are labelled by the route rather than the outcome: REVIEW & SEND stops to
+/// show the measurement and the aircraft first, JUST SEND goes straight to the
+/// mail app and makes the whole job three taps -- open, just-send, send.
+/// DISCARD is the third thing a user might want and the only one that keeps
+/// nothing.
 ///
 /// Nothing else ends a recording. An earlier build stopped itself after a
 /// fixed 20 s, which is both the most irritating thing a one-button app can do
@@ -723,7 +725,7 @@ class _StopButtons extends StatelessWidget {
               Expanded(
                 child: _StopButton(
                   onPressed: onSave,
-                  label: 'REVIEW',
+                  label: 'REVIEW\n& SEND',
                   background: colors.secondaryContainer,
                   foreground: colors.onSecondaryContainer,
                 ),
@@ -732,7 +734,7 @@ class _StopButtons extends StatelessWidget {
               Expanded(
                 child: _StopButton(
                   onPressed: onSend,
-                  label: 'SEND',
+                  label: 'JUST\nSEND',
                   background: _sendBlue,
                   foreground: Colors.white,
                 ),
@@ -774,7 +776,7 @@ class _StopButton extends StatelessWidget {
         child: Text(
           label,
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
         ),
       ),
     );
