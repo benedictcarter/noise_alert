@@ -1,7 +1,7 @@
 name: noise_alert
 description: Flightpath Watch Report — log aircraft noise events and generate complaint emails.
 publish_to: "none"
-version: 1.0.0+14
+version: 1.0.1+15
 
 environment:
   sdk: ">=3.5.0 <4.0.0"

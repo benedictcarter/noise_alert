@@ -59,6 +59,22 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
 - [ ] iOS background audio session; document store-review fallback
 - [ ] Auto-snap review queue (never auto-send)
 
+## v2 — Map and tracks
+- [ ] Map of the 1 km square around the recording, with the aircraft on it. Basemap is
+      **OpenFreeMap** (openfreemap.org): OSM data, vector tiles, no API key, no registration, no
+      request limit, donation-funded — the only provider that meets "free" and "zero effort from a
+      non-technical user" at once. Flutter side is `maplibre_gl`; `flutter_map` alone does raster.
+      Attribution line is the only obligation. Fallback if it ever folds: Protomaps, one `.pmtiles`
+      file on any static host, or bundled in the APK for zero outbound calls.
+- [ ] Poll adsb.lol every ~2 s *while the recording runs* and keep the positions, so the map shows
+      the track the aircraft actually flew rather than one sample. Needs a positions table. Also
+      improves matching: closest approach over the whole event instead of a single instant.
+- [ ] Render the map to a PNG and attach it to the complaint. This is the point of the whole
+      feature — a council can argue with a decibel figure, not with a picture of the flight path
+      over the house.
+- [ ] Decide what the map does with no fix, no signal, or no aircraft found. None of them may block
+      a complaint.
+
 ## M7 — Store release
 - [ ] Privacy policy, data-safety / privacy-manifest forms
 - [ ] App icons, screenshots, store copy

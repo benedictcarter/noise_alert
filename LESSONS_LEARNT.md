@@ -503,3 +503,41 @@ There is no API that reports "the system will no longer ask". So the recovery fl
 offers the settings page. That costs one redundant dialog on the very first refusal and rescues
 every refusal after it. Trying to be cleverer than this means guessing.
 
+## Flutter ships a release build signed with the *debug* key, and that is a one-way door
+
+`flutter create` writes this into `android/app/build.gradle.kts` and leaves it there:
+
+```kotlin
+release {
+    // TODO: Add your own signing config for the release build.
+    signingConfig = signingConfigs.getByName("debug")
+}
+```
+
+`flutter build apk --release` then produces a perfectly working, installable, *debug-signed* APK.
+Nothing warns you. It sideloads fine, it runs fine, and the TODO scrolls past in a file nobody opens
+after the first week. v1.0.0 was tagged and about to be emailed to a community group before anyone
+looked.
+
+The reason it matters is not Play Protect's warning. It is that **Android refuses an update whose
+signature differs from the installed copy**. There is no override, no migration and no re-signing an
+installed app. Every person who installs a debug-signed build has to *uninstall* — losing every
+recording in the app's private storage — before they can take a properly signed successor. The cost
+of fixing it is ten minutes before distribution and infinite afterwards.
+
+Two things that cost time while fixing it:
+
+- `rootProject.file()` in `android/app/build.gradle.kts` resolves against **`android/`**, not the
+  repo root. `storeFile=../flightpath-watch-release.jks` in `key.properties` therefore pointed one
+  level above the repo. The error says only "Keystore file ... not found", with an absolute path that
+  looks plausible enough to stare past.
+- `keytool -printcert -jarfile app.apk` answers **"Not a signed jar file"** on a correctly signed
+  APK. Modern APKs carry only an APK Signature Scheme v2/v3 block and no `META-INF` JAR signature,
+  which is all `keytool` knows how to read. Verify with `apksigner verify --print-certs` from
+  `$ANDROID_SDK/build-tools/<ver>/` instead — and note it needs `JAVA_HOME` set, which Android
+  Studio's bundled JBR satisfies (`C:/Program Files/Android/Android Studio/jbr`).
+
+The signing config is written to fall back to the debug key when `android/key.properties` is absent,
+so a fresh clone and CI still build. That is deliberate — but it also means **the absence of the key
+is silent**, exactly the failure this whole entry is about. Check `apksigner` output before shipping
+any build to a human.
