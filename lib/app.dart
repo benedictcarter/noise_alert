@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'features/history/history_screen.dart';
+import 'features/map/map_snapshot_host.dart';
 import 'features/onboarding/welcome_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/snap/snap_screen.dart';
@@ -37,12 +38,22 @@ class NoiseAlertApp extends StatelessWidget {
 /// [SnapScreen] opens the microphone in its `initState`. Anything that leaves
 /// it built underneath a welcome screen asks for permission before the user
 /// has been told what the app is, which is how a Deny happens.
+///
+/// Wrapped once, here, in the map that draws the picture for the letter. It
+/// has to sit above every route -- a complaint can be sent from the record
+/// screen or from history, and the renderer must not go away with whichever
+/// screen the user has just left. See [MapSnapshotHost] for why it is a map of
+/// its own and not the one on screen.
 class _Root extends ConsumerWidget {
   const _Root();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) =>
-      ref.watch(onboardedProvider) ? const HomeShell() : const WelcomeScreen();
+  Widget build(BuildContext context, WidgetRef ref) => MapSnapshotHost(
+        service: ref.watch(mapImageProvider),
+        child: ref.watch(onboardedProvider)
+            ? const HomeShell()
+            : const WelcomeScreen(),
+      );
 }
 
 /// Which tab is showing.

@@ -12,6 +12,7 @@ class FlightCandidate {
     required this.elevationDegrees,
     required this.score,
     required this.extrapolated,
+    this.track = const <TrackPoint>[],
   });
 
   /// The aircraft, at the sample nearest its closest approach.
@@ -35,6 +36,15 @@ class FlightCandidate {
   /// True when the position was dead-reckoned from a single report rather than
   /// observed. Reduces confidence in the answer.
   final bool extrapolated;
+
+  /// The path this aircraft was actually seen to fly across the search window,
+  /// oldest first. Empty for a match resolved from a single report, and empty
+  /// for every match stored before the map existed.
+  ///
+  /// This is the evidence the map draws. One position says an aeroplane was
+  /// somewhere; a track says it came over the house, which is the thing the
+  /// complaint is about.
+  final List<TrackPoint> track;
 
   double get heightAboveObserverFt => heightAboveObserverM * 3.28084;
 }

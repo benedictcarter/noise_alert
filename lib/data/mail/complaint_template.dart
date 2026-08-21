@@ -55,6 +55,7 @@ class ComplaintTemplate {
     required ComplainantProfile profile,
     required AppSettings settings,
     String? chartPath,
+    String? mapPath,
   }) {
     final Map<String, String> tokens = buildTokens(
       snap: snap,
@@ -74,6 +75,11 @@ class ComplaintTemplate {
         // so there is no privacy trade-off to put to the user, and a picture of
         // the event is the part a noise team actually reads.
         if (chartPath != null) chartPath,
+        // Same reasoning as the chart, only more so: the map is drawn from the
+        // ADS-B positions and the fix the letter already quotes, so it discloses
+        // nothing new, and it is the one attachment a recipient cannot argue
+        // with by disputing a phone's microphone.
+        if (mapPath != null) mapPath,
         if (snap.attachClip && snap.clipPath != null) snap.clipPath!,
       ],
     );
@@ -140,6 +146,7 @@ class ComplaintTemplate {
       'measurementNote': _measurementNote(snap),
       'clipNote': _clipNote(snap),
       'chartNote': _chartNote(snap),
+      'mapNote': _mapNote(snap),
       'markedPeakNote': _markedPeakNote(snap),
       'notes': snap.notes,
     };
@@ -259,6 +266,27 @@ class ComplaintTemplate {
         '$window s of the recording, marked with the moment I logged it'
         '${m.hasAmbient ? ' and with the background level' : ''}. '
         '${LevelChartLabels.caption()}';
+  }
+
+  /// Describes the attached map, or says nothing if there will not be one.
+  ///
+  /// Gated on there being a fix, because that is exactly the condition
+  /// `MapImageService.renderForEmail` draws under: no fix, no centre, no map.
+  /// Tiles that failed to load do *not* suppress this note -- the picture is
+  /// still produced, still to scale and still true, just without streets under
+  /// it.
+  String _mapNote(Snap snap) {
+    if (!snap.hasLocation) return '';
+    final FlightCandidate? candidate = snap.confirmedCandidate;
+    if (candidate == null) {
+      return 'Attached: a map of where I was when I logged this. No aircraft '
+          'is marked on it, because none was identified.';
+    }
+    return 'Attached: a map of the recording location with the track flown by '
+        '${candidate.aircraft.displayName}, plotted from the same public ADS-B '
+        'position reports as the figures above. As with the identification '
+        'itself, the track is that of the closest match and has not been '
+        'independently verified.';
   }
 
   /// The moment the complainant marked as the worst of the flyover.
@@ -435,6 +463,6 @@ Available tokens:
   {laMax} {laEq} {peakWindowLaEq} {ambient} {excess} {eventSeconds}
   {measurementBlock} {atAGlance}
   {device} {osVersion} {appVersion} {measurementNote} {clipNote}
-  {chartNote} {markedPeakNote} {notes}
+  {chartNote} {mapNote} {markedPeakNote} {notes}
 ''';
 }

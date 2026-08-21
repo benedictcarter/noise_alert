@@ -130,6 +130,65 @@ void main() {
     expect(draft.body, contains('1 Quiet Lane'));
   });
 
+  group('the map', () {
+    test('is attached and described when there was a fix', () {
+      final ComplaintDraft draft = template.render(
+        snap: _snap(),
+        profile: _profile,
+        settings: settings,
+        mapPath: '/tmp/snap-1-map.png',
+      );
+
+      expect(draft.attachmentPaths, contains('/tmp/snap-1-map.png'));
+      expect(draft.body, contains('a map of the recording location'));
+      expect(draft.body, contains('BAW123'));
+      // The picture is the part most likely to be forwarded on its own, so the
+      // caveat travels with it in the text as well as on the image.
+      expect(
+          draft.body, contains('has not been independently verified'));
+    });
+
+    test('says so plainly when no aircraft was identified', () {
+      final ComplaintDraft draft = template.render(
+        snap: _snap(confirmed: false, unidentified: true),
+        profile: _profile,
+        settings: settings,
+        mapPath: '/tmp/snap-1-map.png',
+      );
+
+      expect(draft.attachmentPaths, contains('/tmp/snap-1-map.png'));
+      expect(draft.body, contains('No aircraft is marked on it'));
+      expect(draft.body, isNot(contains('BAW123')));
+    });
+
+    test('no fix means no map and no mention of one', () {
+      final ComplaintDraft draft = template.render(
+        snap: _snap(located: false),
+        profile: _profile,
+        settings: settings,
+      );
+
+      expect(
+        draft.attachmentPaths.where((String p) => p.endsWith('-map.png')),
+        isEmpty,
+      );
+      expect(draft.body, isNot(contains('Attached: a map')));
+    });
+
+    test('a letter is still sent when the map could not be drawn', () {
+      // Tiles unreachable, renderer gone, disk full -- all arrive here as a
+      // null path, and none of them may cost the user their complaint.
+      final ComplaintDraft draft = template.render(
+        snap: _snap(),
+        profile: _profile,
+        settings: settings,
+      );
+
+      expect(draft.body, contains('BAW123'));
+      expect(draft.to, isNotEmpty);
+    });
+  });
+
   test('an unconfirmed match never puts a flight number in the letter', () {
     // The candidate exists but the user has not confirmed it. Naming it here
     // would be the app inventing an accusation.

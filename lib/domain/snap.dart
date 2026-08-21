@@ -250,6 +250,10 @@ Map<String, Object?> encodeMatch(FlightMatch match) => <String, Object?>{
               'elevationDegrees': c.elevationDegrees,
               'score': c.score,
               'extrapolated': c.extrapolated,
+              if (c.track.isNotEmpty)
+                'track': c.track
+                    .map((TrackPoint p) => p.toJson())
+                    .toList(growable: false),
             },
           )
           .toList(),
@@ -271,6 +275,12 @@ FlightMatch decodeMatch(Map<String, Object?> json) => FlightMatch(
               elevationDegrees: (c['elevationDegrees'] as num).toDouble(),
               score: (c['score'] as num).toDouble(),
               extrapolated: c['extrapolated'] as bool? ?? false,
+              // Absent on every match stored before the map existed, which is
+              // a snap that simply has no path to draw rather than a broken
+              // row.
+              track: ((c['track'] as List<Object?>?) ?? const <Object?>[])
+                  .map((Object? p) => TrackPoint.fromJson(p! as List<Object?>))
+                  .toList(growable: false),
             ),
           )
           .toList(),

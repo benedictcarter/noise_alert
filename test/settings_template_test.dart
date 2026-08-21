@@ -70,6 +70,37 @@ Yours faithfully,
 {email}{phoneLine}
 ''';
 
+/// The exact default letter as it shipped before `{mapNote}` existed.
+const String _b10Default = '''
+Dear Sir or Madam,
+
+I am writing to complain about aircraft noise affecting my home.
+
+{atAGlance}
+
+{locationLine}
+
+{aircraftBlock}
+
+{measurementBlock}
+
+{measurementNote}
+
+{chartNote}
+
+{markedPeakNote}
+
+{clipNote}
+
+This aircraft was clearly audible inside my home and disrupted my use of it.
+I would be grateful if you would log this complaint and confirm receipt.
+
+Yours faithfully,
+
+{name}
+{address}{phoneLine}
+''';
+
 void main() {
   group('the stored letter', () {
     test('an untouched older default is upgraded', () {
@@ -93,6 +124,15 @@ void main() {
 
       expect(settings.templateBody, AppSettings.defaultBody);
       expect(settings.templateBody, contains('{atAGlance}'));
+    });
+
+    test('the letter that shipped without a map picks the map note up', () {
+      final AppSettings settings = AppSettings.fromJson(<String, Object?>{
+        'templateBody': _b10Default,
+      });
+
+      expect(settings.templateBody, AppSettings.defaultBody);
+      expect(settings.templateBody, contains('{mapNote}'));
     });
 
     test('a letter the user edited is left exactly as they wrote it', () {

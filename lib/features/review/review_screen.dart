@@ -10,6 +10,8 @@ import '../../domain/flight_match.dart';
 import '../../domain/snap.dart';
 import '../../providers.dart';
 import '../chart/live_level_chart.dart';
+import '../map/flight_map.dart';
+import '../map/map_layers.dart';
 import 'clip_player.dart';
 
 /// Review one snap, confirm the aircraft, and hand the complaint to the mail
@@ -188,6 +190,19 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
               onMarkChanged: (int? millis) => _setMarkedPeak(snap, millis),
             ),
             const SizedBox(height: 20),
+            // Above the list, not below it: the fastest way to tell which of
+            // four callsigns was the one overhead is to see which line went
+            // over the house, and the highlight follows the radio buttons.
+            FlightMapPanel(
+              latitude: snap.latitude,
+              longitude: snap.longitude,
+              aircraft: _mapAircraft(snap),
+              interactive: false,
+              height: 240,
+              emptyMessage: 'No location fix was recorded, so there is no map '
+                  'for this event. The complaint still stands on your address.',
+            ),
+            const SizedBox(height: 20),
             Text('Which aircraft was it?', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             ..._buildCandidates(snap, theme),
@@ -276,6 +291,23 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
         ),
       ),
     );
+  }
+
+  /// The tracks to draw, with the aircraft currently ticked picked out.
+  ///
+  /// Built from the live radio selection rather than from
+  /// [Snap.confirmedCandidate], so the map answers the question the screen is
+  /// asking -- "was it this one?" -- as the user tries each in turn.
+  List<MapAircraft> _mapAircraft(Snap snap) {
+    final FlightMatch? match = snap.match;
+    if (match == null) return const <MapAircraft>[];
+    return <MapAircraft>[
+      for (final FlightCandidate c in match.candidates)
+        MapAircraft.ofCandidate(
+          c,
+          highlighted: !_unidentified && c.aircraft.icao24 == _selected,
+        ),
+    ];
   }
 
   List<Widget> _buildCandidates(Snap snap, ThemeData theme) {

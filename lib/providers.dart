@@ -10,9 +10,11 @@ import 'data/flights/adsb_source.dart';
 import 'data/flights/flight_lookup_service.dart';
 import 'data/flights/opensky_source.dart';
 import 'data/flights/tar1090_source.dart';
+import 'data/map/map_image_service.dart';
 import 'data/postcode/postcode_service.dart';
 import 'data/snap_service.dart';
 import 'data/storage/database.dart';
+import 'domain/aircraft.dart';
 import 'domain/profile.dart';
 import 'domain/settings.dart';
 import 'domain/snap.dart';
@@ -151,6 +153,14 @@ final Provider<FlightLookupService> flightLookupProvider =
   return service;
 });
 
+/// Draws the picture attached to the complaint.
+///
+/// Kept for the app's lifetime rather than rebuilt with the snap service: the
+/// hidden map registers itself here once, at startup, and a service replaced
+/// underneath it would take the picture away with it.
+final Provider<MapImageService> mapImageProvider =
+    Provider<MapImageService>((Ref ref) => MapImageService());
+
 final Provider<SnapService> snapServiceProvider =
     Provider<SnapService>((Ref ref) {
   final SnapService service = SnapService(
@@ -158,6 +168,7 @@ final Provider<SnapService> snapServiceProvider =
     recorder: ref.watch(recorderProvider),
     lookup: ref.watch(flightLookupProvider),
     deviceInfo: ref.watch(deviceInfoProvider),
+    mapImages: ref.watch(mapImageProvider),
   );
   ref.onDispose(service.dispose);
   return service;
@@ -171,6 +182,25 @@ final StreamProvider<MeterReading> meterProvider = StreamProvider<MeterReading>(
 final StreamProvider<CaptureProgress> captureProgressProvider =
     StreamProvider<CaptureProgress>(
         (Ref ref) => ref.watch(snapServiceProvider).progress);
+
+/// Aircraft the rolling cache is currently holding, for the live map.
+///
+/// A view of the polls the matcher is already making, not a second source of
+/// them. Seeded with what the cache holds at the moment of subscription so the
+/// map is not blank for the three seconds until the next poll lands.
+final StreamProvider<List<AircraftTrack>> liveTracksProvider =
+    StreamProvider<List<AircraftTrack>>((Ref ref) {
+  final FlightLookupService lookup = ref.watch(flightLookupProvider);
+  return Stream<List<AircraftTrack>>.value(lookup.tracks)
+      .followedBy(lookup.trackStream);
+});
+
+extension _Seeded<T> on Stream<T> {
+  Stream<T> followedBy(Stream<T> rest) async* {
+    yield* this;
+    yield* rest;
+  }
+}
 
 // --- snap history ---------------------------------------------------------
 

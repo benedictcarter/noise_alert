@@ -91,6 +91,48 @@ class MatchConfig {
   /// Poll interval for the rolling aircraft track cache while armed. The free
   /// community feeds ask for no more than one request per second.
   static const int trackPollIntervalMs = 3000;
+
+  /// Most positions kept per candidate when the match is written to the
+  /// database.
+  ///
+  /// A five-minute recording polled every three seconds is a hundred reports
+  /// per aircraft, and at the scale a map of one street is drawn at, forty of
+  /// them and a hundred are the same picture. The cost of the other sixty is
+  /// paid on every history load, because the whole match is one JSON column.
+  static const int maxTrackPoints = 60;
+}
+
+class MapConfig {
+  /// OpenFreeMap's hosted `liberty` style: real OpenStreetMap data, no API key,
+  /// no registration, no cookies and no request limit, paid for by donation.
+  /// The single obligation is that [attribution] is shown, which is why it is
+  /// next to the URL rather than somewhere in the widget tree.
+  ///
+  /// This is the app's third and last outbound call. It carries the coordinates
+  /// of the tiles being looked at and nothing else — no account, no identifier
+  /// and no name. See the note in CLAUDE.md.
+  static const String styleUrl = 'https://tiles.openfreemap.org/styles/liberty';
+
+  /// Shown under every map, and burnt into the picture attached to the
+  /// complaint, because that picture leaves the app and the obligation travels
+  /// with it.
+  static const String attribution =
+      '© OpenFreeMap © OpenMapTiles  Data from OpenStreetMap';
+
+  /// How long to wait for the basemap before saying so.
+  ///
+  /// There is no "style failed" callback to listen for — a style that cannot be
+  /// fetched simply never loads — so silence past this point is treated as
+  /// offline. The map still knows where the house and the aeroplane were; it
+  /// just cannot draw the streets under them, and it says which.
+  static const int styleTimeoutMs = 8000;
+
+  /// Size of the PNG attached to the complaint, in pixels.
+  ///
+  /// Wide enough to read street names when printed on A4, small enough that
+  /// nobody's council mailbox rejects the message.
+  static const int emailImageWidth = 900;
+  static const int emailImageHeight = 640;
 }
 
 class AppLinks {

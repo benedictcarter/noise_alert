@@ -33,12 +33,14 @@ lib/
     location/    geolocator wrapper, accuracy gating
     flights/     AdsbLolClient, AirplanesLiveClient, OpenSkyClient, FlightMatcher
     storage/     sqflite DB: snaps, matches, profile, settings
+    map/         MapImageService: the flight-path PNG attached to the letter
     mail/        template renderer + flutter_email_sender
   domain/        Snap, AcousticMetrics, AircraftSample, FlightMatch, ComplaintDraft (hand-written)
   features/
     snap/        the big button + live dB meter
     history/     list of snaps, status (matched / sent / unmatched)
     review/      confirm-flight screen before sending
+    map/         MapLibre widget, projection, overlay painter, hidden snapshot host
     settings/    profile, recipients, clip on/off
   listener/      PHASE 2: foreground service + YAMNet classifier
 ```
@@ -128,7 +130,8 @@ historical lookup and dodges the paid-API problem entirely.
 `record` (raw PCM) · `geolocator` · `permission_handler` · `sqflite` · `flutter_riverpod` (2.x) ·
 `http` · `flutter_email_sender` · `url_launcher` (mailto fallback) · `just_audio` (clip preview) ·
 `device_info_plus` + `package_info_plus` (handset/OS stamped into every letter) · `path_provider` ·
-`share_plus` (export fallback) · `tflite_flutter` (M6) · `flutter_foreground_task` (M6)
+`share_plus` (export fallback) · `maplibre_gl` (vector basemap; `flutter_map` alone does raster) ·
+`tflite_flutter` (M6) · `flutter_foreground_task` (M6)
 
 ## Known risks
 1. **iOS mail composer needs a configured Mail account.** No account, no composer. Fallback:
@@ -139,7 +142,12 @@ historical lookup and dodges the paid-API problem entirely.
    sources are swappable; OpenSky is the keyed fallback that already works.
 4. **Ambient speech in clips.** Recording bystanders is the one genuine privacy risk here. Clip
    defaults to off, user previews before sending, clip deletable from history.
-5. **An absolute dB figure invites an argument about the handset.** Mitigated by leading on the
+5. **OpenFreeMap could fold.** It is donation-funded with no contract behind it. The tiles are
+   swappable at one constant (`MapConfig.styleUrl`), and the fallback is Protomaps: a single
+   `.pmtiles` file, hostable anywhere or bundled in the APK for zero outbound calls. Every map
+   already degrades to a drawn-on-paper version when the tiles do not arrive, so the failure mode is
+   a duller picture rather than a broken feature.
+6. **An absolute dB figure invites an argument about the handset.** Mitigated by leading on the
    rise above background rather than the absolute level, and by stating the method plainly — not by
    apologising for the measurement, which invites the recipient to dismiss the complaint entirely.
 

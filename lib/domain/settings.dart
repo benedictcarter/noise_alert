@@ -267,6 +267,35 @@ Yours faithfully,
 {address}
 {email}{phoneLine}
 ''',
+'''
+Dear Sir or Madam,
+
+I am writing to complain about aircraft noise affecting my home.
+
+{atAGlance}
+
+{locationLine}
+
+{aircraftBlock}
+
+{measurementBlock}
+
+{measurementNote}
+
+{chartNote}
+
+{markedPeakNote}
+
+{clipNote}
+
+This aircraft was clearly audible inside my home and disrupted my use of it.
+I would be grateful if you would log this complaint and confirm receipt.
+
+Yours faithfully,
+
+{name}
+{address}{phoneLine}
+''',
   ];
 
   /// The stored letter, upgraded if it is an untouched older default.
@@ -295,6 +324,8 @@ I am writing to complain about aircraft noise affecting my home.
 {measurementNote}
 
 {chartNote}
+
+{mapNote}
 
 {markedPeakNote}
 

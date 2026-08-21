@@ -4,6 +4,41 @@
   LESSONS_LEARNT.md written.
 
 
+## The map, and the track the aircraft actually flew (2026-08-21)
+The complaint could quote a decibel figure and a callsign. It could not show the flight going over
+the house, which is the one piece of evidence a recipient cannot argue away by disputing a phone's
+microphone.
+
+- **Basemap is OpenFreeMap** (`https://tiles.openfreemap.org/styles/liberty`) through `maplibre_gl`:
+  real OSM vector tiles, no API key, no registration, no request limit, no cookies. The attribution
+  line is the whole of what it asks in return, so it lives in `FlightMapPanel` — a map cannot be put
+  on a screen without it — and is *painted into* the emailed PNG, because a line under a widget does
+  not travel with an image into somebody's inbox. This is the app's third and last outbound call,
+  and `CLAUDE.md` now says so.
+- **Tracks come free.** The matcher was already polling adsb.lol every three seconds; the lookup
+  service now keeps each aircraft's positions and publishes them on a stream, so the live map is a
+  *view of that cache* rather than a second source of traffic to a donated feed.
+- **No positions table.** The track serialises into the existing `snaps.match_json`, so there was no
+  migration; a row written before the map existed decodes with an empty track and is still drawable
+  as a single dot. Capped at `MatchConfig.maxTrackPoints` (60) by `decimateTrack`, keeping both ends,
+  because `allSnaps()` decodes every match on every history load.
+- **The picture is drawn, not screenshotted.** `takeSnapshot` does not photograph the map on screen:
+  both platforms hand the job to an independent `MapSnapshotter` given only a style URL and a camera,
+  so every runtime layer is absent from the result. The basemap comes from a hidden one-pixel map
+  (`MapSnapshotHost`) and everything else — tracks, aeroplanes, the house, scale bar, caption,
+  attribution — is painted in Dart over the top through `MercatorView`, which reproduces MapLibre's
+  own projection. See LESSONS_LEARNT.
+- **Live map on the record screen, event map on review.** The review map highlights whichever
+  candidate the radio buttons currently point at, so "which of these four was it?" can be answered by
+  looking at which line went over the house. Neither is interactive: both sit in scrolling lists, and
+  a map that accepts drags eats the scroll.
+- **Nothing blocks a complaint.** No fix → a plain panel saying so and no map attached, with no
+  mention of one in the letter. No tiles → the geometry is drawn on pale paper, still to scale, and
+  the letter still describes it. No aircraft → a map of the recording location saying in as many
+  words that none was identified. A render that fails at any point returns null and the letter goes
+  without it.
+- 24 map tests and 4 template tests added; 147 pass.
+
 ## Sign the release properly, before anyone installs it (2026-08-21)
 v1.0.0 was tagged and about to be emailed out still carrying Flutter's scaffolded
 `signingConfig = signingConfigs.getByName("debug")`. Debug-signed builds install and run, so nothing

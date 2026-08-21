@@ -98,3 +98,81 @@ class AircraftSample {
         source: json['source'] as String? ?? '',
       );
 }
+
+/// One position on an aircraft's flown path, stripped to what a map needs.
+///
+/// Separate from [AircraftSample] because a track is kept per *point* and a
+/// snap can hold several tracks: repeating the callsign, registration, type and
+/// source on every one of them would multiply the stored match by an order of
+/// magnitude for fields that cannot change within a single flyover.
+class TrackPoint {
+  const TrackPoint({
+    required this.time,
+    required this.latitude,
+    required this.longitude,
+    this.altitudeFt,
+  });
+
+  TrackPoint.of(AircraftSample sample)
+      : time = sample.timestamp,
+        latitude = sample.latitude,
+        longitude = sample.longitude,
+        altitudeFt = sample.altitudeFt;
+
+  final DateTime time;
+  final double latitude;
+  final double longitude;
+  final double? altitudeFt;
+
+  /// A compact array, not an object. A busy sky puts several tracks of several
+  /// dozen points each into one `match_json` column, and field names would be
+  /// most of what is written.
+  List<Object?> toJson() => <Object?>[
+        time.toUtc().millisecondsSinceEpoch,
+        latitude,
+        longitude,
+        altitudeFt,
+      ];
+
+  static TrackPoint fromJson(List<Object?> json) => TrackPoint(
+        time: DateTime.fromMillisecondsSinceEpoch(
+          (json[0] as num).toInt(),
+          isUtc: true,
+        ),
+        latitude: (json[1] as num).toDouble(),
+        longitude: (json[2] as num).toDouble(),
+        altitudeFt: json.length > 3 ? (json[3] as num?)?.toDouble() : null,
+      );
+}
+
+/// One aircraft as the live map sees it: where it is now, and where it has been
+/// since the app started watching.
+class AircraftTrack {
+  const AircraftTrack({required this.latest, required this.points});
+
+  /// The most recent position report.
+  final AircraftSample latest;
+
+  /// Oldest first, and only positions actually reported — the line drawn
+  /// between them is a rendering convenience, not observed data.
+  final List<TrackPoint> points;
+
+  String get icao24 => latest.icao24;
+}
+
+/// Thins [points] to at most [maxPoints], keeping the ends and spreading the
+/// rest evenly.
+///
+/// A five-minute recording polled every three seconds is a hundred reports per
+/// aircraft, and at map scale the difference between a hundred and forty is
+/// invisible. What is not invisible is the size of the JSON in the row, which
+/// is read back every time the history list loads.
+List<TrackPoint> decimateTrack(List<TrackPoint> points, int maxPoints) {
+  if (maxPoints < 2 || points.length <= maxPoints) return points;
+  final List<TrackPoint> out = <TrackPoint>[];
+  final double step = (points.length - 1) / (maxPoints - 1);
+  for (int i = 0; i < maxPoints; i++) {
+    out.add(points[(i * step).round().clamp(0, points.length - 1)]);
+  }
+  return out;
+}

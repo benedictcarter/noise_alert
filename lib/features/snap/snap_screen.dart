@@ -9,9 +9,12 @@ import '../../data/audio/recorder_service.dart';
 import '../../data/location/location_service.dart';
 import '../../data/mail/mail_sender.dart';
 import '../../data/snap_service.dart';
+import '../../domain/aircraft.dart';
 import '../../domain/snap.dart';
 import '../../providers.dart';
 import '../chart/live_level_chart.dart';
+import '../map/flight_map.dart';
+import '../map/map_layers.dart';
 import '../review/review_screen.dart';
 import 'level_meter.dart';
 
@@ -487,6 +490,15 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
                             ],
                           ),
                         ),
+                        const SizedBox(height: 16),
+                        // Full brightness whether or not a recording is
+                        // running, unlike the meter and the chart above: this
+                        // is what tells the user there is something up there
+                        // worth pressing RECORD for.
+                        _LiveMap(
+                          latitude: _location.lastFix?.latitude,
+                          longitude: _location.lastFix?.longitude,
+                        ),
                       ],
                     ),
                   ),
@@ -543,6 +555,39 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The sky overhead, while it is still overhead.
+///
+/// Drawn from the tracks the matcher's polling has already collected, not from
+/// queries of its own. Putting this on screen therefore costs a donated feed
+/// nothing: it is a view of a cache that was being filled anyway.
+///
+/// Not interactive. It sits in a scrolling column, and a map that accepts drags
+/// eats the scroll gesture -- the user would find the page stuck whenever their
+/// thumb landed on it.
+class _LiveMap extends ConsumerWidget {
+  const _LiveMap({required this.latitude, required this.longitude});
+
+  final double? latitude;
+  final double? longitude;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final List<AircraftTrack> tracks =
+        ref.watch(liveTracksProvider).value ?? const <AircraftTrack>[];
+    return FlightMapPanel(
+      latitude: latitude,
+      longitude: longitude,
+      height: 190,
+      interactive: false,
+      aircraft: <MapAircraft>[
+        for (final AircraftTrack t in tracks) MapAircraft.ofTrack(t),
+      ],
+      emptyMessage: 'No location fix yet, so there is no map. Recording and '
+          'complaining both work without one.',
     );
   }
 }

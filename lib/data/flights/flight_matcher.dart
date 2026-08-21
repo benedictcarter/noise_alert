@@ -188,6 +188,14 @@ class FlightMatcher {
         extrapolated: extrapolated,
       ),
       extrapolated: extrapolated,
+      // The observed path, kept so the map can draw where this aeroplane
+      // actually went rather than the one point it happened to be at when the
+      // geometry was best. Thinned, because a busy sky puts one of these on
+      // every candidate and they all live in the same database row.
+      track: decimateTrack(
+        track.map(TrackPoint.of).toList(growable: false),
+        MatchConfig.maxTrackPoints,
+      ),
     );
   }
 

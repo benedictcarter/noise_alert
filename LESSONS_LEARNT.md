@@ -541,3 +541,80 @@ The signing config is written to fall back to the debug key when `android/key.pr
 so a fresh clone and CI still build. That is deliberate — but it also means **the absence of the key
 is silent**, exactly the failure this whole entry is about. Check `apksigner` output before shipping
 any build to a human.
+
+## MapLibre's `takeSnapshot` does not photograph the map you are looking at
+
+Adding a map and then attaching a picture of it to the email looks like two lines of work:
+`controller.takeSnapshot()`, write the bytes, done. It is not, and the way it fails is silent.
+
+On **both** platforms the plugin hands the job to a separate renderer — Android's
+`MapSnapshotter`, iOS's `MLNMapSnapshotter` — constructed from **the style URL and a camera
+position, and nothing else**. It is not a screen capture and it is not connected to the live map
+instance at all. Every GeoJSON source, every layer and every image you added at run time exists only
+in the on-screen map's style object and is absent from the snapshotter's. You get back a perfectly
+good picture of some streets with no aeroplane, no flight path and no marker on it, no error
+anywhere, and if you only ever test with the map visible on screen it looks like it worked.
+
+The consequence is architectural, not cosmetic: **anything that must appear in the emailed image has
+to be painted in Dart**, which means owning the projection. Hence `MercatorView`, which reproduces
+Web Mercator at MapLibre's own world size of `512 * 2^zoom` pixels (`util::tileSize` in the native
+core — not 256, which is the figure most Mercator tutorials use and which puts everything at half
+scale). Get that constant wrong and the overlay lands plausibly but consistently in the wrong street.
+
+Three further traps in the same corner:
+
+- **The returned image is not the size you asked for on iOS.** Android's snapshotter defaults to a
+  pixel ratio of 1, so the PNG comes back at exactly the requested dimensions. iOS defaults to the
+  screen scale, so the same request returns a 2× or 3× image. Do not assume either: decode the PNG,
+  measure it, and derive the scale from `actualWidth / requestedWidth`. Everything downstream —
+  stroke widths, type sizes, the projection's tile size — keys off that one number.
+- **A snapshot taken before the tiles land is a grey rectangle.** Tiles are fetched lazily and
+  `onStyleLoadedCallback` fires well before them. `await controller.waitUntilMapTilesAreLoaded()`
+  first. And there is no "style failed" callback at all, so a style that never arrives has to be
+  timed out or the user waits forever on a send that will not happen.
+- **A platform view that is never laid out may never be created.** The hidden map that produces the
+  basemap is scaled into a 1×1 pixel in the corner with a `FittedBox`, not hidden with `Offstage`,
+  because an offstage platform view can sit there un-created indefinitely — and this one only has to
+  get as far as loading its style.
+
+Finally, on Android a data-driven `icon-rotate` reading a **null** property renders **nothing at
+all** rather than falling back to zero. An aircraft that has not moved yet therefore vanishes from
+the map entirely. Emit `0.0`, never null, for any property a style expression consumes.
+
+## A Flutter plugin can demand a newer JDK than Flutter itself ships with
+
+`maplibre_gl` 0.27.0 sets `JavaVersion.VERSION_21` and `JvmTarget.JVM_21` in its own
+`build.gradle`. Flutter's tooling runs on Temurin 17, and the app is configured for 17 throughout,
+so the release build died with:
+
+```
+Execution failed for task ':maplibre_gl:compileReleaseJavaWithJavac'
+> error: invalid source release: 21
+```
+
+Nothing in the message names the plugin as the *source* of the 21 — it reads like a misconfigured
+project. The fix is to pull the one subproject back to 17 from the root `build.gradle.kts`, having
+first checked that its sources actually use no feature past Java 8 (15 `.java` and 3 `.kt` files; no
+records, no sealed types, no pattern-matching switch):
+
+```kotlin
+subprojects {
+    if (name == "maplibre_gl") {
+        pluginManager.withPlugin("com.android.library") {
+            pluginManager.apply("org.jetbrains.kotlin.android")
+        }
+        afterEvaluate { /* set compileOptions and kotlin jvmTarget to 17 */ }
+    }
+}
+```
+
+Two ordering details that cost time:
+
+- **Register the `afterEvaluate` outside `withPlugin`.** Callbacks run in the order they were
+  queued, and AGP queues its own during plugin application. An `afterEvaluate` nested inside
+  `pluginManager.withPlugin { }` is queued *after* AGP's and is overwritten by it.
+- **This project has `android.builtInKotlin=false`**, so the Kotlin plugin must be applied to the
+  subproject explicitly before its extension exists to configure. `extensions.findByType(...)`
+  returning null is not an error here, which is why the `?.` matters: a plugin without Kotlin
+  sources legitimately has no Kotlin extension.
+

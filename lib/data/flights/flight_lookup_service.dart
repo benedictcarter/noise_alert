@@ -35,12 +35,39 @@ class FlightLookupService {
   Timer? _pollTimer;
   bool _pollInFlight = false;
 
+  final StreamController<List<AircraftTrack>> _trackController =
+      StreamController<List<AircraftTrack>>.broadcast();
+
   String? _lastError;
   String? get lastError => _lastError;
 
   bool get isTracking => _pollTimer != null;
 
   int get trackedAircraftCount => _tracks.length;
+
+  /// What the cache holds right now, oldest position first within each track.
+  ///
+  /// This is the live map's whole data source, and it costs nothing: the polls
+  /// are already running for the matcher, and drawing them is only a second
+  /// reader of the same cache. A map that fired its own queries would double
+  /// the traffic to a donated feed to show the same aeroplanes.
+  List<AircraftTrack> get tracks {
+    final List<AircraftTrack> out = <AircraftTrack>[];
+    for (final List<AircraftSample> track in _tracks.values) {
+      if (track.isEmpty) continue;
+      out.add(
+        AircraftTrack(
+          latest: track.last,
+          points: track.map(TrackPoint.of).toList(growable: false),
+        ),
+      );
+    }
+    return out;
+  }
+
+  /// Emits after every poll that changed the cache. Broadcast, because the
+  /// record screen's map and anything else watching are both readers.
+  Stream<List<AircraftTrack>> get trackStream => _trackController.stream;
 
   /// Begins polling around a fixed point. Call when the snap screen opens.
   void startTracking({required double latitude, required double longitude}) {
@@ -57,7 +84,15 @@ class FlightLookupService {
     _pollTimer = null;
   }
 
-  void clear() => _tracks.clear();
+  void clear() {
+    _tracks.clear();
+    _emit();
+  }
+
+  void _emit() {
+    if (_trackController.isClosed) return;
+    _trackController.add(tracks);
+  }
 
   Future<void> _poll(double latitude, double longitude) async {
     if (_pollInFlight) return;
@@ -104,6 +139,7 @@ class FlightLookupService {
       if (!duplicate) track.add(s);
     }
     _prune();
+    _emit();
   }
 
   void _prune() {
@@ -217,5 +253,8 @@ class FlightLookupService {
         observer: observer, heardAt: heardAt, samples: samples);
   }
 
-  void dispose() => stopTracking();
+  void dispose() {
+    stopTracking();
+    unawaited(_trackController.close());
+  }
 }

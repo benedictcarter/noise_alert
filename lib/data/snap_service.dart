@@ -19,6 +19,7 @@ import 'chart/chart_image_service.dart';
 import 'flights/flight_lookup_service.dart';
 import 'flights/flight_matcher.dart';
 import 'location/location_service.dart';
+import 'map/map_image_service.dart';
 import 'mail/complaint_template.dart';
 import 'mail/mail_sender.dart';
 import 'storage/database.dart';
@@ -82,7 +83,8 @@ class SnapService {
     this.mailSender = const MailSender(),
     this.template = const ComplaintTemplate(),
     this.chartImages = const ChartImageService(),
-  });
+    MapImageService? mapImages,
+  }) : mapImages = mapImages ?? MapImageService();
 
   final AppDatabase database;
   final RecorderService recorder;
@@ -94,6 +96,7 @@ class SnapService {
   final MailSender mailSender;
   final ComplaintTemplate template;
   final ChartImageService chartImages;
+  final MapImageService mapImages;
 
   final StreamController<CaptureProgress> _progress =
       StreamController<CaptureProgress>.broadcast();
@@ -590,6 +593,7 @@ class SnapService {
       profile: profile,
       settings: settings,
       chartPath: await chartImages.renderForEmail(snap),
+      mapPath: await mapImages.renderForEmail(snap),
     );
 
     final MailOutcome outcome = await mailSender.send(draft);
@@ -607,6 +611,7 @@ class SnapService {
         profile: await database.loadProfile(),
         settings: await database.loadSettings(),
         chartPath: await chartImages.renderForEmail(snap),
+        mapPath: await mapImages.renderForEmail(snap),
       );
 
   Future<void> deleteSnap(Snap snap) async {
