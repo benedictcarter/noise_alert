@@ -618,3 +618,18 @@ Two ordering details that cost time:
   returning null is not an error here, which is why the `?.` matters: a plugin without Kotlin
   sources legitimately has no Kotlin extension.
 
+
+## A paired-dash regex over markdown eats the next heading (2026-08-21)
+**Mechanism:** rewriting `A -- B -- C` as `A (B) C` with a pattern whose separators are `\s+` will
+happily match across a blank line, because `\s` includes the newline. The aside is bounded by the
+two dashes, not by the paragraph, so nothing in the pattern says "stay inside this block". The
+opening bracket then lands in one section's heading and the closing one in the next section's first
+sentence. Bracket counts still balance across the pair, so a naive balance check passes.
+**Incident:** a sweep to remove every dash from the docs produced `## M4 (Evidence quality` in
+TODO.md and `## M5) Beta hardening` two sections later, plus the same damage to a heading in this
+file. Both survived the first review because the brackets matched.
+**Rule:** split the text at every line that begins a new markdown block (`#`, `- `, `* `, `1. `, a
+fence, or a blank line) and run the paired substitution inside each piece. A single-dash
+substitution is safe over the whole file because it only swaps one character for punctuation.
+Afterwards, check bracket balance *per paragraph* rather than per line, and re-wrap any line the
+join pushed past the file's wrap width.
