@@ -60,18 +60,11 @@ class LetterScreen extends ConsumerWidget {
             value: recipients.bcc.join(', '),
             keyboardType: TextInputType.emailAddress,
             textCapitalization: TextCapitalization.none,
-            hint: 'Put your own address here to keep a copy of everything you '
-                'send. Bcc addresses are hidden from the other recipients.',
             onChanged: (String v) => config.edit(
               (AppSettings s) => s.copyWith(
                 recipientSets: _replace(s, recipients.copyWith(bcc: _split(v))),
               ),
             ),
-          ),
-          const Explainer(
-            'A Bcc to your flight-watch group is how the group builds up a '
-            'record of complaints without anyone having to keep a list of '
-            'members\' details.',
           ),
           const SectionHeader('What it says'),
           SettingsField(

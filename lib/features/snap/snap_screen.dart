@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app.dart';
-import '../../core/constants.dart';
 import '../../core/quick_snap.dart';
 import '../../data/audio/recorder_service.dart';
 import '../../data/location/location_service.dart';
@@ -54,10 +53,6 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
       const LocationStatus(LocationAvailability.denied);
   StreamSubscription<void>? _widgetTaps;
 
-  /// Set while a widget-triggered capture is starting, so the screen explains
-  /// why it is recording without anybody having pressed anything.
-  bool _fromWidget = false;
-
   /// True when the running recording began by itself rather than by a press.
   /// Only these are thrown away when the user's attention goes elsewhere.
   bool _autoStarted = false;
@@ -99,10 +94,10 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
     if (!mounted) return;
 
     final QuickSnapChannel quick = ref.read(quickSnapProvider);
-    _widgetTaps ??= quick.requests.listen((_) => _snap(fromWidget: true));
+    _widgetTaps ??= quick.requests.listen((_) => _snap());
 
     if (await quick.consumePending() && mounted) {
-      await _snap(fromWidget: true);
+      await _snap();
       return;
     }
 
@@ -250,11 +245,10 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
     // The status is re-read by didChangeAppLifecycleState on the way back.
   }
 
-  Future<void> _snap({bool fromWidget = false, bool auto = false}) async {
+  Future<void> _snap({bool auto = false}) async {
     if (_capturing) return;
     setState(() {
       _capturing = true;
-      _fromWidget = fromWidget;
       _autoStarted = auto;
       _sendOnStop = false;
       _statusLine = 'Getting a location fix…';
@@ -320,8 +314,15 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
         ),
       );
     } on CaptureAbandoned {
-      // The user walked away from a recording they never started. Nothing was
-      // written and nothing needs saying.
+      // Two ways to get here. Walking away from a recording nobody asked for
+      // is silent -- there is nothing to tell someone who has already left.
+      // Pressing DISCARD is a deliberate act and gets an acknowledgement, or
+      // the user is left wondering whether the button did anything.
+      if (_discarding && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Recording discarded.')),
+        );
+      }
     } on Object catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -334,13 +335,32 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
       if (mounted) {
         setState(() {
           _capturing = false;
-          _fromWidget = false;
           _autoStarted = false;
           _sendOnStop = false;
+          _discarding = false;
           _statusLine = null;
         });
       }
     }
+  }
+
+  /// True from the press of DISCARD until the capture unwinds, so the
+  /// abandon path can tell a deliberate throw-away from a walk-away.
+  bool _discarding = false;
+
+  /// Stops without keeping anything.
+  ///
+  /// No confirmation dialog, deliberately. The button says DISCARD, it is a
+  /// different colour from the two beside it, and a modal on a three-button
+  /// control that is being used while an aeroplane is overhead costs more than
+  /// the mistake it prevents. Nothing has been written to disk at this point,
+  /// so there is nothing to undo and nothing left behind.
+  void _discard() {
+    setState(() {
+      _discarding = true;
+      _autoStarted = false;
+    });
+    ref.read(snapServiceProvider).abandonCapture();
   }
 
   void _stop({required bool send}) {
@@ -495,9 +515,9 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
                 ),
               if (_capturing)
                 _StopButtons(
+                  onDiscard: _discard,
                   onSave: () => _stop(send: false),
                   onSend: () => _stop(send: true),
-                  fromWidget: _fromWidget,
                   seconds: _elapsed,
                 )
               else if (_micDenied)
@@ -507,10 +527,7 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
               const SizedBox(height: 12),
               Text(
                 _capturing
-                    ? 'Recording until you stop. SAVE keeps it for review; '
-                        'SEND drafts the complaint and opens your mail app. '
-                        'The loudest ${AudioConfig.clipSeconds.round()} s is '
-                        'kept either way.'
+                    ? ''
                     : _micDenied
                         ? 'The app cannot hear anything yet. Press the button '
                             'above to let it use the microphone. You can say '
@@ -538,8 +555,14 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
 const Color _recordGreen = Color(0xFF1E7B34);
 
 /// The send half of the stop control. Darker than the app's own blue so the
-/// two stop buttons cannot be confused with each other at a glance.
+/// three stop buttons cannot be confused with each other at a glance.
 const Color _sendBlue = Color(0xFF0D3B66);
+
+/// Throwing the recording away. Orange rather than the theme's error red:
+/// discarding a recording of your own kitchen is a normal thing to want, not a
+/// destructive act to be warned about, and red beside two other buttons reads
+/// as "do not press this".
+const Color _discardOrange = Color(0xFFC2521A);
 
 class _RecordButton extends StatelessWidget {
   const _RecordButton({required this.onPressed, required this.busy});
@@ -653,43 +676,63 @@ class _Banner extends StatelessWidget {
 /// who knows when the aircraft has gone.
 class _StopButtons extends StatelessWidget {
   const _StopButtons({
+    required this.onDiscard,
     required this.onSave,
     required this.onSend,
-    required this.fromWidget,
     this.seconds,
   });
 
+  final VoidCallback onDiscard;
   final VoidCallback onSave;
   final VoidCallback onSend;
-  final bool fromWidget;
 
   /// Seconds recorded so far.
   final int? seconds;
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colors = Theme.of(context).colorScheme;
-    final String clock = seconds == null ? '' : '  ($seconds s)';
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
+        // One clock above the row rather than the same number repeated inside
+        // three labels. With two buttons the suffix fitted; with three it left
+        // no room for the words that say what the buttons do.
+        if (seconds != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              'Recording — $seconds s',
+              style: theme.textTheme.titleMedium,
+            ),
+          ),
         SizedBox(
           height: 96,
           child: Row(
             children: <Widget>[
               Expanded(
                 child: _StopButton(
+                  onPressed: onDiscard,
+                  label: 'STOP\n& BIN IT',
+                  background: _discardOrange,
+                  foreground: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _StopButton(
                   onPressed: onSave,
-                  label: 'STOP\n& SAVE$clock',
+                  label: 'STOP\n& SAVE',
                   background: colors.secondaryContainer,
                   foreground: colors.onSecondaryContainer,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: _StopButton(
                   onPressed: onSend,
-                  label: 'STOP\n& SEND$clock',
+                  label: 'STOP\n& SEND',
                   background: _sendBlue,
                   foreground: Colors.white,
                 ),
@@ -697,17 +740,6 @@ class _StopButtons extends StatelessWidget {
             ],
           ),
         ),
-        if (fromWidget)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              'Started from the home-screen widget, so the microphone had not '
-              'been listening beforehand — this event has no background level '
-              'to compare against.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ),
       ],
     );
   }
@@ -742,7 +774,7 @@ class _StopButton extends StatelessWidget {
         child: Text(
           label,
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         ),
       ),
     );
