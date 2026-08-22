@@ -4,7 +4,9 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
 
 ## Blocked on Ben
 - [ ] Confirm the airport noise-team address for the default recipient set. `To:` is still
-      `benedict.carter@gmail.com` only; `Cc:` is now `info@flightpathwatch.co.uk`.
+      `benedict.carter@gmail.com` only; `Cc:` is now `info@flightpathwatch.co.uk`. Deliberate for
+      the current beta (Ben + Flightpath Watch); see the security section for what changes when the
+      group grows.
 - [ ] **UAT:** run the app on a handset, record a real overflight (RECORD -> STOP), check the
       letter reads right. `flightpath-watch-b20-arm64.apk` (29.4 MB, arm64 only, versionCode 2020).
       b20 is the first build with backup switched off and the OpenSky secret in the keystore, so
@@ -37,15 +39,17 @@ platform broke it anyway, through backup. Those items are done; the rest are lis
       (`CredentialStore`), with a one-shot migration that scrubs the old copy out of SQLite on first
       launch. The client *id* stays in settings: it is an identifier, not a credential.
 
-- [ ] **Decide the default recipient.** `To:` is still `benedict.carter@gmail.com`, so any user who
-      never opens Settings mails their name, address, postcode, coordinates and a recording of their
-      home to a personal inbox. Fine while the only user is Ben; a data-collection default the
-      moment it is not. Tracked above under "Blocked on Ben" as the address question, but the
-      *shape* is the security point: ship with no default `To:` and make the first send ask.
+- [ ] **Default recipient: decided, and gated on the beta group growing** (Ben, 2026-08-22). `To:`
+      stays `benedict.carter@gmail.com` and `Cc:` stays `info@flightpathwatch.co.uk` while the beta
+      is exactly those two parties, both of whom are on the list knowingly. It stops being safe at
+      user three: a stranger who never opens Settings would mail their name, address, coordinates
+      and a recording of their home to a personal inbox without being shown where it went. **Do this
+      before the first non-Ben install**, and do it by removal rather than replacement: no default
+      `To:` at all, first send asks. Same trigger as the `seedGroupCc` item below.
 - [ ] **`seedGroupCc` silently rewrites saved recipient lists** (`me/profile.dart`), adding a CC to
       an existing install on upgrade with no consent step, and `recipientSeed` is designed to be
-      bumped again. Whatever is decided for the address above, adding one to a list the user has
-      already reviewed should prompt once rather than happen quietly.
+      bumped again. Harmless while the only installs are Ben's; the same expand-the-beta trigger
+      applies. Adding an address to a list the user has already reviewed should prompt once.
 - [ ] **Home coordinates go out at 6 dp (~11 cm) every 3 s** to adsb.lol and airplanes.live
       (`net/live_adsb.dart`), and the OpenSky bounding box at 4 dp is symmetric so the centre
       averages straight back out (`net/opensky.dart`). The query radius is 25 nm: 2 dp returns the

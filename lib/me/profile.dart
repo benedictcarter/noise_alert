@@ -194,6 +194,20 @@ class RecipientSet {
   /// the complaint too, and the sender should be able to remove it.
   static const String flightpathWatchCc = 'info@flightpathwatch.co.uk';
 
+  /// Where a complaint goes when nobody has opened Settings.
+  ///
+  /// The `to:` address is a personal inbox on purpose. The beta is two parties,
+  /// Ben and Flightpath Watch, and both of them are in this list knowingly, so
+  /// a default that mails them is a default that mails the only people there
+  /// are. It stops being that the moment there is a third user: a stranger who
+  /// never opens Settings would be sending their name, their address, the
+  /// coordinates of their house and a recording made inside it to somebody
+  /// else's personal Gmail, without ever being shown where it went.
+  ///
+  /// So this address goes when the beta group expands, and it goes by removal
+  /// rather than replacement: ship no default `to:` at all and make the first
+  /// send ask, because a wrong default is invisible in a way a missing one is
+  /// not. See TODO.md, "Decide the default recipient".
   static const RecipientSet defaultSet = RecipientSet(
     id: 'default',
     label: 'Default',
