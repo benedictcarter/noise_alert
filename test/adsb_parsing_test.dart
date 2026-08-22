@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:noise_alert/core/geo.dart';
-import 'package:noise_alert/data/flights/adsb_source.dart';
-import 'package:noise_alert/data/flights/opensky_source.dart';
-import 'package:noise_alert/data/flights/tar1090_source.dart';
-import 'package:noise_alert/domain/aircraft.dart';
+import 'package:noise_alert/where/geo.dart';
+import 'package:noise_alert/flights/source.dart';
+import 'package:noise_alert/net/opensky.dart';
+import 'package:noise_alert/net/live_adsb.dart';
+import 'package:noise_alert/flights/aircraft.dart';
 
 /// Shaped after a real adsb.lol `/v2/point` response, trimmed to the fields
 /// the matcher reads. Kept as a literal string so it exercises the JSON path
@@ -77,12 +77,12 @@ void main() {
     late List<AircraftSample> samples;
 
     setUp(() {
-      samples = Tar1090Source.parse(_tar1090Body, 'adsb.lol');
+      samples = LiveAdsbSource.parse(_tar1090Body, 'adsb.lol');
     });
 
     test('an aircraft without a position is dropped, not defaulted to 0,0', () {
       // A sample at lat 0 lon 0 would sit in the Gulf of Guinea and score as
-      // 5,000 km away — harmless — but a null-coalesced 0 would silently
+      // 5,000 km away (harmless) but a null-coalesced 0 would silently
       // corrupt any later averaging. Drop it instead.
       expect(samples.map((AircraftSample s) => s.icao24),
           isNot(contains('a1b2c3')));
@@ -134,7 +134,7 @@ void main() {
     test('`now` in milliseconds is handled as well as `now` in seconds', () {
       // tar1090 emits seconds; some hosted variants emit milliseconds. Guessing
       // wrong puts every timestamp in 1970 or in the year 57000.
-      final List<AircraftSample> ms = Tar1090Source.parse(
+      final List<AircraftSample> ms = LiveAdsbSource.parse(
         _tar1090Body.replaceAll('"now": 1755638070.5', '"now": 1755638070500'),
         'adsb.lol',
       );
@@ -147,10 +147,10 @@ void main() {
 
     test('an empty or errored feed yields no candidates rather than throwing',
         () {
-      expect(Tar1090Source.parse('{"ac": [], "now": 1}', 'adsb.lol'), isEmpty);
-      expect(Tar1090Source.parse('{"now": 1}', 'adsb.lol'), isEmpty);
+      expect(LiveAdsbSource.parse('{"ac": [], "now": 1}', 'adsb.lol'), isEmpty);
+      expect(LiveAdsbSource.parse('{"now": 1}', 'adsb.lol'), isEmpty);
       expect(
-        () => Tar1090Source.parse('[]', 'adsb.lol'),
+        () => LiveAdsbSource.parse('[]', 'adsb.lol'),
         throwsA(isA<AdsbException>()),
       );
     });

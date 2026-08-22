@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:noise_alert/features/chart/level_chart.dart';
+import 'package:noise_alert/chart/painter.dart';
 
 void main() {
   // The user drags a marker along the trace to say when the flyover was at its
   // worst. Getting this mapping wrong does not throw and does not look wrong on
-  // screen -- it just quietly puts a different time in the letter than the one
+  // screen: it just quietly puts a different time in the letter than the one
   // the finger was over.
   group('turning a horizontal position into a time', () {
     const double width = 334; // 300 px of plot after the axis gutter.
@@ -25,8 +25,8 @@ void main() {
     });
 
     test('the middle of the plot is the middle of the recording', () {
-      final double mid =
-          LevelChartPainter.axisGutter + (width - LevelChartPainter.axisGutter) / 2;
+      final double mid = LevelChartPainter.axisGutter +
+          (width - LevelChartPainter.axisGutter) / 2;
       expect(LevelChartPainter.secondsAt(mid, width, total), closeTo(30, 0.01));
     });
 

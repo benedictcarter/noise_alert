@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:noise_alert/data/flights/flight_matcher.dart';
-import 'package:noise_alert/domain/aircraft.dart';
-import 'package:noise_alert/domain/flight_match.dart';
-import 'package:noise_alert/domain/snap.dart';
+import 'package:noise_alert/flights/matcher.dart';
+import 'package:noise_alert/flights/aircraft.dart';
+import 'package:noise_alert/flights/match.dart';
+import 'package:noise_alert/snap/snap.dart';
 
 const Observer _home = Observer(latitude: 51.5000, longitude: -0.1000);
 
@@ -80,7 +80,7 @@ void main() {
     expect(best.heightAboveObserverFt, closeTo(1000, 20));
     expect(best.elevationDegrees, greaterThan(80));
 
-    // The closest approach is *before* the press — that is the entire point of
+    // The closest approach is *before* the press, which is the entire point of
     // searching backwards rather than asking "what is overhead now".
     expect(best.closestApproachTime.isBefore(heardAt), isTrue);
     expect(

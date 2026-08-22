@@ -1,21 +1,29 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
 
-import 'core/device_info.dart';
-import 'core/quick_snap.dart';
-import 'data/audio/recorder_service.dart';
-import 'data/flights/adsb_source.dart';
-import 'data/flights/flight_lookup_service.dart';
-import 'data/flights/opensky_source.dart';
-import 'data/flights/tar1090_source.dart';
-import 'data/postcode/postcode_service.dart';
-import 'data/snap_service.dart';
-import 'data/storage/database.dart';
-import 'domain/profile.dart';
-import 'domain/settings.dart';
-import 'domain/snap.dart';
+import 'package:noise_alert/snap/device_info.dart';
+import 'package:noise_alert/ui/snap/quick_snap.dart';
+import 'package:noise_alert/mic/recorder.dart';
+import 'package:noise_alert/flights/source.dart';
+import 'package:noise_alert/flights/lookup.dart';
+import 'package:noise_alert/flights/watch.dart';
+import 'package:noise_alert/where/location.dart';
+import 'package:noise_alert/net/client.dart';
+import 'package:noise_alert/net/opensky.dart';
+import 'package:noise_alert/net/live_adsb.dart';
+import 'package:noise_alert/map/image_service.dart';
+import 'package:noise_alert/net/postcodes.dart';
+import 'package:noise_alert/snap/snap_service.dart';
+import 'package:noise_alert/snap/database.dart';
+import 'package:noise_alert/flights/aircraft.dart';
+import 'package:noise_alert/me/profile.dart';
+import 'package:noise_alert/me/settings.dart';
+import 'package:noise_alert/snap/snap.dart';
+
+/// Re-exported so the rest of the app reaches the network only through the
+/// one client defined in `lib/net/`.
+export 'package:noise_alert/net/client.dart' show NetClient, httpClientProvider;
 
 /// Overridden in `main()` once the database is open, so the rest of the app can
 /// depend on it synchronously instead of unwrapping an AsyncValue everywhere.
@@ -35,13 +43,6 @@ final Provider<ComplainantProfile> initialProfileProvider =
   (Ref ref) =>
       throw UnimplementedError('initialProfileProvider must be overridden'),
 );
-
-final Provider<http.Client> httpClientProvider =
-    Provider<http.Client>((Ref ref) {
-  final http.Client client = http.Client();
-  ref.onDispose(client.close);
-  return client;
-});
 
 /// Home-screen widget taps. Created once for the app's lifetime so a tap that
 /// arrives while the snap screen is being rebuilt is not lost.
@@ -75,7 +76,7 @@ final Provider<PostcodeService> postcodeServiceProvider =
 final Provider<DeviceInfoService> deviceInfoProvider =
     Provider<DeviceInfoService>((Ref ref) => DeviceInfoService());
 
-// --- settings & profile ---------------------------------------------------
+// === settings and profile ===
 
 class SettingsController extends StateNotifier<AppSettings> {
   SettingsController(this._db, AppSettings initial) : super(initial);
@@ -119,12 +120,11 @@ final StateNotifierProvider<ProfileController, ComplainantProfile>
   ),
 );
 
-// --- services -------------------------------------------------------------
+// === services ===
 
 final Provider<RecorderService> recorderProvider =
     Provider<RecorderService>((Ref ref) {
-  final RecorderService service = RecorderService(
-  );
+  final RecorderService service = RecorderService();
   ref.onDispose(service.dispose);
   return service;
 });
@@ -133,13 +133,13 @@ final Provider<RecorderService> recorderProvider =
 /// need no key at all, which is why they are the primary path.
 final Provider<FlightLookupService> flightLookupProvider =
     Provider<FlightLookupService>((Ref ref) {
-  final http.Client client = ref.watch(httpClientProvider);
+  final NetClient client = ref.watch(httpClientProvider);
   final AppSettings settings = ref.watch(settingsProvider);
 
   final FlightLookupService service = FlightLookupService(
     liveSources: <AdsbSource>[
-      Tar1090Source.adsbLol(client: client),
-      Tar1090Source.airplanesLive(client: client),
+      LiveAdsbSource.adsbLol(client: client),
+      LiveAdsbSource.airplanesLive(client: client),
     ],
     openSky: OpenSkySource(
       clientId: settings.openSkyClientId,
@@ -151,19 +151,60 @@ final Provider<FlightLookupService> flightLookupProvider =
   return service;
 });
 
+/// Owns the aircraft polling, for the whole time the app is in front of the
+/// user.
+///
+/// Watched rather than read by [snapServiceProvider], so a settings change
+/// that rebuilds the lookup service rebuilds this too and the new service
+/// starts polling instead of sitting idle. That rebuild is one of the ways the
+/// map used to go quiet.
+final Provider<SkyWatch> skyWatchProvider = Provider<SkyWatch>((Ref ref) {
+  final SkyWatch watch = SkyWatch(
+    lookup: ref.watch(flightLookupProvider),
+    location: const LocationService(),
+  );
+  // Started on construction, so a rebuild cannot leave a watch that nobody
+  // thought to start. Only backgrounding the app stops it.
+  watch.start();
+  ref.onDispose(watch.dispose);
+  return watch;
+});
+
+/// Where the user is, as it is renewed, for anything that draws a map.
+///
+/// A screen that reads the fix once and keeps it shows a map that was right
+/// when the screen was built. This is the fix as it changes, which is what the
+/// record screen's map is framed on.
+final StreamProvider<SnapLocation?> observerProvider =
+    StreamProvider<SnapLocation?>((Ref ref) {
+  final SkyWatch watch = ref.watch(skyWatchProvider);
+  return Stream<SnapLocation?>.value(watch.observer)
+      .followedBy(watch.observerStream);
+});
+
+/// Draws the picture attached to the complaint.
+///
+/// Kept for the app's lifetime rather than rebuilt with the snap service: the
+/// hidden map registers itself here once, at startup, and a service replaced
+/// underneath it would take the picture away with it.
+final Provider<MapImageService> mapImageProvider =
+    Provider<MapImageService>((Ref ref) => MapImageService());
+
 final Provider<SnapService> snapServiceProvider =
     Provider<SnapService>((Ref ref) {
   final SnapService service = SnapService(
     database: ref.watch(databaseProvider),
     recorder: ref.watch(recorderProvider),
     lookup: ref.watch(flightLookupProvider),
+    skyWatch: ref.watch(skyWatchProvider),
     deviceInfo: ref.watch(deviceInfoProvider),
+    mapImages: ref.watch(mapImageProvider),
   );
   ref.onDispose(service.dispose);
   return service;
 });
 
-// --- live streams ---------------------------------------------------------
+// === live streams ===
 
 final StreamProvider<MeterReading> meterProvider = StreamProvider<MeterReading>(
     (Ref ref) => ref.watch(recorderProvider).meterStream);
@@ -172,7 +213,26 @@ final StreamProvider<CaptureProgress> captureProgressProvider =
     StreamProvider<CaptureProgress>(
         (Ref ref) => ref.watch(snapServiceProvider).progress);
 
-// --- snap history ---------------------------------------------------------
+/// Aircraft the rolling cache is currently holding, for the live map.
+///
+/// A view of the polls the matcher is already making, not a second source of
+/// them. Seeded with what the cache holds at the moment of subscription so the
+/// map is not blank for the three seconds until the next poll lands.
+final StreamProvider<List<AircraftTrack>> liveTracksProvider =
+    StreamProvider<List<AircraftTrack>>((Ref ref) {
+  final FlightLookupService lookup = ref.watch(flightLookupProvider);
+  return Stream<List<AircraftTrack>>.value(lookup.tracks)
+      .followedBy(lookup.trackStream);
+});
+
+extension _Seeded<T> on Stream<T> {
+  Stream<T> followedBy(Stream<T> rest) async* {
+    yield* this;
+    yield* rest;
+  }
+}
+
+// === snap history ===
 
 /// The snap list is held in memory and written through to sqflite, rather than
 /// re-queried on every change: the list is small, and the review screen needs

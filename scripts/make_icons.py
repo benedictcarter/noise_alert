@@ -7,7 +7,7 @@ to survive being blown up to 432 px.
 The trick is to work on ink *coverage* as a soft alpha rather than on a hard
 black/white threshold. A threshold throws away the antialiasing, and the
 antialiasing is exactly where the sub-pixel position of the true edge is
-recorded -- discard it first and every upscale is a staircase. Instead the soft
+recorded: discard it first and every upscale is a staircase. Instead the soft
 alpha is resampled, blurred by about half a source pixel to melt the stairs,
 and then pushed back to a hard edge with a smoothstep about the half-coverage
 contour, which is where the edge of an antialiased shape actually lies.
@@ -83,7 +83,7 @@ def mark_alpha(scale=16, blur=0.50, low=0.45, high=0.55):
     keep = labels == biggest
 
     # Grow the selection by a pixel so the component keeps its own soft edge,
-    # but no further -- the W of WATCH sits close enough that a plain bounding
+    # but no further: the W of WATCH sits close enough that a plain bounding
     # box crop catches a slice of it.
     grown = np.asarray(
         Image.fromarray((keep * 255).astype(np.uint8))
@@ -175,7 +175,7 @@ def main():
 
     # Widget: the mark left flat and drawn in white on the red pill. Flat
     # because the widget is wider than it is tall, which is the shape the mark
-    # already is -- the tilt only exists to fill a square.
+    # already is: the tilt only exists to fill a square.
     widget_dp_w = 52
     height_dp = widget_dp_w * alpha.height / alpha.width
     for name, factor in DENSITIES.items():

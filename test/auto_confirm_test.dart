@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:noise_alert/core/constants.dart';
-import 'package:noise_alert/data/snap_service.dart';
-import 'package:noise_alert/domain/acoustic_metrics.dart';
-import 'package:noise_alert/domain/aircraft.dart';
-import 'package:noise_alert/domain/flight_match.dart';
-import 'package:noise_alert/domain/snap.dart';
+import 'package:noise_alert/flights/config.dart';
+import 'package:noise_alert/snap/snap_service.dart';
+import 'package:noise_alert/mic/metrics.dart';
+import 'package:noise_alert/flights/aircraft.dart';
+import 'package:noise_alert/flights/match.dart';
+import 'package:noise_alert/snap/snap.dart';
 
 final DateTime _heardAt = DateTime(2026, 8, 20, 14, 49, 33);
 
@@ -73,7 +73,7 @@ void main() {
 
     test('a candidate out on the ground track is left for the user', () {
       // This is the case the review screen exists for. A jet a kilometre and a
-      // half away horizontally may well be the one that was heard -- or may be
+      // half away horizontally may well be the one that was heard, or may be
       // one of three, and the app has no business picking.
       final Snap out = SnapService.autoConfirm(_snap(<FlightCandidate>[
         _candidate('abc123', MatchConfig.autoConfirmMaxHorizontalM + 1),

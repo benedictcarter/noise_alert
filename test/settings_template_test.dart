@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:noise_alert/domain/settings.dart';
+import 'package:noise_alert/me/settings.dart';
 
 /// The exact default letter as it shipped before `{measurementBlock}` existed.
 ///
@@ -70,6 +70,37 @@ Yours faithfully,
 {email}{phoneLine}
 ''';
 
+/// The exact default letter as it shipped before `{mapNote}` existed.
+const String _b10Default = '''
+Dear Sir or Madam,
+
+I am writing to complain about aircraft noise affecting my home.
+
+{atAGlance}
+
+{locationLine}
+
+{aircraftBlock}
+
+{measurementBlock}
+
+{measurementNote}
+
+{chartNote}
+
+{markedPeakNote}
+
+{clipNote}
+
+This aircraft was clearly audible inside my home and disrupted my use of it.
+I would be grateful if you would log this complaint and confirm receipt.
+
+Yours faithfully,
+
+{name}
+{address}{phoneLine}
+''';
+
 void main() {
   group('the stored letter', () {
     test('an untouched older default is upgraded', () {
@@ -95,6 +126,15 @@ void main() {
       expect(settings.templateBody, contains('{atAGlance}'));
     });
 
+    test('the letter that shipped without a map picks the map note up', () {
+      final AppSettings settings = AppSettings.fromJson(<String, Object?>{
+        'templateBody': _b10Default,
+      });
+
+      expect(settings.templateBody, AppSettings.defaultBody);
+      expect(settings.templateBody, contains('{mapNote}'));
+    });
+
     test('a letter the user edited is left exactly as they wrote it', () {
       final String mine = '$_b8Default\n\nPS: this is the fourth this week.';
 
@@ -109,6 +149,29 @@ void main() {
       final AppSettings settings = AppSettings.fromJson(<String, Object?>{});
 
       expect(settings.templateBody, AppSettings.defaultBody);
+    });
+  });
+
+  group('attaching the sound', () {
+    test('a fresh install attaches it', () {
+      expect(const AppSettings().attachClipByDefault, isTrue);
+    });
+
+    test('settings written before the setting existed attach it', () {
+      final AppSettings settings = AppSettings.fromJson(<String, Object?>{});
+
+      expect(settings.attachClipByDefault, isTrue);
+    });
+
+    test('a stored refusal is never overridden', () {
+      // The one direction this default must not travel. Nothing here can tell
+      // a deliberate "no" from an untouched old default, so a stored false
+      // stays false and the user turns it on themselves if they want it.
+      final AppSettings settings = AppSettings.fromJson(<String, Object?>{
+        'attachClipByDefault': false,
+      });
+
+      expect(settings.attachClipByDefault, isFalse);
     });
   });
 }

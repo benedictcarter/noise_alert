@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:noise_alert/data/audio/ring_buffer.dart';
+import 'package:noise_alert/mic/ring_buffer.dart';
 
 /// Little-endian PCM16 bytes for the given sample values.
 Uint8List _pcm(List<int> values) {

@@ -11,8 +11,8 @@ import android.widget.RemoteViews
  * A 1x1 home-screen button that starts a capture without going through the app
  * first.
  *
- * A widget cannot record on its own — the microphone belongs to a foreground
- * process — so the tap launches the activity with [EXTRA_SNAP_NOW] and the
+ * A widget cannot record on its own (the microphone belongs to a foreground
+ * process) so the tap launches the activity with [EXTRA_SNAP_NOW] and the
  * Flutter side arms and captures as soon as the stream is live. The user still
  * sees the app come up, but they do not have to find and press anything.
  *

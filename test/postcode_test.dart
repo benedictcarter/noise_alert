@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:noise_alert/data/postcode/postcode_service.dart';
-import 'package:noise_alert/domain/profile.dart';
+import 'package:noise_alert/net/postcodes.dart';
+import 'package:noise_alert/me/profile.dart';
 
 /// A postcodes.io reply, trimmed to the fields the service reads.
 String _body({

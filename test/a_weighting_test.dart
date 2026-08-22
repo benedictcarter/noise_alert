@@ -2,8 +2,8 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:noise_alert/core/constants.dart';
-import 'package:noise_alert/data/audio/a_weighting.dart';
+import 'package:noise_alert/mic/config.dart';
+import 'package:noise_alert/mic/a_weighting.dart';
 
 void main() {
   group('A-weighting frequency response', () {
@@ -17,7 +17,7 @@ void main() {
 
         if (frequency >= 16000) {
           // The bilinear transform warps frequency towards Nyquist, so at
-          // fs/3 the digital filter over-attenuates — about 6 dB low here.
+          // fs/3 the digital filter over-attenuates: about 6 dB low here.
           // IEC 61672-1 leaves the lower tolerance at 16 kHz effectively
           // unbounded for both classes, and aircraft noise has nothing up
           // there anyway, so over-attenuation is acceptable; being *above*

@@ -6,76 +6,81 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
 - [ ] Confirm the airport noise-team address for the default recipient set. `To:` is still
       `benedict.carter@gmail.com` only; `Cc:` is now `info@flightpathwatch.co.uk`.
 - [ ] **UAT:** run the app on a handset, record a real overflight (RECORD -> STOP), check the
-      letter reads right. `noise_alert_b7.apk`.
+      letter reads right. `flightpath-watch-b17-arm64.apk` (29 MB, arm64 only).
 - [ ] **iOS is parked** (2026-08-19, Ben: no Mac and no access to one). Windows cannot build or sign
-      an iOS app. When iOS matters, the route is **cloud macOS CI** — Codemagic (free tier, built for
+      an iOS app. When iOS matters, the route is **cloud macOS CI**: Codemagic (free tier, built for
       Flutter, does signing + TestFlight upload) or GitHub Actions `macos-latest`. No Mac needed.
       A macOS VM on non-Apple hardware breaks Apple's licence, so the release path will not rest on it.
-      Also needs the Apple Developer Program (£79/$99 a year) before TestFlight — not yet.
+      Also needs the Apple Developer Program (£79/$99 a year) before TestFlight, not yet.
 
 ## Next up
 - [ ] First on-device smoke test on Android: permissions, live meter, record → review → mail composer
       end to end. Release APK is **sideloaded to the LG G7 ThinQ** (`Download/noise_alert.apk`, over
-      MTP — the phone exposes no ADB interface at all, see LESSONS_LEARNT; each build is copied
+      MTP: the phone exposes no ADB interface at all, see LESSONS_LEARNT; each build is copied
       under a new name, `_b2`/`_b3`/`_b4`, because deleting over MTP hangs). Install and run from a
       file manager; there is no `flutter run` hot reload on this handset, so each change means a
       rebuild and re-copy.
 - [ ] CI: `flutter analyze` + `flutter test` on push (GitHub Actions).
+- [ ] Re-run the dead-code sweep after the next feature lands. The scripts that found the
+      fifteen unused members are throwaway but the method is not: cross-reference every public
+      name against `lib` plus `test`, then check anything that only `test` mentions, because a
+      member kept alive solely by its own test is the shape most dead code takes here.
 - [ ] iOS quick-snap: the Android home-screen widget has no iOS counterpart. `QuickSnapChannel`
-      degrades to "no pending snap" on any platform without the channel, so nothing breaks — but a
+      degrades to "no pending snap" on any platform without the channel, so nothing breaks, but a
       Control Centre / Lock Screen widget is the iOS equivalent when iOS is unparked.
 
 ## Record-until-stop follow-ups
-- [ ] The 5-minute cap (`AudioConfig.maxEventSeconds`) is a hard stop with no warning before it —
+- [ ] The 5-minute cap (`AudioConfig.maxEventSeconds`) is a hard stop with no warning before it:
       the recording just ends and is marked truncated. Decide whether the UI should say so as it
       approaches, or whether the cap should be raised.
 - [ ] The marked worst moment is annotation only. It cannot re-cut the clip, because the full event
-      audio is discarded after analysis — only the measured loudest 10 s is written to disk. If the
+      audio is discarded after analysis: only the measured loudest 10 s is written to disk. If the
       mark should move the clip, the event WAV has to be kept until the review screen is done with
       it.
 
 ## Branding
-- [ ] iOS launch screen and `LaunchImage` still carry the old placeholder artwork — regenerate when
+- [ ] iOS launch screen and `LaunchImage` still carry the old placeholder artwork: regenerate when
       iOS is unparked.
 - [ ] The icons are traced from a 191x72 screenshot of the logo
       (`assets/icon/flightpath_watch_logo.jpg`), which is all the resolution there is. If the
       original vector ever turns up, drop it in and re-run `scripts/make_icons.py`.
 
-## M4 — Evidence quality
+## M4: Evidence quality
 - [ ] CSV export of all snaps; share sheet
 - [ ] Multiple named recipient sets (the model supports a list; the UI edits only the first)
 - [ ] Re-open / resend a sent complaint from history
 
-## M5 — Beta hardening
+## M5: Beta hardening
 - [ ] Offline queue: snap now, match later (OpenSky 1-hour retro back-fill is written but untested
-      against the live service — needs credentials)
+      against the live service: needs credentials)
 - [ ] Battery, long-session and interruption cases (call arrives mid-record, headset plugged in)
 - [ ] Signed APK for the beta group; TestFlight once a Mac/CI runner exists
 
-## M6 — Autonomous listening (Phase 2)
+## M6: Autonomous listening (Phase 2)
 - [ ] YAMNet TFLite integration, aircraft-class scoring
 - [ ] Dual-gate trigger (class score + LAeq floor), tunable thresholds
 - [ ] Android foreground service (`FOREGROUND_SERVICE_MICROPHONE`)
 - [ ] iOS background audio session; document store-review fallback
 - [ ] Auto-snap review queue (never auto-send)
 
-## v2 — Map and tracks
-- [ ] Map of the 1 km square around the recording, with the aircraft on it. Basemap is
-      **OpenFreeMap** (openfreemap.org): OSM data, vector tiles, no API key, no registration, no
-      request limit, donation-funded — the only provider that meets "free" and "zero effort from a
-      non-technical user" at once. Flutter side is `maplibre_gl`; `flutter_map` alone does raster.
-      Attribution line is the only obligation. Fallback if it ever folds: Protomaps, one `.pmtiles`
-      file on any static host, or bundled in the APK for zero outbound calls.
-- [ ] Poll adsb.lol every ~2 s *while the recording runs* and keep the positions, so the map shows
-      the track the aircraft actually flew rather than one sample. Needs a positions table. Also
-      improves matching: closest approach over the whole event instead of a single instant.
-- [ ] Render the map to a PNG and attach it to the complaint. This is the point of the whole
-      feature — a council can argue with a decibel figure, not with a picture of the flight path
-      over the house.
-- [ ] Decide what the map does with no fix, no signal, or no aircraft found. None of them may block
-      a complaint.
+## v2: Map and tracks
+- [ ] UAT the map on the handset: live traffic on the record screen, the track on review, and the
+      PNG as it arrives in a real inbox. Watch the first cold start especially: the tile style has
+      to come down before anything is drawn.
+- [ ] UAT the one-screen record layout: map on top taking the space the controls leave, the dB
+      readout sitting on the trace below it, and nothing scrolling. Check the tall cases (location
+      banner up, status line up and the three-button stop row all at once) and check the readout
+      is still legible where the trace crosses it, now that it has no plate behind it and no unit
+      beside it.
+- [ ] Read one generated letter end to end after the dash purge. Every em dash, en dash and spaced
+      double hyphen is gone from the strings, so the punctuation that replaced them wants a human
+      eye on it once in the place it actually matters.
+- [ ] UAT that the sound clip now arrives attached by default: send one without touching the review
+      screen's toggle and confirm the WAV is on the mail.
+- [ ] Decide whether to bundle a Protomaps London extract as the offline fallback. Only worth it if
+      the "Map unavailable offline" panel turns out to be common in use.
 
-## M7 — Store release
+## M7: Store release
 - [ ] Privacy policy, data-safety / privacy-manifest forms
 - [ ] App icons, screenshots, store copy
 - [ ] Android 14+ foreground-service declaration if M6 ships

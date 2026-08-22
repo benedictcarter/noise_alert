@@ -1,12 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:noise_alert/data/mail/complaint_template.dart';
-import 'package:noise_alert/data/mail/mail_sender.dart';
-import 'package:noise_alert/domain/acoustic_metrics.dart';
-import 'package:noise_alert/domain/aircraft.dart';
-import 'package:noise_alert/domain/flight_match.dart';
-import 'package:noise_alert/domain/profile.dart';
-import 'package:noise_alert/domain/settings.dart';
-import 'package:noise_alert/domain/snap.dart';
+import 'package:noise_alert/letter/template.dart';
+import 'package:noise_alert/letter/sender.dart';
+import 'package:noise_alert/mic/metrics.dart';
+import 'package:noise_alert/flights/aircraft.dart';
+import 'package:noise_alert/flights/match.dart';
+import 'package:noise_alert/me/profile.dart';
+import 'package:noise_alert/me/settings.dart';
+import 'package:noise_alert/snap/snap.dart';
 
 final DateTime _heardAt = DateTime(2026, 8, 19, 21, 14, 30);
 
@@ -128,6 +128,64 @@ void main() {
     expect(draft.body, contains('adsb.lol'));
     expect(draft.body, contains('A Resident'));
     expect(draft.body, contains('1 Quiet Lane'));
+  });
+
+  group('the map', () {
+    test('is attached and described when there was a fix', () {
+      final ComplaintDraft draft = template.render(
+        snap: _snap(),
+        profile: _profile,
+        settings: settings,
+        mapPath: '/tmp/snap-1-map.png',
+      );
+
+      expect(draft.attachmentPaths, contains('/tmp/snap-1-map.png'));
+      expect(draft.body, contains('a map of the recording location'));
+      expect(draft.body, contains('BAW123'));
+      // The picture is the part most likely to be forwarded on its own, so the
+      // caveat travels with it in the text as well as on the image.
+      expect(draft.body, contains('has not been independently verified'));
+    });
+
+    test('says so plainly when no aircraft was identified', () {
+      final ComplaintDraft draft = template.render(
+        snap: _snap(confirmed: false, unidentified: true),
+        profile: _profile,
+        settings: settings,
+        mapPath: '/tmp/snap-1-map.png',
+      );
+
+      expect(draft.attachmentPaths, contains('/tmp/snap-1-map.png'));
+      expect(draft.body, contains('No aircraft is marked on it'));
+      expect(draft.body, isNot(contains('BAW123')));
+    });
+
+    test('no fix means no map and no mention of one', () {
+      final ComplaintDraft draft = template.render(
+        snap: _snap(located: false),
+        profile: _profile,
+        settings: settings,
+      );
+
+      expect(
+        draft.attachmentPaths.where((String p) => p.endsWith('-map.png')),
+        isEmpty,
+      );
+      expect(draft.body, isNot(contains('Attached: a map')));
+    });
+
+    test('a letter is still sent when the map could not be drawn', () {
+      // Tiles unreachable, renderer gone, disk full: all arrive here as a
+      // null path, and none of them may cost the user their complaint.
+      final ComplaintDraft draft = template.render(
+        snap: _snap(),
+        profile: _profile,
+        settings: settings,
+      );
+
+      expect(draft.body, contains('BAW123'));
+      expect(draft.to, isNotEmpty);
+    });
   });
 
   test('an unconfirmed match never puts a flight number in the letter', () {
@@ -260,7 +318,7 @@ void main() {
 
   test('a snap with no fix says so instead of quoting a coordinate', () {
     // The old code stored a missing fix as 0, 0 and the letter printed
-    // "Location: 0.00000, 0.00000" — a real position off the coast of Ghana,
+    // "Location: 0.00000, 0.00000": a real position off the coast of Ghana,
     // and one the recipient has no way of recognising as a failure.
     final ComplaintDraft draft = template.render(
       snap: _snap(located: false),
@@ -288,7 +346,7 @@ void main() {
   test('with no background measured, no rise above background is claimed', () {
     // A widget-triggered snap has no pre-roll. Quoting a rise over a
     // background derived from un-recorded silence would overstate the event by
-    // tens of dB — precisely the direction that would discredit a complaint.
+    // tens of dB, precisely the direction that would discredit a complaint.
     final ComplaintDraft draft = template.render(
       snap: _snap(ambient: null, preRoll: 0),
       profile: _profile,
@@ -477,7 +535,7 @@ void main() {
       final int glance = draft.body.indexOf('AT A GLANCE');
       expect(glance, greaterThanOrEqualTo(0));
       // Before the salutation's follow-on prose, and before the detail
-      // sections it summarises -- a summary further down the page is not one.
+      // sections it summarises: a summary further down the page is not one.
       expect(glance, lessThan(draft.body.indexOf('Aircraft:')));
       expect(draft.body, contains('When: '));
       expect(draft.body, contains('21:14:30'));
