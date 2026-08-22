@@ -443,3 +443,17 @@ on screen to say they had. The map stayed frozen for the rest of the session.
   rather than leaving its tail across the map.
 - **Ten tests** in [sky_watch_test.dart](test/sky_watch_test.dart), including the regression itself:
   stop the poll by any means and it is back within a tick. 166 green.
+
+## v1.1.1 released (2026-08-22)
+v1.1.0 was tagged on the restructure merge and archived as build 17, which is the build whose map
+froze after a discard. It was never a release anyone should install. 1.1.1 is the same tree plus
+the [SkyWatch fix](lib/flights/watch.dart), and is the first good build of the reorganised app.
+
+- **1.1.1+19.** versionCode 1019 (armv7), 2019 (arm64), 4019 (x86_64), because `--split-per-abi`
+  adds 1000 times the ABI index and that is a one-way door: never lower the pubspec build number.
+- **Signed with the release key**, SHA-256 `2925cd31...`, the same certificate as every build since
+  v1.0.1. A different one and every existing install refuses the update.
+- **Archived** in `release/`: both APKs, and `release/symbols-v1.1.1/`, which is the only copy of
+  the Dart symbol table for this build and therefore the only way its stack traces will ever be
+  readable.
+- 166 tests green, `flutter analyze` clean, UAT passed on build 18 (identical code).
