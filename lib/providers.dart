@@ -17,6 +17,7 @@ import 'package:noise_alert/net/postcodes.dart';
 import 'package:noise_alert/snap/snap_service.dart';
 import 'package:noise_alert/snap/database.dart';
 import 'package:noise_alert/flights/aircraft.dart';
+import 'package:noise_alert/me/credentials.dart';
 import 'package:noise_alert/me/profile.dart';
 import 'package:noise_alert/me/settings.dart';
 import 'package:noise_alert/snap/snap.dart';
@@ -78,13 +79,28 @@ final Provider<DeviceInfoService> deviceInfoProvider =
 
 // === settings and profile ===
 
+/// The keystore the OpenSky secret lives in, kept out of the settings row.
+final Provider<CredentialStore> credentialStoreProvider =
+    Provider<CredentialStore>((Ref ref) => CredentialStore());
+
 class SettingsController extends StateNotifier<AppSettings> {
-  SettingsController(this._db, AppSettings initial) : super(initial);
+  SettingsController(this._db, this._credentials, AppSettings initial)
+      : super(initial);
 
   final AppDatabase _db;
+  final CredentialStore _credentials;
 
+  /// Writes the settings row, and the one field that does not go in it.
+  ///
+  /// Only when the secret actually changed: [edit] runs on every keystroke in
+  /// the settings screens, and a keystore write per keystroke is both slow and
+  /// pointless when the field being typed into is the letter template.
   Future<void> update(AppSettings settings) async {
+    final String previousSecret = state.openSkyClientSecret;
     state = settings;
+    if (settings.openSkyClientSecret != previousSecret) {
+      await _credentials.writeOpenSkySecret(settings.openSkyClientSecret);
+    }
     await _db.saveSettings(settings);
   }
 
@@ -96,6 +112,7 @@ final StateNotifierProvider<SettingsController, AppSettings> settingsProvider =
     StateNotifierProvider<SettingsController, AppSettings>(
   (Ref ref) => SettingsController(
     ref.watch(databaseProvider),
+    ref.watch(credentialStoreProvider),
     ref.watch(initialSettingsProvider),
   ),
 );

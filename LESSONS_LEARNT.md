@@ -752,3 +752,73 @@ the output before the APK goes near a handset. Cheap check, unrecoverable failur
 own engine but leaves every plugin's other-ABI native libraries in the APK, which for MapLibre is
 18 MB of dead weight. It is only safe alongside `--split-per-abi`, which is what does the real
 filtering.
+
+## An app-private file is not a private file: backup is the sixth endpoint (2026-08-22)
+**Mechanism:** both platforms back an app's private data directory up to the vendor's cloud unless
+told not to, and the flag that says "do not" is not the one you would guess. On Android
+`android:allowBackup` defaults to **true**, and it is an attribute you never see because the Flutter
+template does not write it; on Android 12+ setting it to `false` stops the cloud backup but *not*
+the device-to-device transfer, which is governed separately by `android:dataExtractionRules`. On iOS
+there is no manifest equivalent at all: everything in `Documents` and `Application Support` is in
+the iCloud backup, and the only way out is `NSURLIsExcludedFromBackupKey`, a per-URL attribute that
+can only be set from native code. A keychain item is included in that backup too, unless its
+accessibility is one of the `ThisDeviceOnly` variants.
+
+**The incident:** a security review of an app whose headline promise is "no personal data leaves the
+device". The Dart layer was clean: every network call confined to `lib/net/`, every host in one
+file, a test asserting both, no telemetry, no logging of PII. Three independent reviewers all
+arrived at the same finding anyway, and none of it was in the code they had been told to audit. The
+complainant's name, address and phone, a GPS fix against every event, the microphone recordings and
+the OpenSky client secret in cleartext JSON were all being uploaded to Google, and would have been
+to Apple, by a route no line of the app's own code takes. The promise was kept by the code and
+broken by the platform underneath it.
+
+**Rule:** "app-private storage" answers *which other apps can read this*, and nothing else. If a
+threat model says data must not leave the device, the backup configuration is part of the threat
+model and belongs in the same review as the network layer. Write down the trade-off deliberately:
+excluding the data means a user who replaces their handset loses their history, which is the wrong
+call for a records app and the right one here.
+
+**The part worth stealing:** the exclusion rules exclude every domain rather than naming the
+database and the clips. Enumerating what exists today means the next thing stored is included by
+default, and nobody will remember to come back. Also: putting a credential in the keystore and
+leaving its keychain accessibility at the default moves it out of the database and straight back
+into the backup, which is a fix that measures as a fix and changes nothing.
+
+**Corollary on the enforcement test:** a grep-based invariant is worth having and is worth exactly
+what it greps for. This one banned `package:http` and `https?://` literals, so `dart:io`'s
+`HttpClient` and `Uri.https('host', path)` both sailed past it, in a codebase where seven files
+outside `lib/net/` already import `dart:io` for file work. When a test is the stated mechanism for a
+guarantee, list the primitives it does *not* cover in the test's own doc comment, so the next
+reader learns the boundary from the test rather than from an incident.
+
+## `flutter analyze` and `flutter test` say nothing about whether Android can build the plugin (2026-08-22)
+
+**Mechanism:** a pub package's Dart surface and its Android AAR are checked at two different times
+by two different tools. `flutter pub get` resolves versions against pubspec constraints and Dart
+SDK bounds only; `flutter analyze` type-checks the Dart; `flutter test` runs on the host VM with no
+Android toolchain involved at all. The AAR's `compileSdkVersion` requirement lives in its metadata
+and is read by the Android Gradle Plugin, so it is first enforced during `assembleRelease`, at the
+end of a build that has already spent a minute or two. A package can therefore be added, analyze
+clean and pass every test while being impossible to build for the platform it exists to talk to.
+
+**The incident:** adding `flutter_secure_storage` to move the OpenSky secret out of SQLite. Bare
+constraint in pubspec, so it resolved to 11.0.0, which needs `compileSdk` 37. Flutter 3.47's default
+is 36 and AGP 9.1.0 will not go past 36, so the fix was three files of clean, green, unbuildable
+code. Pinning to `^10.0.0` (10.3.1, compiled against 36) built first time and cost one comment.
+
+**Rule:** a new plugin with native code is not integrated until a release build of the actual
+platform has succeeded. Analyze and test are necessary and prove nothing here. Run the build before
+writing the commit message, not after.
+
+**Second rule:** pin the major version of any plugin whose native side has an SDK floor, and say in
+the pubspec *why* it is pinned. A bare `package_name:` entry silently follows the package to
+whatever compileSdk its author is targeting this month, which will eventually be ahead of the
+Flutter stable channel's default, and the failure surfaces as a Gradle error a long way from the
+line that caused it.
+
+**Choosing which side to move:** the fix is nearly always to pin the package down, not to drag
+`compileSdk` and AGP up. Raising compileSdk changes the SDK every dependency in the project is
+compiled against, on a toolchain combination nobody has tested, in order to obtain one keystore
+entry. Revisit when Flutter's own default moves, which is the version pair that is actually tested
+together.

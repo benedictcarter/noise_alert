@@ -22,6 +22,16 @@ Flutter (iOS + Android) app for logging aircraft noise events and generating com
   [test/outbound_surface_test.dart](test/outbound_surface_test.dart) fails the build if any of
   that drifts. Adding a host means changing that test, this paragraph and REVIEW.md in the same
   commit.
+- **The device includes its backups.** App-private storage settles which other apps can read the
+  database; it says nothing about the OS, which copies that directory to Google or Apple by default
+  and restores it onto the next handset the account touches. So backup is switched off deliberately
+  on both platforms: `android:allowBackup="false"` plus `data_extraction_rules.xml` for the
+  device-to-device path Android 12+ governs separately, and `NSURLIsExcludedFromBackupKey` on iOS
+  through `me/device_backup.dart`. The one credential the app holds, the OpenSky client secret,
+  lives in the platform keystore rather than the settings row, with `first_unlock_this_device`
+  accessibility so the keychain item is not itself backed up. The accepted cost is that a new phone
+  starts with an empty history. Anything new that stores personal data is covered by the
+  exclude-everything rules already in place; do not narrow them to a list of filenames.
 - **The only mandatory fields are a name and a postcode.** House number, street, town and phone
   number are all optional, and no email address is asked for at all: the letter goes from the
   user's own mail account, so the reply address travels with it. `ComplainantProfile.isComplete`

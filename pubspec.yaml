@@ -1,7 +1,7 @@
 name: noise_alert
 description: Flightpath Watch Report, for logging aircraft noise events and generating complaint emails.
 publish_to: "none"
-version: 1.1.1+19
+version: 1.1.1+20
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
@@ -23,6 +23,13 @@ dependencies:
   sqflite:
   path_provider:
   path:
+  # the OpenSky client secret, and nothing else: Keystore on Android, Keychain
+  # on iOS, so it is not in the database file the rest of the settings are in.
+  # Held at 10.x on purpose: 11.x needs compileSdk 37, which needs an Android
+  # Gradle Plugin newer than the one Flutter 3.47 ships with, and the whole
+  # toolchain is not worth moving for one keystore entry. Revisit when Flutter's
+  # own default compileSdk passes 36.
+  flutter_secure_storage: ^10.0.0
   # networking
   http:
   # mail

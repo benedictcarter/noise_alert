@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Nothing this app stores may be copied off the handset.
+
+  android:allowBackup="false" already stops the cloud backup, but on Android 12
+  and above it does not stop a device-to-device transfer: that path is governed
+  by this file instead, and its default is to take everything. So both sections
+  are spelled out, and both exclude every domain rather than naming the database
+  and the recordings, because the next thing someone stores here should be
+  excluded by default rather than by remembering to come back and add it.
+
+  What is at stake: the complainant's name, address and phone number, the
+  coordinates of their home attached to every event, the microphone recordings
+  made there, and (before it moved to the keystore) their OpenSky secret.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+        <exclude domain="device_root" />
+        <exclude domain="device_file" />
+        <exclude domain="device_database" />
+        <exclude domain="device_sharedpref" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+        <exclude domain="device_root" />
+        <exclude domain="device_file" />
+        <exclude domain="device_database" />
+        <exclude domain="device_sharedpref" />
+    </device-transfer>
+</data-extraction-rules>

@@ -59,6 +59,56 @@ hosts acceptable, and is what each is sent as small as it claims".
    through the user's own mail account, under their own reply address, at their
    hand. That is the design, not a leak, but it is where the personal data is.
 
+**What the test does not cover.** Worth knowing before you trust it, because a
+grep-based invariant is worth exactly what it greps for. It does not look for
+`dart:io`'s `HttpClient` or raw sockets, and it matches URLs only as `http://`
+or `https://` literals, so a host assembled from parts or reached through
+`Uri.https('host', path)` is invisible to it. Its pubspec check is a blocklist
+of eight package names. Nothing in it scans Gradle, CocoaPods or plugin native
+code: the guarantee stops at the Dart layer. These are known gaps, listed in
+[TODO.md](TODO.md); the test is a tripwire against drift, not a proof.
+
+---
+
+## 1a. What stays on the device, and how it is kept there
+
+The section above is about what the app *sends*. This one is about what it
+*keeps*, which turned out to be the easier thing to get wrong: an app-private
+directory answers "which other apps can read this" and nothing else. Both
+platforms will copy that directory to the vendor's cloud on their own, and no
+line of code in this repo is involved.
+
+Everything is written to app-private storage: the database
+([snap/database.dart](lib/snap/database.dart)) in the documents directory, the
+recordings, charts and evidence maps in the support directory. Nothing goes to
+external or shared storage anywhere, and every filename is derived from an
+event's own timestamp, so no user or network string ever reaches a path.
+
+Three things hold the rest of it:
+
+- **Android backup is off.** `android:allowBackup="false"` in the manifest, plus
+  [data_extraction_rules.xml](android/app/src/main/res/xml/data_extraction_rules.xml),
+  which is what covers the device-to-device transfer that `allowBackup` does not
+  on Android 12+. Both sections exclude every domain rather than naming the
+  database, so the next thing stored here is excluded by default.
+- **iOS backup is off**, via [me/device_backup.dart](lib/me/device_backup.dart)
+  and a `noise_alert/backup` channel in
+  [AppDelegate.swift](ios/Runner/AppDelegate.swift), called before the database
+  is opened. iOS has no manifest equivalent; the exclusion is a per-URL
+  attribute that only native code can set. *This half is compile-unverified
+  while iOS is parked.*
+- **The OpenSky client secret is in the platform keystore**, not in the settings
+  row ([me/credentials.dart](lib/me/credentials.dart)), with a one-shot
+  migration that scrubs the old cleartext copy out of SQLite. Note the iOS
+  keychain accessibility: without `first_unlock_this_device` the keychain item
+  is itself in the iCloud backup, so the default would move the secret out of
+  the database and straight back into the thing being defended against.
+
+The deliberate cost: a user who replaces their handset loses their complaint
+history. For an evidence app whose pitch is that the evidence never leaves the
+phone, uploading it to Apple and Google to spare them a migration is the worse
+trade.
+
 ---
 
 ## 2. The lanes

@@ -38,6 +38,15 @@ class AppSettings {
   /// their mail client does not keep one.
 
   final String openSkyClientId;
+
+  /// Held in memory like any other setting, but persisted somewhere else.
+  ///
+  /// [toJson] deliberately does not write it: everything else here goes into a
+  /// JSON blob in SQLite, and a credential in a database file is a credential
+  /// in every copy of that database file. It lives in the platform keystore
+  /// instead, via `CredentialStore`, and is put back onto this object at
+  /// startup. [fromJson] still reads the old key, which is the only way an
+  /// install that predates that move can be migrated off it.
   final String openSkyClientSecret;
 
   final List<RecipientSet> recipientSets;
@@ -108,10 +117,12 @@ class AppSettings {
         templateBody,
       );
 
+  /// Note the absence of `openSkyClientSecret`: see the field's own note. This
+  /// map is written to SQLite, so anything added here is written to SQLite, and
+  /// the secret is the one thing on this object that must not be.
   Map<String, Object?> toJson() => <String, Object?>{
         'attachClipByDefault': attachClipByDefault,
         'openSkyClientId': openSkyClientId,
-        'openSkyClientSecret': openSkyClientSecret,
         'recipientSets':
             recipientSets.map((RecipientSet s) => s.toJson()).toList(),
         'activeRecipientSetId': activeRecipientSetId,
@@ -133,6 +144,9 @@ class AppSettings {
     return AppSettings(
       attachClipByDefault: json['attachClipByDefault'] as bool? ?? true,
       openSkyClientId: json['openSkyClientId'] as String? ?? '',
+      // Only ever non-empty on an install written before the secret moved to
+      // the keystore. main() treats finding one here as "migrate and scrub",
+      // and nothing writes the key again, so it reads empty from then on.
       openSkyClientSecret: json['openSkyClientSecret'] as String? ?? '',
       recipientSets:
           sets.isEmpty ? const <RecipientSet>[RecipientSet.defaultSet] : sets,
