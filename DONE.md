@@ -457,3 +457,12 @@ the [SkyWatch fix](lib/flights/watch.dart), and is the first good build of the r
   the Dart symbol table for this build and therefore the only way its stack traces will ever be
   readable.
 - 166 tests green, `flutter analyze` clean, UAT passed on build 18 (identical code).
+
+## arm64 only (2026-08-22)
+The release built three APKs and two of them were never installed by anyone. armeabi-v7a is for
+handsets that stopped shipping around 2015 and x86_64 is for emulators.
+`scripts/build_release.sh` now passes `--target-platform android-arm64` alongside `--split-per-abi`,
+which is the only combination that is safe: the target flag on its own filters Flutter's engine and
+leaves every plugin's other-ABI libraries behind. Verified with `aapt2 dump badging` that the arm64
+versionCode is still 2019 and not renumbered, because a lower one would be refused by every phone
+that already has the app. If a 32-bit device ever turns up, dropping one flag brings its APK back.
