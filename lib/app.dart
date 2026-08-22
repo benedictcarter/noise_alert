@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'features/history/history_screen.dart';
-import 'features/map/map_snapshot_host.dart';
-import 'features/onboarding/welcome_screen.dart';
-import 'features/settings/settings_screen.dart';
-import 'features/snap/snap_screen.dart';
-import 'providers.dart';
+import 'package:noise_alert/ui/history/history_screen.dart';
+import 'package:noise_alert/map/snapshot_host.dart';
+import 'package:noise_alert/ui/welcome/welcome_screen.dart';
+import 'package:noise_alert/ui/settings/settings_screen.dart';
+import 'package:noise_alert/ui/snap/snap_screen.dart';
+import 'package:noise_alert/providers.dart';
 
 class NoiseAlertApp extends StatelessWidget {
   const NoiseAlertApp({super.key});

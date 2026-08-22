@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:noise_alert/data/flights/flight_matcher.dart';
-import 'package:noise_alert/domain/aircraft.dart';
-import 'package:noise_alert/domain/flight_match.dart';
-import 'package:noise_alert/domain/snap.dart';
+import 'package:noise_alert/flights/matcher.dart';
+import 'package:noise_alert/flights/aircraft.dart';
+import 'package:noise_alert/flights/match.dart';
+import 'package:noise_alert/snap/snap.dart';
 
 const Observer _home = Observer(latitude: 51.5000, longitude: -0.1000);
 

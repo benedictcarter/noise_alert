@@ -1,23 +1,27 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
 
-import 'core/device_info.dart';
-import 'core/quick_snap.dart';
-import 'data/audio/recorder_service.dart';
-import 'data/flights/adsb_source.dart';
-import 'data/flights/flight_lookup_service.dart';
-import 'data/flights/opensky_source.dart';
-import 'data/flights/tar1090_source.dart';
-import 'data/map/map_image_service.dart';
-import 'data/postcode/postcode_service.dart';
-import 'data/snap_service.dart';
-import 'data/storage/database.dart';
-import 'domain/aircraft.dart';
-import 'domain/profile.dart';
-import 'domain/settings.dart';
-import 'domain/snap.dart';
+import 'package:noise_alert/snap/device_info.dart';
+import 'package:noise_alert/ui/snap/quick_snap.dart';
+import 'package:noise_alert/mic/recorder.dart';
+import 'package:noise_alert/flights/source.dart';
+import 'package:noise_alert/flights/lookup.dart';
+import 'package:noise_alert/net/client.dart';
+import 'package:noise_alert/net/opensky.dart';
+import 'package:noise_alert/net/live_adsb.dart';
+import 'package:noise_alert/map/image_service.dart';
+import 'package:noise_alert/net/postcodes.dart';
+import 'package:noise_alert/snap/snap_service.dart';
+import 'package:noise_alert/snap/database.dart';
+import 'package:noise_alert/flights/aircraft.dart';
+import 'package:noise_alert/me/profile.dart';
+import 'package:noise_alert/me/settings.dart';
+import 'package:noise_alert/snap/snap.dart';
+
+/// Re-exported so the rest of the app reaches the network only through the
+/// one client defined in `lib/net/`.
+export 'package:noise_alert/net/client.dart' show NetClient, httpClientProvider;
 
 /// Overridden in `main()` once the database is open, so the rest of the app can
 /// depend on it synchronously instead of unwrapping an AsyncValue everywhere.
@@ -37,13 +41,6 @@ final Provider<ComplainantProfile> initialProfileProvider =
   (Ref ref) =>
       throw UnimplementedError('initialProfileProvider must be overridden'),
 );
-
-final Provider<http.Client> httpClientProvider =
-    Provider<http.Client>((Ref ref) {
-  final http.Client client = http.Client();
-  ref.onDispose(client.close);
-  return client;
-});
 
 /// Home-screen widget taps. Created once for the app's lifetime so a tap that
 /// arrives while the snap screen is being rebuilt is not lost.
@@ -134,13 +131,13 @@ final Provider<RecorderService> recorderProvider =
 /// need no key at all, which is why they are the primary path.
 final Provider<FlightLookupService> flightLookupProvider =
     Provider<FlightLookupService>((Ref ref) {
-  final http.Client client = ref.watch(httpClientProvider);
+  final NetClient client = ref.watch(httpClientProvider);
   final AppSettings settings = ref.watch(settingsProvider);
 
   final FlightLookupService service = FlightLookupService(
     liveSources: <AdsbSource>[
-      Tar1090Source.adsbLol(client: client),
-      Tar1090Source.airplanesLive(client: client),
+      LiveAdsbSource.adsbLol(client: client),
+      LiveAdsbSource.airplanesLive(client: client),
     ],
     openSky: OpenSkySource(
       clientId: settings.openSkyClientId,

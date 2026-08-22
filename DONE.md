@@ -13,8 +13,9 @@ microphone.
   real OSM vector tiles, no API key, no registration, no request limit, no cookies. The attribution
   line is the whole of what it asks in return, so it lives in `FlightMapPanel` (a map cannot be put
   on a screen without it) and is *painted into* the emailed PNG, because a line under a widget does
-  not travel with an image into somebody's inbox. This is the app's third and last outbound call,
-  and `CLAUDE.md` now says so.
+  not travel with an image into somebody's inbox. (Called "the third and last outbound call" at the
+  time. It was the third; it was not the last. There are five services across six hosts today and
+  they are all in `lib/net/endpoints.dart`.)
 - **Tracks come free.** The matcher was already polling adsb.lol every three seconds; the lookup
   service now keeps each aircraft's positions and publishes them on a stream, so the live map is a
   *view of that cache* rather than a second source of traffic to a donated feed.
@@ -377,3 +378,36 @@ code makes them to five services across six hosts. adsb.lol, airplanes.live, Ope
 OpenFreeMap and postcodes.io. Nothing improper is happening, every one of them is coordinates or
 tile numbers with no identifier attached, but a stated non-negotiable that undercounts is worse than
 no statement at all. `CLAUDE.md` now lists all five.
+
+## Restructured for review, and the outbound surface made checkable (2026-08-22)
+8,000-odd lines of Dart is a lot to hand somebody and say "have a look". The layer split it had
+(`data/` / `domain/` / `features/`) meant a single question, "what happens to the microphone
+input", was answered across four directories, and the question that actually matters for a privacy
+review, "what leaves the device", was answered in none of them.
+
+- **`lib/` is now organised by function, not layer.** Ten lanes: `net`, `mic`, `where`, `flights`,
+  `map`, `chart`, `letter`, `snap`, `me`, `ui`. Every file moved, every import rewrote, no
+  behaviour changed: 156 tests pass and `flutter analyze` is clean. `data/`, `domain/` and
+  `features/` are gone.
+- **Everything that touches the network is in `lib/net/`,** and every address in
+  `lib/net/endpoints.dart`, with a table of what each host is sent and when. The HTTP client moved
+  there too (`net/client.dart`) so that `package:http` is imported nowhere else in `lib/`.
+- **`test/outbound_surface_test.dart` holds it.** Six assertions: no `package:http` outside
+  `lib/net/`; no `http://` or `https://` in any Dart file outside `endpoints.dart`, comments
+  included; `endpoints.dart` resolving to exactly the six expected hosts, named; exactly seven
+  files carrying the `// OUTBOUND:` banner; and no analytics or crash-reporting package in
+  `pubspec.yaml`. The privacy claim in CLAUDE.md is now a failing build rather than a promise.
+- **`// OUTBOUND:` banners** on all seven, saying what goes out and on what trigger. Two of them
+  are not HTTP and would be missed by any grep for it: `map/live_map.dart` and
+  `map/snapshot_host.dart`, whose tiles are fetched by native MapLibre, and `letter/sender.dart`,
+  which is where the personal data actually leaves, into the user's own mail app.
+- **`Tar1090Source` is now `LiveAdsbSource`.** tar1090 is a wire format, not a service, and naming
+  a class after it told a reader nothing. The schema detail moved into a doc comment where it
+  explains itself.
+- **`core/constants.dart` split three ways.** Tuning constants now sit with the lane they tune
+  (`mic/config.dart`, `flights/config.dart`, `map/config.dart`). Addresses do not: `MapConfig.styleUrl`
+  and `PostcodeService._host` both moved into `net/endpoints.dart`, which is what made the URL
+  assertion possible.
+- **[REVIEW.md](REVIEW.md)** is the reading order: the outbound surface first, then the lanes,
+  with the design decision worth arguing about called out in each and the tests that cover it
+  named.

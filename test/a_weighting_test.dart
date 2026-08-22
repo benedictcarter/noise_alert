@@ -2,8 +2,8 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:noise_alert/core/constants.dart';
-import 'package:noise_alert/data/audio/a_weighting.dart';
+import 'package:noise_alert/mic/config.dart';
+import 'package:noise_alert/mic/a_weighting.dart';
 
 void main() {
   group('A-weighting frequency response', () {

@@ -2,6 +2,7 @@
 
 Flutter (iOS + Android) app for logging aircraft noise events and generating complaint emails.
 
+- Reading it for the first time: [REVIEW.md](REVIEW.md)
 - Design and rationale: [PLAN.md](PLAN.md)
 - Outstanding work: [TODO.md](TODO.md). Completed work moves to [DONE.md](DONE.md)
 - Hard-won gotchas: [LESSONS_LEARNT.md](LESSONS_LEARNT.md). Append as they are hit
@@ -15,7 +16,12 @@ Flutter (iOS + Android) app for logging aircraft noise events and generating com
   tiles from OpenFreeMap, which are requested by tile coordinate and carry no key, no cookie and no
   account; and (only when the user presses the button) a postcode to postcodes.io to fill in their
   town. No name, no email address and no identifier goes with any of them. Adding a sixth is a
-  decision, not a detail.
+  decision, not a detail. This is enforced rather than promised: everything that touches the
+  network lives in `lib/net/`, every address is in `lib/net/endpoints.dart`, every file that can
+  reach out carries an `// OUTBOUND:` banner, and
+  [test/outbound_surface_test.dart](test/outbound_surface_test.dart) fails the build if any of
+  that drifts. Adding a host means changing that test, this paragraph and REVIEW.md in the same
+  commit.
 - **The only mandatory fields are a name and a postcode.** House number, street, town and phone
   number are all optional, and no email address is asked for at all: the letter goes from the
   user's own mail account, so the reply address travels with it. `ComplainantProfile.isComplete`
@@ -41,3 +47,15 @@ Flutter (iOS + Android) app for logging aircraft noise events and generating com
   degrade the picture; none of them blocks a send.
 - **An audio clip is always saved** (the loudest 10 s, on the device only). The only question
   put to the user is whether to *attach* it, and it is previewable before sending.
+
+## Layout
+
+`lib/` is organised by function, not by layer. There is no `data/`, `domain/` or `features/`.
+
+`net/` (outbound calls, and the only place a URL may appear) · `mic/` (recording and measurement) ·
+`where/` (GPS and geometry) · `flights/` (which aircraft it was) · `map/` (the evidence picture) ·
+`chart/` (the level trace) · `letter/` (writing and sending) · `snap/` (one event, end to end) ·
+`me/` (the user's details and settings) · `ui/` (screens).
+
+Tunable constants sit with the lane they tune: `mic/config.dart`, `flights/config.dart`,
+`map/config.dart`. Addresses do not: they are all in `net/endpoints.dart`.

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:noise_alert/domain/settings.dart';
+import 'package:noise_alert/me/settings.dart';
 
 /// The exact default letter as it shipped before `{measurementBlock}` existed.
 ///

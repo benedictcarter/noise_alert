@@ -6,16 +6,44 @@ flight on free ADS-B data, and hands your mail app a ready-to-send complaint let
 
 Nothing leaves the device except the email you send yourself, from your own account.
 
+- **Reading the code for the first time: [REVIEW.md](REVIEW.md)**
 - Design and rationale: [PLAN.md](PLAN.md)
 - Outstanding work: [TODO.md](TODO.md) · completed: [DONE.md](DONE.md)
 - Gotchas worth knowing before you touch the audio path: [LESSONS_LEARNT.md](LESSONS_LEARNT.md)
+
+## Layout
+
+`lib/` is organised by function, not by layer:
+
+| Directory | What lives there |
+|---|---|
+| [net/](lib/net/) | every outbound call, and every URL |
+| [mic/](lib/mic/) | recording and measuring sound |
+| [where/](lib/where/) | GPS and the geometry on a sphere |
+| [flights/](lib/flights/) | deciding which aircraft it was |
+| [map/](lib/map/) | drawing the evidence picture |
+| [chart/](lib/chart/) | drawing the level trace |
+| [letter/](lib/letter/) | writing and sending the complaint |
+| [snap/](lib/snap/) | one event, start to saved record |
+| [me/](lib/me/) | the user's own details and settings |
+| [ui/](lib/ui/) | screens |
+
+Everything that touches the network is in [lib/net/](lib/net/) and every address the app can reach
+is in [lib/net/endpoints.dart](lib/net/endpoints.dart). That is enforced, not just intended:
+[test/outbound_surface_test.dart](test/outbound_surface_test.dart) fails the build if a URL or an
+import of `package:http` appears anywhere else. Files that can reach the network carry an
+`// OUTBOUND:` banner saying what they send and when:
+
+```sh
+grep -rn "^// OUTBOUND" lib
+```
 
 ## Build
 
 ```sh
 flutter pub get
 flutter analyze      # must be clean
-flutter test         # 150 tests
+flutter test         # 156 tests
 flutter run          # Android; iOS needs a Mac
 ```
 

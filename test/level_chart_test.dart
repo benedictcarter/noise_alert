@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:noise_alert/features/chart/level_chart.dart';
+import 'package:noise_alert/chart/painter.dart';
 
 void main() {
   // The user drags a marker along the trace to say when the flyover was at its

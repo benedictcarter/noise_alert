@@ -2,13 +2,13 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:noise_alert/data/storage/database.dart';
-import 'package:noise_alert/domain/acoustic_metrics.dart';
-import 'package:noise_alert/domain/aircraft.dart';
-import 'package:noise_alert/domain/flight_match.dart';
-import 'package:noise_alert/domain/profile.dart';
-import 'package:noise_alert/domain/settings.dart';
-import 'package:noise_alert/domain/snap.dart';
+import 'package:noise_alert/snap/database.dart';
+import 'package:noise_alert/mic/metrics.dart';
+import 'package:noise_alert/flights/aircraft.dart';
+import 'package:noise_alert/flights/match.dart';
+import 'package:noise_alert/me/profile.dart';
+import 'package:noise_alert/me/settings.dart';
+import 'package:noise_alert/snap/snap.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 const AcousticMetrics _metrics = AcousticMetrics(

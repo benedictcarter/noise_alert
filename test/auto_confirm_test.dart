@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:noise_alert/core/constants.dart';
-import 'package:noise_alert/data/snap_service.dart';
-import 'package:noise_alert/domain/acoustic_metrics.dart';
-import 'package:noise_alert/domain/aircraft.dart';
-import 'package:noise_alert/domain/flight_match.dart';
-import 'package:noise_alert/domain/snap.dart';
+import 'package:noise_alert/flights/config.dart';
+import 'package:noise_alert/snap/snap_service.dart';
+import 'package:noise_alert/mic/metrics.dart';
+import 'package:noise_alert/flights/aircraft.dart';
+import 'package:noise_alert/flights/match.dart';
+import 'package:noise_alert/snap/snap.dart';
 
 final DateTime _heardAt = DateTime(2026, 8, 20, 14, 49, 33);
 

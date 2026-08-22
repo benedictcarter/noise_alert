@@ -1,13 +1,13 @@
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:noise_alert/core/geo.dart';
-import 'package:noise_alert/domain/aircraft.dart';
-import 'package:noise_alert/domain/flight_match.dart';
-import 'package:noise_alert/domain/snap.dart';
-import 'package:noise_alert/features/map/map_geometry.dart';
-import 'package:noise_alert/features/map/map_layers.dart';
-import 'package:noise_alert/features/map/map_projection.dart';
+import 'package:noise_alert/where/geo.dart';
+import 'package:noise_alert/flights/aircraft.dart';
+import 'package:noise_alert/flights/match.dart';
+import 'package:noise_alert/snap/snap.dart';
+import 'package:noise_alert/map/geometry.dart';
+import 'package:noise_alert/map/layers.dart';
+import 'package:noise_alert/map/projection.dart';
 
 /// Somewhere under a real flight path, so the longitude scaling is exercised at
 /// a latitude the app is actually used at rather than at the equator, where

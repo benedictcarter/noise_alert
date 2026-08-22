@@ -2,8 +2,8 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:noise_alert/data/audio/noise_analyzer.dart';
-import 'package:noise_alert/domain/acoustic_metrics.dart';
+import 'package:noise_alert/mic/analyzer.dart';
+import 'package:noise_alert/mic/metrics.dart';
 
 const double _fs = 48000;
 const double _offset = 120; // dB SPL at full scale; see LevelReference.

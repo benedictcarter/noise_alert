@@ -672,3 +672,32 @@ The dex was 8% of the APK to begin with; the native libraries were 93%.
 **Rule:** on a Flutter app, look at where the bytes actually are before reaching for R8. It costs a
 proguard file, a mapping file that has to be archived to read any future stack trace, and a class of
 runtime-only breakage in reflective plugin code, in exchange for nothing measurable.
+
+## `open(p, "w").write(f(p))` truncates the file before `f` reads it (2026-08-22)
+**Mechanism:** Python evaluates the receiver of a method call before the arguments. In
+`io.open(p, "w").write(rewrite(p))` the `open` runs first, and opening for writing truncates the
+file to zero bytes. Only then does `rewrite(p)` run, and it reads an empty file. Every language
+with eager argument evaluation does this; it only bites when the argument reads the same resource
+the receiver is destroying.
+
+**The incident:** a script that rewrote every import in `lib/` and `test/` for a directory
+restructure emptied all 53 source files and all 13 test files, twice. It was silent both times.
+`flutter analyze` said "No issues found!" in 1.8 s, because there was nothing left to analyse, and
+that read as success. Only `flutter test` gave it away, with `Error: Undefined name 'main'` on
+every file.
+
+**Rule:** for any in-place bulk rewrite, read everything into memory first, then write:
+
+```python
+pending = {p: rewrite(p) for p in paths}     # no file is open for writing yet
+for p, text in pending.items():
+    io.open(p, "w", encoding="utf-8", newline="").write(text)
+```
+
+**The two things that made it survivable, and one that made it worse:** the tree was committed, so
+`git reset --hard HEAD` cost nothing. And a fast, clean `flutter analyze` after a large refactor is
+not reassurance, it is a symptom worth checking: compare the analysed file count, or just
+`find lib -name '*.dart' | xargs cat | wc -l` before and after. What made it worse was the fix
+attempt itself, which passed a git-bash `/c/...` path to a Windows `python`, got `FileNotFoundError`,
+and so re-ran the unpatched script over the restored tree. Convert with `cygpath -w` before handing
+a path to any native Windows executable.

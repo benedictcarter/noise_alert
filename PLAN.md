@@ -25,25 +25,32 @@ responsible flight, and produces a ready-to-send complaint email from the user's
 
 ## Architecture
 
+Organised by function, not by layer. The layered version of this
+(`core/` + `data/` + `domain/` + `features/`) was built first and replaced on 2026-08-22: it
+scattered a single question across four directories, and it gave the question a privacy reviewer
+actually asks, "what leaves the device", no home at all.
+
 ```
 lib/
-  core/          config, permissions, result types, logging
-  data/
-    audio/       PCM capture, A-weighting filter, LAeq/LAmax, WAV/M4A writer
-    location/    geolocator wrapper, accuracy gating
-    flights/     AdsbLolClient, AirplanesLiveClient, OpenSkyClient, FlightMatcher
-    storage/     sqflite DB: snaps, matches, profile, settings
-    map/         MapImageService: the flight-path PNG attached to the letter
-    mail/        template renderer + flutter_email_sender
-  domain/        Snap, AcousticMetrics, AircraftSample, FlightMatch, ComplaintDraft (hand-written)
-  features/
-    snap/        the big button + live dB meter
-    history/     list of snaps, status (matched / sent / unmatched)
-    review/      confirm-flight screen before sending
-    map/         MapLibre widget, projection, overlay painter, hidden snapshot host
-    settings/    profile, recipients, clip on/off
+  net/           EVERY outbound call, and the only place a URL may appear
+                 endpoints.dart (the whole list), client.dart, live_adsb.dart,
+                 opensky.dart, postcodes.dart
+  mic/           PCM capture, A-weighting filter, LA90/LAeq/LAmax, WAV writer
+  where/         geolocator wrapper, accuracy gating, spherical geometry
+  flights/       AdsbSource interface, FlightMatcher, the lookup and track cache
+  map/           MapLibre widget, projection, overlay painter, hidden snapshot host
+  chart/         the level trace, for the screen and for the attached PNG
+  letter/        template renderer + flutter_email_sender
+  snap/          Snap, the sqflite store, and SnapService: one event end to end
+  me/            ComplainantProfile and AppSettings
+  ui/            screens: snap, review, history, settings, welcome
   listener/      PHASE 2: foreground service + YAMNet classifier
 ```
+
+Tuning constants sit with the lane they tune (`mic/config.dart`, `flights/config.dart`,
+`map/config.dart`). Addresses do not: they are all in `net/endpoints.dart`, and
+`test/outbound_surface_test.dart` fails the build if one appears anywhere else. See
+[REVIEW.md](REVIEW.md).
 State: **Riverpod 2.x** (`StateNotifierProvider`, `ConsumerWidget`). Models: **hand-written**
 immutable classes with `copyWith` / `toJson` / `fromJson`. DB: **sqflite**, hand-written SQL.
 HTTP: **`package:http`**.
@@ -143,7 +150,7 @@ historical lookup and dodges the paid-API problem entirely.
 4. **Ambient speech in clips.** Recording bystanders is the one genuine privacy risk here. Clip
    defaults to off, user previews before sending, clip deletable from history.
 5. **OpenFreeMap could fold.** It is donation-funded with no contract behind it. The tiles are
-   swappable at one constant (`MapConfig.styleUrl`), and the fallback is Protomaps: a single
+   swappable at one constant (`Endpoints.mapStyleUrl`), and the fallback is Protomaps: a single
    `.pmtiles` file, hostable anywhere or bundled in the APK for zero outbound calls. Every map
    already degrades to a drawn-on-paper version when the tiles do not arrive, so the failure mode is
    a duller picture rather than a broken feature.
