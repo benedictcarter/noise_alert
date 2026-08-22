@@ -39,9 +39,6 @@ class Tar1090Source implements AdsbSource {
   final http.Client _client;
 
   @override
-  bool get supportsHistorical => false;
-
-  @override
   Future<List<AircraftSample>> historical({
     required double latitude,
     required double longitude,

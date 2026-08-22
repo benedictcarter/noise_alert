@@ -8,12 +8,14 @@ Flutter (iOS + Android) app for logging aircraft noise events and generating com
 
 ## Non-negotiables
 - **No personal data leaves the device.** No backend, no analytics, no crash reporter that ships
-  location. Complaints are sent by the user from their own mail account. Three outbound calls exist
-  and all three are deliberate: coordinates to adsb.lol to find the aircraft; map tiles from
-  OpenFreeMap, which are requested by tile coordinate and carry no key, no cookie and no account;
-  and (only when the user presses the button) a postcode to postcodes.io to fill in their town.
-  No name, no email address and no identifier goes with any of them. Adding a fourth is a decision,
-  not a detail.
+  location. Complaints are sent by the user from their own mail account. Five outbound services exist
+  and every one of them is deliberate: coordinates to adsb.lol and to airplanes.live to find the
+  aircraft that is overhead now; coordinates to the OpenSky Network to find one that was overhead up
+  to an hour ago, and only once the user has put their own OpenSky credentials in Settings; map
+  tiles from OpenFreeMap, which are requested by tile coordinate and carry no key, no cookie and no
+  account; and (only when the user presses the button) a postcode to postcodes.io to fill in their
+  town. No name, no email address and no identifier goes with any of them. Adding a sixth is a
+  decision, not a detail.
 - **The only mandatory fields are a name and a postcode.** House number, street, town and phone
   number are all optional, and no email address is asked for at all: the letter goes from the
   user's own mail account, so the reply address travels with it. `ComplainantProfile.isComplete`

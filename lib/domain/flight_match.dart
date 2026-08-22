@@ -87,27 +87,9 @@ class FlightMatch {
 
   FlightCandidate? get best => candidates.isEmpty ? null : candidates.first;
 
-  FlightCandidate? get selected {
-    final String? id = selectedIcao24;
-    if (id == null) return null;
-    for (final FlightCandidate c in candidates) {
-      if (c.aircraft.icao24 == id) return c;
-    }
-    return null;
-  }
-
   bool get hasCandidates => candidates.isNotEmpty;
 
   /// Above this the UI may pre-select the leading candidate; below it the user
   /// picks from the list with nothing chosen for them.
   bool get isConfidentEnoughToPreselect => confidence >= 0.7;
-
-  FlightMatch withSelection(String? icao24) => FlightMatch(
-        candidates: candidates,
-        confidence: confidence,
-        searchedFrom: searchedFrom,
-        searchedTo: searchedTo,
-        selectedIcao24: icao24,
-        note: note,
-      );
 }

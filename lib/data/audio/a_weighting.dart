@@ -32,7 +32,6 @@ class AWeighting {
   final double sampleRate;
   final BiquadCascade _cascade;
 
-  BiquadCascade get cascade => _cascade;
 
   static BiquadCascade _design(double sampleRate) {
     final double w1 = 2 * math.pi * f1;

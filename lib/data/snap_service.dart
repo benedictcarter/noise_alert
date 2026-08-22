@@ -33,7 +33,6 @@ class CaptureProgress {
   final CaptureStage stage;
   final String? message;
 
-  bool get isBusy => stage != CaptureStage.idle && stage != CaptureStage.done;
 }
 
 /// Ties the microphone, the GPS, the flight lookup and the database together
@@ -67,7 +66,6 @@ class CaptureSendResult {
   /// Null when the send was deliberately not attempted.
   final MailOutcome? outcome;
 
-  bool get needsReview => outcome == null;
 }
 
 class SnapService {
@@ -403,7 +401,7 @@ class SnapService {
     );
   }
 
-  /// SEND: capture, decide the aircraft question, open the letter.
+  /// SEND: the second half, for a snap that has already been captured.
   ///
   /// The point of the button is that one press ends the recording and the next
   /// thing the user sees is their own mail app with a complaint in it. That is
@@ -416,17 +414,10 @@ class SnapService {
   ///    still a complaint, and is the whole point of the app;
   ///  * anything in between is a real question, so the button degrades to
   ///    REVIEW and the caller shows the review screen.
-  Future<CaptureSendResult> captureAndSend({
-    required AppSettings settings,
-    String notes = '',
-  }) async =>
-      sendCaptured(await capture(settings: settings, notes: notes));
-
-  /// The second half of SEND, for a snap that has already been captured.
   ///
-  /// Separate from [captureAndSend] because the UI cannot know which button
-  /// will be pressed until the recording is already running: both buttons end
-  /// the same capture, and only afterwards does it become a save or a send.
+  /// Split from [capture] because the UI cannot know which button will be
+  /// pressed until the recording is already running: both buttons end the same
+  /// capture, and only afterwards does it become a save or a send.
   Future<CaptureSendResult> sendCaptured(Snap captured) async {
     final Snap decided = autoConfirm(captured);
 

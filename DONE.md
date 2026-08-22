@@ -319,3 +319,61 @@ All four from Ben's first round of on-device use.
   the background were read by one microphone in one recording, so the gap is like-for-like.
 - CLAUDE.md's "never present uncalibrated dB" non-negotiable replaced with the rise-over-background
   rule; PLAN.md's calibration screen and M4 calibration item removed.
+
+
+## 83 MB to 29 MB, and a hunt for code that nothing calls (2026-08-22)
+Two questions, and they turned out to have very different answers: the install was fat for a reason
+that had nothing to do with the source, and the source had almost nothing in it to cut.
+
+**The install: 83.2 MB to 29.2 MB, a 65% cut.** Unzipping the APK and summing entries by directory
+put 93% of it in `lib/`, as three copies of the same native libraries: `lib/x86_64` 31.4 MB (an
+emulator ABI the app will never run on), `lib/arm64-v8a` 29.6 MB (what the G7 ThinQ actually uses)
+and `lib/armeabi-v7a` 24.2 MB. `classes.dex` was 2.5 MB and every asset together under 0.3 MB. The
+Dart source was never the problem.
+
+- **`--split-per-abi` is the fix**, and `--target-platform android-arm64` is the trap that looks like
+  it. The latter only controls what the Flutter tool compiles, so it drops the other ABIs of
+  `libflutter.so` and `libapp.so` and leaves every plugin's alone: an "arm64-only" build still
+  carried `libmaplibre.so` for x86_64 and armeabi-v7a and came to 47.7 MB. Written up in
+  LESSONS_LEARNT.
+- **`--split-debug-info` is nearly a megabyte for free**, taking `libapp.so` from 6.50 MB to 5.56 MB.
+  `--obfuscate` was deliberately not taken with it: enum names are persisted to SQLite as strings
+  through `.name`, and that is not a thing to gamble on for a build that is already stripped.
+- **R8 was measured and does nothing.** `isMinifyEnabled` plus `isShrinkResources` produced an APK of
+  30,645,603 bytes; so did the build without them. Identical to the byte, `classes.dex` 2.466 MB
+  either way. The Android half of a Flutter app is a shell of plugin entry points that the keep
+  rules protect. Reverted, and the reasoning is in README and LESSONS_LEARNT so it does not get
+  proposed again.
+- **The floor is the three libraries that are left**: `libflutter.so` 11.20 MB, `libmaplibre.so`
+  10.35 MB, `libapp.so` 5.56 MB. Nothing short of dropping the map moves it, and the map is evidence.
+- `scripts/build_release.sh` now carries both flags and the explanation, so the small build is the
+  one you get by default rather than the one you have to remember.
+- **The versionCode is now offset by ABI**: pubspec `+17` ships as 2017 on arm64. This is a one-way
+  door. Android refuses a lower versionCode, so every future build for that handset has to be a
+  split one or the update is rejected as a downgrade.
+
+**The code: 58 lines, and that is genuinely all there was.** Every public top-level name, static
+constant, field, method and getter was cross-referenced against the whole of `lib` and `test`. What
+came out was fifteen members nothing ever called:
+
+- `DeviceDescription.summary`, `AWeighting.cascade`, `PcmRingBuffer.addSamples`,
+  `RecorderService.isCapturing`, `EventRecording.durationSeconds`
+- `FlightLookupService.lastError` with its field and its three assignments, and
+  `trackedAircraftCount`
+- `LocationFix.isUsable`, `LocationService.ensurePermission`
+- `CaptureProgress.isBusy`, `CaptureSendResult.needsReview`, and `SnapService.captureAndSend`, whose
+  SEND rationale moved onto `sendCaptured`, the half the UI actually calls
+- `FlightMatch.selected` and `withSelection`, dead because `Snap` carries the real selection
+- `AdsbSource.supportsHistorical` and both of its overrides, declared and never once queried
+
+Everything else survived a reason to exist. `flutter analyze` was already clean, an 8-line clone
+detector found no repetition outside the frozen letter templates in `settings.dart` (which have to
+be duplicated, byte for byte, or the settings upgrade path stops recognising them), all fourteen
+dependencies are imported, and `Database.backfillableSnaps` was left alone because it is scaffolding
+for the offline queue that TODO.md still lists. 150 tests green throughout.
+
+**One thing the sweep turned up that was not about size.** `CLAUDE.md` said three outbound calls; the
+code makes them to five services across six hosts. adsb.lol, airplanes.live, OpenSky (auth and api),
+OpenFreeMap and postcodes.io. Nothing improper is happening, every one of them is coordinates or
+tile numbers with no identifier attached, but a stated non-negotiable that undercounts is worse than
+no statement at all. `CLAUDE.md` now lists all five.

@@ -26,8 +26,6 @@ abstract class AdsbSource {
     required DateTime at,
   }) async =>
       const <AircraftSample>[];
-
-  bool get supportsHistorical => false;
 }
 
 class AdsbException implements Exception {

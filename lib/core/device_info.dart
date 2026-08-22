@@ -26,7 +26,6 @@ class DeviceDescription {
     appVersion: '',
   );
 
-  String get summary => '$model, $osVersion';
 }
 
 class DeviceInfoService {

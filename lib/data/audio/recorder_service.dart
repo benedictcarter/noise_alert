@@ -71,8 +71,6 @@ class RecorderService {
 
   bool get isRunning => _subscription != null;
 
-  /// True between [startEventCapture] and [awaitEventEnd] returning.
-  bool get isCapturing => _event != null;
 
   /// Seconds recorded so far in the current event, for the on-screen clock.
   double get eventSeconds => _eventLength / _eventRate;
@@ -359,6 +357,5 @@ class EventWindow {
   final bool truncated;
 
   double get ambientSeconds => ambient.length / sampleRate;
-  double get durationSeconds => samples.length / sampleRate;
   bool get isEmpty => samples.isEmpty;
 }

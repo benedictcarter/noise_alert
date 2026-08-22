@@ -37,9 +37,6 @@ class OpenSkySource implements AdsbSource {
   @override
   String get name => 'OpenSky';
 
-  @override
-  bool get supportsHistorical => true;
-
   bool get isConfigured => clientId.isNotEmpty && clientSecret.isNotEmpty;
 
   @override

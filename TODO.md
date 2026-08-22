@@ -6,7 +6,7 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
 - [ ] Confirm the airport noise-team address for the default recipient set. `To:` is still
       `benedict.carter@gmail.com` only; `Cc:` is now `info@flightpathwatch.co.uk`.
 - [ ] **UAT:** run the app on a handset, record a real overflight (RECORD -> STOP), check the
-      letter reads right. `noise_alert_b7.apk`.
+      letter reads right. `flightpath-watch-b17-arm64.apk` (29 MB, arm64 only).
 - [ ] **iOS is parked** (2026-08-19, Ben: no Mac and no access to one). Windows cannot build or sign
       an iOS app. When iOS matters, the route is **cloud macOS CI**: Codemagic (free tier, built for
       Flutter, does signing + TestFlight upload) or GitHub Actions `macos-latest`. No Mac needed.
@@ -21,6 +21,10 @@ See [PLAN.md](PLAN.md) for the full design and rationale. Completed items move t
       file manager; there is no `flutter run` hot reload on this handset, so each change means a
       rebuild and re-copy.
 - [ ] CI: `flutter analyze` + `flutter test` on push (GitHub Actions).
+- [ ] Re-run the dead-code sweep after the next feature lands. The scripts that found the
+      fifteen unused members are throwaway but the method is not: cross-reference every public
+      name against `lib` plus `test`, then check anything that only `test` mentions, because a
+      member kept alive solely by its own test is the shape most dead code takes here.
 - [ ] iOS quick-snap: the Android home-screen widget has no iOS counterpart. `QuickSnapChannel`
       degrades to "no pending snap" on any platform without the channel, so nothing breaks, but a
       Control Centre / Lock Screen widget is the iOS equivalent when iOS is unparked.

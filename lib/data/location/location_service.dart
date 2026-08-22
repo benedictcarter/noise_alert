@@ -26,9 +26,6 @@ class SnapLocation {
   /// definitely standing here.
   final bool stale;
 
-  /// A fix this poor makes the geometry meaningless, so the UI warns rather
-  /// than quietly matching against the wrong bit of sky.
-  bool get isUsable => (accuracyM ?? 0) <= 100;
 }
 
 /// Why the location layer cannot currently produce a fix.
@@ -118,7 +115,6 @@ class LocationService {
     return LocationStatus(_map(permission), lastFix: await lastKnown());
   }
 
-  Future<bool> ensurePermission() async => (await request()).isReady;
 
   /// The app's own entry in the OS settings, where a refused permission can
   /// be turned back on. The only way back for a microphone the user has told

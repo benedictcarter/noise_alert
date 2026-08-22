@@ -633,3 +633,42 @@ fence, or a blank line) and run the paired substitution inside each piece. A sin
 substitution is safe over the whole file because it only swaps one character for punctuation.
 Afterwards, check bracket balance *per paragraph* rather than per line, and re-wrap any line the
 join pushed past the file's wrap width.
+
+## `--target-platform android-arm64` does not shrink an APK; `--split-per-abi` does (2026-08-22)
+**Mechanism:** the two flags look interchangeable and are not. `--target-platform` is a Flutter
+concept: it selects which engine and which AOT snapshot the Flutter tool compiles, so it drops
+`libflutter.so` and `libapp.so` for the other CPUs. Every other native library in the app arrives
+inside a plugin's AAR, and the Flutter tool has no say over those. Only Gradle's `splits { abi }`,
+which is what `--split-per-abi` turns on, filters them.
+
+**The incident:** an 83 MB release APK, of which 85% was three copies of the same native libraries.
+Building with `--target-platform android-arm64` produced 47.7 MB and looked like a win. Unzipping it
+showed `lib/x86_64/libmaplibre.so` at 10.7 MB and `lib/armeabi-v7a/libmaplibre.so` at 7.6 MB still
+sitting there: MapLibre is a plugin, so its libraries were untouched and 18 MB of an arm64-only build
+was for CPUs that build could never run on. `--split-per-abi` gave 29.2 MB.
+
+**Rule:** measure the APK, do not trust the flag name. `python -c "import zipfile, collections"` over
+the archive and sum `file_size` by top-level directory takes ten seconds and tells you exactly where
+the megabytes are. Any app with a native plugin needs `--split-per-abi`, not `--target-platform`.
+
+**The tail that bites later:** `--split-per-abi` adds 1000 * ABI index to the versionCode, so
+pubspec `+17` ships as 2017 on arm64. Android refuses to install a lower versionCode over a higher
+one, so the first split build is a one-way door: every subsequent build for that handset must also
+be split, or the update is rejected as a downgrade with the only fix being an uninstall that
+destroys app-private storage.
+
+## R8 buys nothing on a Flutter app, so do not pay for it (2026-08-22)
+**Mechanism:** `isMinifyEnabled` shrinks Java and Kotlin bytecode. In a Flutter app essentially all
+the logic is Dart, already AOT compiled into `libapp.so`, and the Android half is a thin shell of
+plugin registrants and embedding classes reached through reflection and platform channels. Those
+are exactly what the plugins' bundled `consumer-rules.pro` files tell R8 to keep, so there is
+almost nothing left to remove.
+
+**The incident:** enabling `isMinifyEnabled` and `isShrinkResources` on this app produced an arm64
+APK of 30,645,603 bytes. So did the build without them. Byte for byte identical, `classes.dex` at
+2.466 MB either way, despite R8 writing a 2.9 MB `usage.txt` of things it claimed to have removed.
+The dex was 8% of the APK to begin with; the native libraries were 93%.
+
+**Rule:** on a Flutter app, look at where the bytes actually are before reaching for R8. It costs a
+proguard file, a mapping file that has to be archived to read any future stack trace, and a class of
+runtime-only breakage in reflective plugin code, in exchange for nothing measurable.

@@ -41,14 +41,6 @@ class PcmRingBuffer {
     }
   }
 
-  void addSamples(Int16List samples) {
-    for (int i = 0; i < samples.length; i++) {
-      _buffer[_writeIndex] = samples[i];
-      _writeIndex = (_writeIndex + 1) % capacitySamples;
-      _totalWritten++;
-    }
-  }
-
   /// Reads [count] samples ending at absolute timeline position [endPosition]
   /// (exclusive). Positions older than the buffer holds are returned as zeros,
   /// so a snap taken before the buffer filled still yields a valid window.

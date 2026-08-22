@@ -38,12 +38,9 @@ class FlightLookupService {
   final StreamController<List<AircraftTrack>> _trackController =
       StreamController<List<AircraftTrack>>.broadcast();
 
-  String? _lastError;
-  String? get lastError => _lastError;
 
   bool get isTracking => _pollTimer != null;
 
-  int get trackedAircraftCount => _tracks.length;
 
   /// What the cache holds right now, oldest position first within each track.
   ///
@@ -101,11 +98,9 @@ class FlightLookupService {
       final List<AircraftSample> samples =
           await _queryLive(latitude, longitude);
       _ingest(samples);
-      _lastError = null;
-    } on Object catch (e) {
-      // A dropped poll is not worth surfacing; the next one is three seconds
-      // away. Only the message is kept, for the diagnostics line in Settings.
-      _lastError = e.toString();
+    } on Object {
+      // A dropped poll is not worth surfacing; the next one is three
+      // seconds away.
     } finally {
       _pollInFlight = false;
     }
@@ -179,8 +174,7 @@ class FlightLookupService {
           await _queryLive(observer.latitude, observer.longitude);
       _ingest(fresh);
       samples.addAll(fresh);
-    } on Object catch (e) {
-      _lastError = e.toString();
+    } on Object {
       if (samples.isEmpty) {
         return FlightMatch.none(
           searchedFrom: heardAt.subtract(
