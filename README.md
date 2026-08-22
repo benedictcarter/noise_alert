@@ -56,15 +56,20 @@ scripts/build_release.sh
 ```
 
 Use the script rather than a bare `flutter build apk`. A plain release build is 83 MB because it
-carries three copies of every native library, one per CPU; the script splits them and the arm64 APK
-that a real phone installs is 29 MB. The script explains both of its flags and why
-`--target-platform android-arm64` is not one of them.
+carries three copies of every native library, one per CPU; the script splits them and builds only
+the arm64 one a real phone installs, at 29 MB. The script explains all three of its flags, and why
+`--target-platform android-arm64` is safe there and a trap on its own.
+
+arm64 is the only ABI built. Every 64-bit Android phone is arm64 and has been for a decade;
+armeabi-v7a stopped shipping on new handsets around 2015 and x86_64 is for emulators. Dropping
+`--target-platform` brings both back if a 32-bit device ever turns up.
 
 Two consequences of splitting, both permanent:
 
 - The build number is offset by ABI, so pubspec `+17` ships as versionCode 2017 on arm64. Android
   refuses any later install with a lower versionCode, so once a split APK is on a phone every
-  future build for it has to be a split one too.
+  future build for it has to be a split one too. The offset is keyed to the ABI name and not to how
+  many ABIs are built, so restricting the build to arm64 leaves the number where it was.
 - `build/symbols` is the only copy of the Dart symbol table. Archive it next to the APK it came
   from, as `release/symbols-vX.Y.Z`, or that build's stack traces are unreadable forever.
 

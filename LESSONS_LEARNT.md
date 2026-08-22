@@ -730,3 +730,25 @@ the desired state beats an exhaustive hunt for the ways it can be lost. Guard it
 only safe when re-establishing the state is idempotent and cheap, which polling an in-process timer
 is and prompting for a permission is not. That is why the watch calls `check()` and never
 `request()`: a self-healing loop that can raise a dialog heals its way into a Deny.
+
+## Narrowing a `--split-per-abi` build does not move the versionCode (2026-08-22)
+**Mechanism:** Flutter's Gradle plugin computes a split APK's versionCode as
+`1000 * abiIndex + pubspecBuildNumber`, and `abiIndex` comes from a fixed table keyed on the ABI
+*name* (`armeabi-v7a` 1, `arm64-v8a` 2, `x86_64` 4). It is not the position of that ABI in the list
+you happened to build. So `--target-platform android-arm64` narrows the build to one APK and leaves
+its versionCode exactly where it was.
+
+**Why it was worth checking anyway:** if the index had been positional, arm64-only would have
+shipped versionCode 1019 where the previous build was 2019. Android refuses an install whose
+versionCode is lower than the installed one, with an error that names neither number, and the only
+way out is to uninstall and lose the database. That is a one-way door for every phone that already
+has the app, so "the offset probably stays the same" was not good enough. `aapt2 dump badging`
+answers it in two seconds.
+
+**Rule:** any change to the build that could touch the versionCode gets `aapt2 dump badging` run on
+the output before the APK goes near a handset. Cheap check, unrecoverable failure.
+
+**Also worth knowing:** `--target-platform android-arm64` on its own is a trap. It filters Flutter's
+own engine but leaves every plugin's other-ABI native libraries in the APK, which for MapLibre is
+18 MB of dead weight. It is only safe alongside `--split-per-abi`, which is what does the real
+filtering.
