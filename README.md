@@ -43,7 +43,7 @@ grep -rn "^// OUTBOUND" lib
 ```sh
 flutter pub get
 flutter analyze      # must be clean
-flutter test         # 156 tests
+flutter test         # 166 tests
 flutter run          # Android; iOS needs a Mac
 ```
 

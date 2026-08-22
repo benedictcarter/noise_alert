@@ -15,6 +15,7 @@ import 'package:noise_alert/providers.dart';
 import 'package:noise_alert/chart/painter.dart';
 import 'package:noise_alert/chart/live_chart.dart';
 import 'package:noise_alert/map/live_map.dart';
+import 'package:noise_alert/map/nearby.dart';
 import 'package:noise_alert/map/layers.dart';
 import 'package:noise_alert/ui/review/review_screen.dart';
 import 'package:noise_alert/ui/snap/level_meter.dart';
@@ -463,12 +464,7 @@ class _SnapScreenState extends ConsumerState<SnapScreen>
               // the trace below it. The map is what tells the user there is
               // something up there worth pressing RECORD for, and that has to
               // be legible *before* the press.
-              Expanded(
-                child: _LiveMap(
-                  latitude: _location.lastFix?.latitude,
-                  longitude: _location.lastFix?.longitude,
-                ),
-              ),
+              const Expanded(child: _LiveMap()),
               const SizedBox(height: 12),
               // Half-lit when nothing is being recorded. The trace is live
               // either way (the microphone is always listening while this
@@ -594,29 +590,35 @@ class _LiveTrace extends StatelessWidget {
 
 /// The sky overhead, while it is still overhead.
 ///
-/// Drawn from the tracks the matcher's polling has already collected, not from
-/// queries of its own. Putting this on screen therefore costs a donated feed
-/// nothing: it is a view of a cache that was being filled anyway.
+/// Always live. Not while recording, not until a recording is discarded:
+/// always. It draws whatever [nearbyTracks] says is close enough to be worth
+/// looking at, and the recorder's state has nothing to do with it. Both
+/// halves of that are watched rather than held, the fix from
+/// [observerProvider] and the aircraft from [liveTracksProvider], because a
+/// copy taken when this widget was built is a copy that stops being true.
+///
+/// Drawn from the tracks the polling has already collected, not from queries
+/// of its own. Putting this on screen therefore costs a donated feed nothing:
+/// it is a view of a cache that was being filled anyway.
 ///
 /// Not interactive, and sized by its parent. Panning it would be a second way
 /// to get lost on a screen whose job is one button, and the frame it chooses
 /// (the house plus whatever is flying near it) is the frame worth looking at.
 class _LiveMap extends ConsumerWidget {
-  const _LiveMap({required this.latitude, required this.longitude});
-
-  final double? latitude;
-  final double? longitude;
+  const _LiveMap();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final SnapLocation? here = ref.watch(observerProvider).value;
     final List<AircraftTrack> tracks =
         ref.watch(liveTracksProvider).value ?? const <AircraftTrack>[];
     return FlightMapPanel(
-      latitude: latitude,
-      longitude: longitude,
+      latitude: here?.latitude,
+      longitude: here?.longitude,
       interactive: false,
       aircraft: <MapAircraft>[
-        for (final AircraftTrack t in tracks) MapAircraft.ofTrack(t),
+        for (final AircraftTrack t in nearbyTracks(tracks, here))
+          MapAircraft.ofTrack(t),
       ],
       emptyMessage: 'No location fix yet, so there is no map. Recording and '
           'complaining both work without one.',

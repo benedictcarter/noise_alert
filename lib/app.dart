@@ -72,12 +72,42 @@ class HomeShell extends ConsumerStatefulWidget {
   ConsumerState<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends ConsumerState<HomeShell> {
+class _HomeShellState extends ConsumerState<HomeShell>
+    with WidgetsBindingObserver {
   static const List<Widget> _pages = <Widget>[
     SnapScreen(),
     HistoryScreen(),
     SettingsScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Reading it is what builds it, and building it starts it.
+    ref.read(skyWatchProvider);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// The only thing in the app that stops the aircraft polling.
+  ///
+  /// It lives up here rather than on the record screen because the map is not
+  /// the record screen's: history and review draw one too, and the polling has
+  /// to outlive whichever tab the user is looking at. Tying it to a recording
+  /// is what used to leave the map frozen after a discard.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.read(skyWatchProvider).start();
+    } else if (state == AppLifecycleState.paused) {
+      ref.read(skyWatchProvider).stop();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

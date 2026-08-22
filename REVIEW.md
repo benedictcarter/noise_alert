@@ -1,6 +1,6 @@
 # Reviewing this codebase
 
-10,925 lines of Dart in `lib/`, plus 156 tests. This is the order to read it in
+11,211 lines of Dart in `lib/`, plus 166 tests. This is the order to read it in
 and what to look for in each part.
 
 The directories are functional lanes, not layers. There is no `data/`,
@@ -134,7 +134,7 @@ which leans on it.
 [where/location.dart](lib/where/location.dart) (217) is permissions and fixes.
 The thing to note: a missing fix degrades the complaint, it never blocks it.
 
-### 4. `flights/` (929 lines)
+### 4. `flights/` (1,087 lines)
 
 1. [flights/aircraft.dart](lib/flights/aircraft.dart) (178) and
    [flights/match.dart](lib/flights/match.dart) (95). The shapes.
@@ -145,6 +145,8 @@ The thing to note: a missing fix degrades the complaint, it never blocks it.
    before you heard it.
 4. [flights/lookup.dart](lib/flights/lookup.dart) (254). Which source, in what
    order, and the rolling track cache.
+5. [flights/watch.dart](lib/flights/watch.dart) (158). Who turns the polling on
+   and off. Short answer: opening the app and leaving it, and nothing else.
 
 **The design decision to check:** the app names the top candidate outright when
 it was within 1 km horizontally
@@ -154,9 +156,10 @@ match and has not been independently verified. That wording is not decoration:
 it is what makes naming a stranger's callsign defensible.
 
 Tests: [flight_matcher_test.dart](test/flight_matcher_test.dart) (6),
-[auto_confirm_test.dart](test/auto_confirm_test.dart) (4).
+[auto_confirm_test.dart](test/auto_confirm_test.dart) (4),
+[sky_watch_test.dart](test/sky_watch_test.dart) (10).
 
-### 5. `map/` (1,679 lines)
+### 5. `map/` (1,726 lines)
 
 The largest lane and the least surprising. The whole of it exists because
 MapLibre's snapshotter renders the basemap only: runtime layers are absent from
@@ -173,7 +176,9 @@ app's own projection.
    render.
 4. [map/live_map.dart](lib/map/live_map.dart) (439),
    [map/layers.dart](lib/map/layers.dart) (166),
-   [map/plane_icon.dart](lib/map/plane_icon.dart) (97). The on-screen map.
+   [map/plane_icon.dart](lib/map/plane_icon.dart) (97),
+   [map/nearby.dart](lib/map/nearby.dart) (35). The on-screen map, and how much
+   of the sky it is willing to draw.
 
 Tests: [map_test.dart](test/map_test.dart) (24).
 
@@ -241,7 +246,7 @@ visible.
 
 ```
 flutter analyze     # expected: no issues
-flutter test        # expected: 156 passing
+flutter test        # expected: 166 passing
 ```
 
 Release build: [scripts/build_release.sh](scripts/build_release.sh). It carries

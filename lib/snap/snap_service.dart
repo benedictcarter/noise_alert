@@ -18,6 +18,7 @@ import 'package:noise_alert/mic/recorder.dart';
 import 'package:noise_alert/mic/wav_writer.dart';
 import 'package:noise_alert/chart/image_service.dart';
 import 'package:noise_alert/flights/lookup.dart';
+import 'package:noise_alert/flights/watch.dart';
 import 'package:noise_alert/flights/matcher.dart';
 import 'package:noise_alert/where/location.dart';
 import 'package:noise_alert/map/image_service.dart';
@@ -75,6 +76,7 @@ class SnapService {
     required this.recorder,
     required this.lookup,
     required this.deviceInfo,
+    this.skyWatch,
     this.location = const LocationService(),
     this.analyzer = const NoiseAnalyzer(),
     this.wavWriter =
@@ -89,6 +91,17 @@ class SnapService {
   final RecorderService recorder;
   final FlightLookupService lookup;
   final DeviceInfoService deviceInfo;
+
+  /// Owns the aircraft polling, and is never stopped from in here.
+  ///
+  /// The capture path used to start and stop the polling itself, which tied
+  /// the live map to the recorder: discarding a recording left the map frozen
+  /// on the last aeroplanes it had seen. All that is left of that arrangement
+  /// is [SkyWatch.offer], which hands over the fix this capture has just paid
+  /// for so the map does not ask the receiver for its own.
+  ///
+  /// Null in tests that do not care about the map.
+  final SkyWatch? skyWatch;
   final LocationService location;
   final NoiseAnalyzer analyzer;
   final WavWriter wavWriter;
@@ -170,13 +183,12 @@ class SnapService {
       _locationStatus = const LocationStatus(LocationAvailability.denied);
     }
 
-    // Best-effort: the last known fix is good enough to aim the ADS-B query,
-    // and waiting for a fresh one would leave the track cache empty for the
-    // first several seconds.
+    // The aircraft polling is not started here. It belongs to [SkyWatch] and
+    // runs whether or not anything is recording, which is the whole of the
+    // difference between a map that survives a discarded recording and one
+    // that does not. Handing over the last known fix only saves it a check.
     final SnapLocation? seed = _locationStatus.lastFix;
-    if (seed != null) {
-      lookup.startTracking(latitude: seed.latitude, longitude: seed.longitude);
-    }
+    if (seed != null) skyWatch?.offer(seed);
   }
 
   /// Ends the recording and saves it. The user's STOP.
@@ -204,7 +216,10 @@ class SnapService {
   Future<void> disarm() async {
     await _transition;
     _armed = false;
-    lookup.stopTracking();
+    // Deliberately does not stop the aircraft polling. Disarming means the
+    // microphone is closed, not that the user has stopped caring what is
+    // overhead. Only leaving the app stops the polling, and only [SkyWatch]
+    // does that.
 
     final Future<void> disarming = recorder.stop();
     _transition = disarming;
@@ -630,9 +645,9 @@ class SnapService {
       final SnapLocation fix = await location.current(
         timeout: const Duration(seconds: 12),
       );
-      if (!lookup.isTracking) {
-        lookup.startTracking(latitude: fix.latitude, longitude: fix.longitude);
-      }
+      // The freshest fix anyone has. Give it to the map rather than let it
+      // take one of its own a second later.
+      skyWatch?.offer(fix);
       return fix;
     } on Object {
       // A stale fix beats no snap at all: the user is standing in their own

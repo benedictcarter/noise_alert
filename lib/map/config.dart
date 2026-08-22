@@ -19,6 +19,18 @@ class MapConfig {
   /// just cannot draw the streets under them, and it says which.
   static const int styleTimeoutMs = 8000;
 
+  /// How far out the live map on the record screen draws aircraft.
+  ///
+  /// The query behind it reaches 25 nm because the matcher needs that much: an
+  /// aircraft heard here can be a long way off. What is worth *looking* at is
+  /// a much smaller circle, and drawing forty distant aeroplanes over one
+  /// street turns the useful ones into clutter. Five kilometres is about the
+  /// distance at which an airliner is still plainly the one you can hear.
+  ///
+  /// Display only. The evidence map drawn for the complaint shows whichever
+  /// aircraft was matched, however far away it turned out to be.
+  static const double liveRadiusM = 5000;
+
   /// Size of the PNG attached to the complaint, in pixels.
   ///
   /// Wide enough to read street names when printed on A4, small enough that

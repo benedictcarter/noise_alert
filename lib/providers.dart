@@ -7,6 +7,8 @@ import 'package:noise_alert/ui/snap/quick_snap.dart';
 import 'package:noise_alert/mic/recorder.dart';
 import 'package:noise_alert/flights/source.dart';
 import 'package:noise_alert/flights/lookup.dart';
+import 'package:noise_alert/flights/watch.dart';
+import 'package:noise_alert/where/location.dart';
 import 'package:noise_alert/net/client.dart';
 import 'package:noise_alert/net/opensky.dart';
 import 'package:noise_alert/net/live_adsb.dart';
@@ -149,6 +151,37 @@ final Provider<FlightLookupService> flightLookupProvider =
   return service;
 });
 
+/// Owns the aircraft polling, for the whole time the app is in front of the
+/// user.
+///
+/// Watched rather than read by [snapServiceProvider], so a settings change
+/// that rebuilds the lookup service rebuilds this too and the new service
+/// starts polling instead of sitting idle. That rebuild is one of the ways the
+/// map used to go quiet.
+final Provider<SkyWatch> skyWatchProvider = Provider<SkyWatch>((Ref ref) {
+  final SkyWatch watch = SkyWatch(
+    lookup: ref.watch(flightLookupProvider),
+    location: const LocationService(),
+  );
+  // Started on construction, so a rebuild cannot leave a watch that nobody
+  // thought to start. Only backgrounding the app stops it.
+  watch.start();
+  ref.onDispose(watch.dispose);
+  return watch;
+});
+
+/// Where the user is, as it is renewed, for anything that draws a map.
+///
+/// A screen that reads the fix once and keeps it shows a map that was right
+/// when the screen was built. This is the fix as it changes, which is what the
+/// record screen's map is framed on.
+final StreamProvider<SnapLocation?> observerProvider =
+    StreamProvider<SnapLocation?>((Ref ref) {
+  final SkyWatch watch = ref.watch(skyWatchProvider);
+  return Stream<SnapLocation?>.value(watch.observer)
+      .followedBy(watch.observerStream);
+});
+
 /// Draws the picture attached to the complaint.
 ///
 /// Kept for the app's lifetime rather than rebuilt with the snap service: the
@@ -163,6 +196,7 @@ final Provider<SnapService> snapServiceProvider =
     database: ref.watch(databaseProvider),
     recorder: ref.watch(recorderProvider),
     lookup: ref.watch(flightLookupProvider),
+    skyWatch: ref.watch(skyWatchProvider),
     deviceInfo: ref.watch(deviceInfoProvider),
     mapImages: ref.watch(mapImageProvider),
   );

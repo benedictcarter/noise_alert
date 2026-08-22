@@ -411,3 +411,35 @@ review, "what leaves the device", was answered in none of them.
 - **[REVIEW.md](REVIEW.md)** is the reading order: the outbound surface first, then the lanes,
   with the design decision worth arguing about called out in each and the tests that cover it
   named.
+
+## The live map stopped being a by-product of a recording (2026-08-22)
+UAT: record a flight, discard it, and the aircraft on the map froze where they were, with nothing
+on screen to say they had. The map stayed frozen for the rest of the session.
+
+- **The polling belonged to the capture.** `SnapService._arm()` started the aircraft poll, and only
+  `if (seed != null)`, so a cold start with no last-known fix never started it at all. `disarm()`
+  stopped it. Backgrounding the app called `disarm()`. `_arm()` returned early if already armed. And
+  the record screen's map was handed `_location.lastFix` read once at arm time, so even when the
+  poll was running the map was framed on a fix that had stopped being renewed. Four ways to freeze
+  a map, in a lane that has nothing to do with drawing one.
+- **[flights/watch.dart](lib/flights/watch.dart) owns it now.** `SkyWatch` starts when the app comes
+  to the front and stops when it leaves, and that is the entire lifecycle. Nothing in the capture
+  path may touch it. Recording, discarding, saving, sending and switching tabs are all invisible to
+  it.
+- **It heals itself.** Every 20 s it checks `lookup.isTracking`, and restarts the poll if that has
+  gone false. Whatever stopped it, and whether or not this file ever learns what that was, the map
+  is live again within a tick. That clause is the reason this is a fix rather than a guess about
+  which of the four triggers the user hit.
+- **It cannot raise a permission dialog.** It calls `location.check()`, never `request()`. The
+  record screen stays the one place that asks, because a second dialog appearing from behind the
+  first is how a Deny happens.
+- **The capture pays for the fix, once.** `SnapService` now calls `skyWatch.offer(fix)` where it
+  used to call `startTracking`, so the map and the complaint are centred on the same fix rather than
+  on two taken seconds apart.
+- **The map draws 5 km** ([`MapConfig.liveRadiusM`](lib/map/config.dart)), filtered by
+  [map/nearby.dart](lib/map/nearby.dart). The query behind it still reaches 25 nm because the
+  matcher needs that much; forty aeroplanes strewn across three counties is not a picture of what is
+  overhead. Judged on each aircraft's latest position, so one that passed ten minutes ago drops off
+  rather than leaving its tail across the map.
+- **Ten tests** in [sky_watch_test.dart](test/sky_watch_test.dart), including the regression itself:
+  stop the poll by any means and it is back within a tick. 166 green.

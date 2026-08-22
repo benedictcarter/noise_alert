@@ -701,3 +701,32 @@ not reassurance, it is a symptom worth checking: compare the analysed file count
 attempt itself, which passed a git-bash `/c/...` path to a Windows `python`, got `FileNotFoundError`,
 and so re-ran the unpatched script over the restored tree. Convert with `cygpath -w` before handing
 a path to any native Windows executable.
+
+## A screen's data source must not hang off an unrelated lifecycle (2026-08-22)
+**Mechanism:** two features needed the same aircraft poll, so the second one to be written simply
+used the first one's. Matching a recording to a flight needs the poll; drawing the live map needs
+the poll. The matcher was there first, so the poll was started in `_arm()` and stopped in
+`disarm()`. That is a perfectly good lifecycle for matching and a nonsensical one for a map, and
+nothing in the code said so: the map lane had no opinion about when it was allowed to have data,
+because the wiring lived in the capture lane.
+
+**The incident:** record a flight, discard it, and the map froze. Chasing it turned up not one bug
+but four, all of them the same bug wearing different clothes. `_arm()` started the poll only if a
+last-known fix existed, so a cold start never started it. `disarm()` stopped it. The app lifecycle
+handler called `disarm()` on pause. And the map widget was passed a fix captured at arm time, so it
+was framed on a stale point even while the poll ran. Each is individually defensible; together they
+made a map that stopped for reasons no user could ever infer.
+
+**Rule:** whatever a screen shows continuously must be owned by something whose lifetime matches
+"the screen can be seen", not borrowed from a feature that happens to produce the same data. If two
+features need one stream, give the stream its own owner and let both read it. Neither may start or
+stop it.
+
+**The part worth stealing:** the fix does not depend on having found all four causes. `SkyWatch`
+re-checks `lookup.isTracking` on a 20 s tick and restarts the poll if it has gone false, so any
+fifth cause nobody has found yet costs one tick of frozen map instead of a session of it. When a
+symptom has several possible triggers and the state is cheap to verify, a periodic reassertion of
+the desired state beats an exhaustive hunt for the ways it can be lost. Guard it: reassertion is
+only safe when re-establishing the state is idempotent and cheap, which polling an in-process timer
+is and prompting for a permission is not. That is why the watch calls `check()` and never
+`request()`: a self-healing loop that can raise a dialog heals its way into a Deny.
